@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+# Load settings
+HOST=$(grep -oP 'hostName\s*=\s*"\K[^"]+' settings.nix)
+USER=$(grep -oP 'adminUser\s*=\s*"\K[^"]+' settings.nix)
+TARGET="${USER}@${HOST}.local"
+
+usage() {
+    echo "Usage: $0 <command>"
+    echo ""
+    echo "Remote wrapper for NAS management. Runs commands via SSH."
+    echo ""
+    echo "Commands:"
+    echo "  ssh           Open interactive SSH session"
+    echo "  help          Show available NAS commands"
+    echo "  <command>     Run any NAS command remotely (see 'help')"
+    echo ""
+    echo "Examples:"
+    echo "  $0 rebuild        # Rebuild from remote flake"
+    echo "  $0 rebuild-update # Update and rebuild"
+    echo "  $0 rebuild-reboot # Rebuild and reboot"
+    echo "  $0 rebuild-log    # View last rebuild log"
+    echo "  $0 system-info    # Show system status"
+    echo "  $0 ssh            # Interactive session"
+    exit 1
+}
+
+[[ $# -lt 1 ]] && usage
+
+CMD="$1"
+shift
+
+case "$CMD" in
+    ssh)
+        exec ssh "$TARGET"
+        ;;
+    help)
+        ssh "$TARGET" "nas-help"
+        ;;
+    *)
+        ssh -t "$TARGET" "$CMD" "$@"
+        ;;
+esac

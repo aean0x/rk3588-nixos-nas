@@ -2,23 +2,21 @@
 
 A NixOS configuration for the ROCK5 ITX board, featuring automated installation and secure secrets management.
 
-Intended to provide a straightforward, all-in-one guide and repo for installing and managing a headless NixOS server setup on a Rock 5 ITX board.
-
 ## Prerequisites
 
 - A Linux system with Nix installed
 - Git
-- SSH key pair (for secure management)
+- SSH key pair
 
 ## Initial Setup
 
-1. **Fork and Clone the Repository**
+1. **Fork and Clone**
    ```bash
    git clone https://github.com/YOUR_USERNAME/rock-5-nas.git
    cd rock-5-nas
    ```
 
-2. **Generate SSH Key** (if you don't have one)
+2. **Generate SSH Key** (if needed)
    ```bash
    ssh-keygen -t ed25519 -C "your_email@example.com"
    cat ~/.ssh/id_ed25519.pub
@@ -26,56 +24,44 @@ Intended to provide a straightforward, all-in-one guide and repo for installing 
 
 3. **Configure Settings**
    
-   Edit `settings.nix` with your specific configuration:
-   - Update `repoUrl` to match your fork (e.g., `"your-username/rock-5-nas"`)
-   - Update `hostName` if desired
-   - Set your `adminUser` username
+   Edit `settings.nix`:
+   - `repoUrl` - Your fork (e.g., `"your-username/rock-5-nas"`)
+   - `hostName` - System hostname (default: `rock-5-nas`)
+   - `adminUser` - Your username
 
 4. **Configure Secrets**
    
-   Run the encryption script to set up your secrets:
+   Secrets are encrypted with SOPS and safe to commit publicly. Edit on your workstation:
    ```bash
    cd secrets
-   ./encrypt.sh
+   ./encrypt
    ```
-   This will:
-   - Generate an age encryption key (if none exists)
-   - Create `.sops.yaml` with your public key
-   - Open `secrets.yaml.work` in nano for editing
-   - Encrypt your secrets when you save and exit
+   This generates an encryption key, opens `secrets.yaml.work` in nano, and encrypts on save.
 
-   Fill in the required values (see `secrets.yaml.example` for full schema):
+   Required values (see `secrets.yaml.example` for full schema):
    - `user.hashedPassword` - Generate with `mkpasswd -m SHA-512`
    - `user.pubKey` - Your SSH public key from step 2
 
-5. **Commit Your Changes**
+5. **Commit and Push**
    ```bash
    git add .
    git commit -m "Initial configuration"
    git push
    ```
-   This ensures your configuration is available during installation.
 
 ## Bootloader Configuration
 
-Before building the ISO, you need to flash the EDK2 UEFI firmware to your ROCK5 ITX board. This is required for proper booting and installation.
+Flash the EDK2 UEFI firmware before building the ISO.
 
 1. **Download Required Files**
-   - [rk3588_spl_loader_v1.15.113.bin](https://dl.radxa.com/rock5/sw/images/loader/rk3588_spl_loader_v1.15.113.bin) - SPI bootloader image
-   - [rock-5-itx_UEFI_Release_v1.1.img](https://github.com/edk2-porting/edk2-rk3588/releases/) - UEFI bootloader image for "rock-5-itx"
+   - [rk3588_spl_loader_v1.15.113.bin](https://dl.radxa.com/rock5/sw/images/loader/rk3588_spl_loader_v1.15.113.bin) - SPI bootloader
+   - [rock-5-itx_UEFI_Release](https://github.com/edk2-porting/edk2-rk3588/releases/) - UEFI image (select "rock-5-itx")
 
 2. **Flash the Bootloader**
    ```bash
-   # Install rkdeveloptool
    nix-shell -p rkdeveloptool
-
-   # Download bootloader
    sudo rkdeveloptool db rk3588_spl_loader_v1.15.113.bin
-
-   # Write UEFI image
    sudo rkdeveloptool wl 0 rock-5-itx_UEFI_Release_vX.XX.X.img
-
-   # Reset device
    sudo rkdeveloptool rd
    ```
 
@@ -86,77 +72,104 @@ Before building the ISO, you need to flash the EDK2 UEFI firmware to your ROCK5 
 
 ## Building the ISO
 
-1. **Build the ISO with SOPS Integration**
+1. **Build**
    ```bash
-   ./build-iso.sh
+   ./build-iso
    ```
-   This script:
-   - Validates that `settings.nix` matches your git remote (prompts to edit if not)
-   - Ensures SOPS encryption is set up
-   - Builds the ISO with the encryption key included (required to build the final system)
-   - Outputs the ISO to `result/`
 
-2. **Write the ISO to a USB Drive**
+2. **Write to USB**
    ```bash
-   # Replace /dev/sdX with your USB drive
-   sudo dd if=result/iso/nixos-*.iso of=/dev/sdX bs=4M status=progress
+   sudo dd if=result/iso/nixos-*.iso of=/dev/sdX bs=4M status=progress && sync
    ```
 
 ## Installation
 
-1. **Boot from the ISO**
-   - Insert the USB drive into your ROCK5 ITX
-   - Boot from the USB drive
+1. **Boot from USB** on your ROCK5 ITX
 
-2. **Connect via SSH** (optional)
+2. **Connect via SSH**
    ```bash
-   ssh setup@<device-ip>
-   # Password: nixos (or as set in settings.setupPassword)
+   ssh your_username@rock-5-nas.local
+   # Password: nixos (or as configured in settings.setupPassword)
    ```
 
 3. **Run the Installer**
    ```bash
    sudo nixinstall
    ```
-   The installer will:
-   - List available storage devices
-   - Partition and format the target drive (with optional EMMC boot)
-   - Copy the SOPS key for secret decryption
-   - Install NixOS from your remote flake
-   - Set up SSH access and your user account
 
 4. **First Boot**
-   - Remove the installation media
-   - Reboot the system
-   - SSH into your new system using your configured key:
-     ```bash
-     ssh your_username@your_hostname
-     ```
+   
+   Remove installation media and reboot. Connect with your SSH key:
+   ```bash
+   ssh your_username@rock-5-nas.local
+   ```
 
 ## System Management
 
-The system fetches configuration directly from your GitHub repository. To make changes, edit files locally, commit, push, then run `rebuild` on the NAS.
+### Remote Deployment
+
+Deploy changes from your workstation via `./deploy <command>`:
+
+```bash
+./deploy rebuild        # Rebuild from remote flake
+./deploy rebuild-update # Update flake inputs and rebuild
+./deploy rebuild-reboot # Rebuild and reboot
+./deploy rebuild-log    # View last rebuild log
+./deploy system-info    # Show system status
+./deploy help           # List all commands
+./deploy ssh            # Interactive session
+```
 
 ### Available Commands
+
+Run directly on the NAS or remotely via `deploy`:
 
 | Command | Description |
 |---------|-------------|
 | `rebuild` | Rebuild system from remote flake |
-| `rebuild-boot` | Rebuild and apply on next reboot |
-| `cleanup` | Garbage collect and optimize nix store |
+| `rebuild-boot` | Rebuild, apply on next reboot |
+| `rebuild-reboot` | Rebuild and reboot immediately |
+| `rebuild-update` | Update flake inputs and rebuild |
+| `rebuild-log` | View last rebuild log |
+| `rollback` | Rollback to previous generation |
+| `cleanup` | Garbage collect and optimize store |
 | `system-info` | Show system status and disk usage |
-
-Pass additional flags to `rebuild` as needed (e.g., `rebuild --upgrade`).
+| `nas-help` | List available commands |
 
 ### Editing Secrets
 
-On the installed system or your dev machine:
-
+On your workstation (secrets cannot be decrypted on the NAS without the key):
 ```bash
-cd /path/to/rock-5-nas/secrets
-./decrypt.sh          # Decrypt to secrets.yaml.work
+cd secrets
+./decrypt          # Decrypt to secrets.yaml.work
 nano secrets.yaml.work
-./encrypt.sh          # Re-encrypt changes
+./encrypt          # Re-encrypt changes
+```
+Commit, push, and `rebuild` to apply.
+
+### Enabling Services
+
+Optional service modules are in `hosts/system/services/`. Enable by uncommenting imports in `hosts/system/default.nix`:
+
+```nix
+imports = [
+  # ...
+  # ./services/cockpit.nix      # Web-based system management (port 9090)
+  # ./services/caddy.nix        # Reverse proxy with automatic HTTPS
+  # ./services/containers.nix   # Docker + Podman
+  # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin, etc.)
+  # ./services/transmission.nix # Torrent client with VPN killswitch
+  ./services/remote-desktop.nix # XFCE + xrdp (enabled by default)
+  ./services/tasks.nix          # Auto-upgrade and garbage collection
+];
 ```
 
-Then commit, push, and `rebuild` to apply.
+Some services require secrets — check the service file for `config.sops.secrets.*` references and ensure matching entries exist in your `secrets.yaml`.
+
+## Notable Features
+
+- **ZFS Support** - Auto-scrub, snapshots, and trim enabled by default. Pools auto-import.
+- **VPN Killswitch** - Transmission routes only through WireGuard tunnel (requires `vpn.wgConf` secret)
+- **mDNS** - System broadcasts `hostname.local` for easy discovery
+- **Remote Flake** - No local config needed on NAS; rebuilds fetch directly from GitHub
+- **Cross-compilation** - ISO builds on x86_64 for aarch64 target
