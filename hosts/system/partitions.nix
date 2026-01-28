@@ -1,7 +1,6 @@
 # Storage configuration for ROCK5 ITX
 {
   pkgs,
-  settings,
   ...
 }:
 

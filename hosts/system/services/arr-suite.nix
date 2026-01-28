@@ -1,6 +1,6 @@
 # Media server suite (Sonarr, Radarr, Lidarr, Prowlarr, Jellyfin, Jellyseerr)
 # Transmission config is in transmission.nix
-{ config, pkgs, settings, ... }:
+{ config, settings, ... }:
 
 {
   nixarr = {

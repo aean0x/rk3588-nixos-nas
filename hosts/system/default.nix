@@ -1,14 +1,10 @@
 # Main system configuration for ROCK5 ITX
 {
   config,
-  pkgs,
   settings,
   ...
 }:
 
-let
-  flakeRef = "github:${settings.repoOwner}/${settings.repoName}#${settings.hostName}";
-in
 {
   imports = [
     # System configuration

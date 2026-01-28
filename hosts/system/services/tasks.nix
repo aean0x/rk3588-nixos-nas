@@ -1,5 +1,5 @@
 # System tasks and cron jobs
-{ config, lib, pkgs, settings, ... }:
+{ settings, ... }:
 
 let
   flakeRef = "github:${settings.repoOwner}/${settings.repoName}#${settings.hostName}";

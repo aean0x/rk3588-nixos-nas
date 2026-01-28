@@ -1,6 +1,6 @@
 # Centralized SOPS configuration
 # Import this module in hosts/system/default.nix
-{ config, ... }:
+{ ... }:
 {
   sops = {
     defaultSopsFile = ./secrets.yaml;

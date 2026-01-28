@@ -1,5 +1,5 @@
 # Remote desktop configuration (XFCE + xrdp)
-{ config, lib, pkgs, settings, ... }:
+{ settings, ... }:
 
 {
   services.xserver = {
