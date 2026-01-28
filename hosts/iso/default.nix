@@ -45,8 +45,16 @@ in
     settings.PasswordAuthentication = true;
   };
 
+  # mDNS for hostname.local resolution
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    publish.enable = true;
+    publish.addresses = true;
+  };
+
   # Default user for ISO (password auth only)
-  users.users.setup = {
+  users.users.${settings.adminUser} = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     password = settings.setupPassword;

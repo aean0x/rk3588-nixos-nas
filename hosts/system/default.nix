@@ -36,6 +36,14 @@ in
     hostId = "8425e349"; # Required for ZFS. Leave it or randomize it- doesn't matter.
   };
 
+  # mDNS for hostname.local resolution
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    publish.enable = true;
+    publish.addresses = true;
+  };
+
   # Enable SSH access
   services.openssh = {
     enable = true;
