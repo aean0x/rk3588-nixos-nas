@@ -79,7 +79,7 @@ Flash the EDK2 UEFI firmware before building the ISO.
 
 2. **Write to USB**
    ```bash
-   sudo dd if=result/iso/nixos-*.iso of=/dev/sdX bs=4M status=progress && sync
+   sudo dd if="$(ls result/iso/*.iso)" of=/dev/sda bs=4M status=progress && sync
    ```
 
 ## Installation

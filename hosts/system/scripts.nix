@@ -1,5 +1,5 @@
 # System management scripts
-# Commands are discoverable via `nas-help` and remotely via `deploy.sh`
+# Commands are discoverable via `nas-help` and remotely via `deploy`
 { pkgs, settings, ... }:
 
 let
@@ -88,7 +88,7 @@ in
       du -sh /nix/store 2>/dev/null || echo "Unable to calculate"
     '')
 
-    # List available NAS management commands (used by deploy.sh)
+    # List available NAS management commands (used by deploy)
     (writeShellScriptBin "nas-help" ''
       echo "NAS Management Commands:"
       echo ""

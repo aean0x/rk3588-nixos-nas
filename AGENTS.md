@@ -29,13 +29,13 @@ flake.nix                    # Entry point - two outputs: system config + ISO bu
     ├── sops.nix             # Centralized secrets module (imported by system)
     ├── secrets.yaml         # Encrypted secrets (committed)
     ├── secrets.yaml.example # Template for new users
-    ├── encrypt.sh           # Key generation + encryption workflow
-    └── decrypt.sh           # Decrypt for editing
+    ├── encrypt           # Key generation + encryption workflow
+    └── decrypt           # Decrypt for editing
 ```
 
 ## Build Targets
 
-- `./build-iso.sh` - Validates settings, sets up SOPS, builds ISO with `--impure`
+- `./build-iso` - Validates settings, sets up SOPS, builds ISO with `--impure`
 - `nix build .#iso` - Direct ISO build (requires KEY_FILE_PATH env var)
 
 ## Key Patterns
@@ -56,11 +56,11 @@ flake.nix                    # Entry point - two outputs: system config + ISO bu
 - `services.caddy.cloudflareToken` - Cloudflare API token (if using caddy)
 
 ### SOPS Flow
-1. `build-iso.sh` validates repoUrl matches git remote, prompts to edit if not
-2. `encrypt.sh` detects forked repos (can't decrypt existing secrets.yaml)
+1. `build-iso` validates repoUrl matches git remote, prompts to edit if not
+2. `encrypt` detects forked repos (can't decrypt existing secrets.yaml)
 3. Offers to overwrite with example, opens nano for editing
 4. Generates age key if missing, encrypts to secrets.yaml
-5. `build-iso.sh` embeds key in ISO via `KEY_FILE_PATH` env var
+5. `build-iso` embeds key in ISO via `KEY_FILE_PATH` env var
 6. Installer copies key to `/mnt/var/lib/sops-nix/key.txt`
 7. System decrypts secrets at activation time
 
@@ -74,7 +74,7 @@ flake.nix                    # Entry point - two outputs: system config + ISO bu
 ### Adding Secrets
 1. Add key to `secrets/sops.nix` secrets block
 2. Add placeholder to `secrets.yaml.example`
-3. Run `./secrets/decrypt.sh` → edit → `./secrets/encrypt.sh`
+3. Run `./secrets/decrypt` → edit → `./secrets/encrypt`
 4. Reference as `config.sops.secrets."path".path` in modules
 
 ### Enabling Services
@@ -84,14 +84,14 @@ flake.nix                    # Entry point - two outputs: system config + ISO bu
 
 ### Forking for Your Own Use
 1. Fork repo, clone locally
-2. Run `./build-iso.sh` - will detect mismatched repoUrl and prompt to edit settings.nix
-3. `encrypt.sh` detects foreign secrets, prompts to overwrite with example
+2. Run `./build-iso` - will detect mismatched repoUrl and prompt to edit settings.nix
+3. `encrypt` detects foreign secrets, prompts to overwrite with example
 4. Fill in your secrets in nano when prompted
 5. Commit changes, build completes
 
 ## Installation Flow
 
-1. `build-iso.sh` → ISO with embedded SOPS key
+1. `build-iso` → ISO with embedded SOPS key
 2. Boot ISO, SSH as `setup` (password: `nixos` or as set in settings.setupPassword)
 3. Run `sudo nixinstall`
 4. Select target device (GPT, optional EMMC boot)

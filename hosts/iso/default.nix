@@ -20,7 +20,8 @@ in
   # ISO specific configuration
   image.fileName = "${settings.hostName}-${config.system.nixos.label}-${pkgs.stdenv.hostPlatform.system}.iso";
   isoImage = {
-    volumeID = "${settings.hostName}_${config.system.nixos.label}";
+
+    volumeID = builtins.substring 0 32 "${settings.hostName}_${config.system.nixos.label}"; # limit to 32 characters
     makeEfiBootable = true;
     makeBiosBootable = false;
   };

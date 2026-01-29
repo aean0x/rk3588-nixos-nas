@@ -28,13 +28,23 @@ fi
 # Ensure secrets are set up
 echo "Setting up SOPS encryption..."
 cd secrets
-./encrypt.sh
+./encrypt
 cd ..
 
-# Verify key exists
-KEY_PATH="$(pwd)/secrets/key.txt"
-if [ ! -f "$KEY_PATH" ]; then
-    echo "Error: key.txt not found in secrets/"
+# Find key (same logic as secrets/encrypt)
+if [ -r "$(pwd)/secrets/key.txt" ]; then
+    KEY_PATH="$(pwd)/secrets/key.txt"
+    echo "Using key: secrets/key.txt"
+elif [ -r /var/lib/sops-nix/key.txt ]; then
+    KEY_PATH="/var/lib/sops-nix/key.txt"
+    echo "Using key: /var/lib/sops-nix/key.txt"
+else
+    if [ -f /var/lib/sops-nix/key.txt ]; then
+        echo "Error: /var/lib/sops-nix/key.txt exists but is not readable"
+        echo "Fix with: sudo cp /var/lib/sops-nix/key.txt secrets/key.txt && sudo chown \$USER secrets/key.txt"
+    else
+        echo "Error: No key found in secrets/key.txt or /var/lib/sops-nix/key.txt"
+    fi
     exit 1
 fi
 
