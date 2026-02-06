@@ -13,6 +13,13 @@ in
   adminUser = "user";
   setupPassword = "nixos"; # Temp password for ISO SSH access
 
+  # SSH public keys for authentication (one per line)
+  # Get your key with: cat ~/.ssh/id_ed25519.pub
+  sshPubKeys = [
+    "ssh-ed25519 AAAA... user@workstation"
+    # "ssh-ed25519 AAAA... user@laptop"
+  ];
+
   # Repository coordinates (parsed from repoUrl)
   inherit repoUrl;
   repoOwner = builtins.elemAt parts 0;

@@ -70,14 +70,14 @@
   # User configuration
   users.users.${settings.adminUser} = {
     isNormalUser = true;
-    hashedPasswordFile = config.sops.secrets."user.hashedPassword".path;
+    hashedPasswordFile = config.sops.secrets.user_hashedPassword.path;
     description = settings.description;
     extraGroups = [
       "wheel"
       "networkmanager"
       "video"
     ];
-    openssh.authorizedKeys.keyFiles = [ config.sops.secrets."user.pubKey".path ];
+    openssh.authorizedKeys.keys = settings.sshPubKeys;
   };
 
   system.stateVersion = settings.stateVersion;

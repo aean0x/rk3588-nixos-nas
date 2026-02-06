@@ -1,4 +1,5 @@
-{ config, pkgs, ... }: {
+{ config, pkgs, ... }:
+{
   services.caddy = {
     enable = true;
     package = pkgs.caddy.override {
@@ -12,8 +13,8 @@
     certs = {
       "example.com" = {
         dnsProvider = "cloudflare";
-        credentialsFile = config.sops.secrets."services.caddy.cloudflareToken".path;  # CLOUDFLARE_API_TOKEN=value
-        extraDomainNames = [ "*.example.com" ];  # Wildcard
+        credentialsFile = config.sops.secrets.services_caddy_cloudflareToken.path; # CLOUDFLARE_API_TOKEN=value
+        extraDomainNames = [ "*.example.com" ]; # Wildcard
       };
     };
   };
@@ -26,5 +27,8 @@
     '';
   };
 
-  networking.firewall.allowedTCPPorts = [ 80 443 ];
+  networking.firewall.allowedTCPPorts = [
+    80
+    443
+  ];
 }

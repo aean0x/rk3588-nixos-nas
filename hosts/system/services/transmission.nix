@@ -89,6 +89,6 @@ in
       script-torrent-done-filename = "${unpackScript}/bin/transmission-unpack";
     };
 
-    credentialsFile = config.sops.secrets."services.transmission.credentials".path;
+    credentialsFile = config.sops.secrets.services_transmission_credentials.path;
   };
 }

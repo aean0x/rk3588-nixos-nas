@@ -15,7 +15,7 @@
       enable = true;
       # WireGuard config from your VPN provider - must exist before rebuild
       # Get this file from your VPN provider (Mullvad, AirVPN, etc.)
-      wgConf = config.sops.secrets."vpn.wgConf".path;
+      wgConf = config.sops.secrets.vpn_wgConf.path;
     };
 
     # Sonarr - TV show management

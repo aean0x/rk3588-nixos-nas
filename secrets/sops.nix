@@ -8,13 +8,12 @@
 
     secrets = {
       # User secrets
-      "user.hashedPassword" = { };
-      "user.pubKey" = { };
+      user_hashedPassword = { };
 
       # VPN and service credentials
-      "vpn.wgConf" = { };
-      "services.transmission.credentials" = { };
-      "services.caddy.cloudflareToken" = { };
+      vpn_wgConf = { };
+      services_transmission_credentials = { };
+      services_caddy_cloudflareToken = { };
     };
   };
 }
