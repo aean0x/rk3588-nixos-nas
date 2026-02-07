@@ -55,7 +55,7 @@ A NixOS configuration for the ROCK5 ITX board, featuring fully remote installati
 
 ## Bootloader Configuration
 
-Flash the EDK2 UEFI firmware before building the ISO.
+Flash the EDK2 UEFI firmware before installing.
 
 1. **Download Required Files**
    - [rk3588_spl_loader_v1.15.113.bin](https://dl.radxa.com/rock5/sw/images/loader/rk3588_spl_loader_v1.15.113.bin)
@@ -76,38 +76,78 @@ Flash the EDK2 UEFI firmware before building the ISO.
 
 ## Installation
 
-1. **Build the ISO**
+Two options to boot the installer:
+
+### Option A: USB ISO
+
+1. Build the ISO:
    ```bash
    ./deploy build-iso
    ```
+2. Write to USB (the script offers to do this automatically)
+3. Boot from USB on your ROCK5 ITX
 
-2. **Write to USB**
+### Option B: PXE Netboot
+
+No USB drive needed — boots over ethernet from your workstation.
+
+1. Build the netboot images:
    ```bash
-   sudo dd if="$(ls result/iso/*.iso)" of=/dev/sdX bs=4M status=progress && sync
+   ./deploy build-netboot
    ```
-
-3. **Boot from USB** on your ROCK5 ITX
-
-4. **Run the remote installer** from your workstation:
+2. Start the PXE server:
    ```bash
-   ./deploy install
+   ./deploy netboot
    ```
-   This will SSH into the device, partition the target disk, copy the configuration and SOPS key, and run `nixos-install`.
+   Choose **LAN mode** (device on same network) or **Direct mode** (ethernet cable between workstation and device).
+3. On the Rock 5 ITX: power on, press Escape, Boot Manager > UEFI PXE IPv4
 
-5. **Reboot** — remove USB and the system is ready.
+### Install
+
+Once the device is booted (ISO or netboot) and on the network:
+
+```bash
+./deploy install
+```
+
+This will:
+- SSH into the device (tries mDNS, static IP, or prompts for manual IP)
+- Partition the target disk (GPT: 512M EFI + ext4 root)
+- Copy the configuration and SOPS key
+- Run `nixos-install`
+
+Reboot the device and it's ready.
 
 ## System Management
 
 All management is done via `./deploy <command>`:
 
 ```bash
+# Connection
 ./deploy ssh              # Interactive SSH
 ./deploy help             # List device commands
+
+# On-device lifecycle
 ./deploy switch           # Rebuild from remote flake
+./deploy boot             # Rebuild, activate on reboot
+./deploy try              # Rebuild, activate temporarily
 ./deploy update           # Update flake inputs and rebuild
+./deploy rollback         # Roll back to previous generation
+./deploy cleanup          # Garbage collect and optimize store
 ./deploy system-info      # Show system status
-./deploy remote-switch    # Build on workstation, deploy
-./deploy remote-build     # Build on workstation only
+
+# Workstation remote-build (recommended for low-memory devices)
+./deploy remote-switch    # Build on workstation, deploy and switch
+./deploy remote-boot      # Build on workstation, activate on reboot
+./deploy remote-try       # Build on workstation, activate temporarily
+./deploy remote-dry       # Dry run
+./deploy remote-build     # Build only
+
+# Diagnostics
+./deploy docker-ps        # List containers
+./deploy docker-stats     # One-shot resource snapshot
+./deploy logs <container> # Tail container logs
+./deploy journal [unit]   # Tail system logs
 ```
 
 ### Container Exec
@@ -132,23 +172,27 @@ Commit, push, and `switch` to apply.
 
 ### Enabling Services
 
-Optional service modules are in `hosts/system/services/`. Enable by uncommenting imports in `hosts/system/default.nix`:
+Optional service modules are in `hosts/system/services/`. Enable by uncommenting imports in `hosts/system/services.nix`:
 
 ```nix
 imports = [
   # ./services/cockpit.nix      # Web-based system management (port 9090)
   # ./services/caddy.nix        # Reverse proxy with automatic HTTPS
-  # ./services/containers.nix   # Docker containers (HA, Matter, Tailscale)
-  ./services/remote-desktop.nix # XFCE + xrdp (enabled by default)
+  ./services/containers.nix     # Docker containers (HA, Matter, Tailscale)
+  ./services/remote-desktop.nix # XFCE + xrdp
   ./services/tasks.nix          # Auto-upgrade and garbage collection
+  # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin)
+  # ./services/transmission.nix # Torrent client with VPN killswitch
 ];
 ```
 
 ## Notable Features
 
-- **Fully Remote Install** — Build ISO, boot device, `./deploy install` does everything over SSH
+- **Fully Remote Install** — Boot via USB or PXE netboot, `./deploy install` does everything over SSH
+- **PXE Netboot** — No USB needed. Direct-connect mode for setups without a shared LAN
 - **ZFS Support** — Auto-scrub, snapshots, and trim enabled by default
 - **mDNS** — System broadcasts `hostname.local` for easy discovery
 - **Remote Flake** — Rebuilds fetch directly from GitHub
-- **Cross-compilation** — ISO builds on x86_64 for aarch64 target
+- **Cross-compilation** — Builds on x86_64 for aarch64 target
 - **Auto-derived container exec** — Container shortcuts generated from config
+- **SOPS Secrets** — Encrypted at rest, decrypted at boot, safe to commit publicly
