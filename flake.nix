@@ -100,7 +100,6 @@
             mkdir -p $out
             ln -s ${cfg.kernel}/Image $out/Image
             ln -s ${cfg.netbootRamdisk}/initrd $out/initrd
-            ln -s ${cfg.squashfsStore} $out/root.squashfs
             cp ${cfg.netbootIpxeScript}/netboot.ipxe $out/netboot.ipxe
             cp ${ipxeArm64}/snp.efi $out/snp.efi
           '';

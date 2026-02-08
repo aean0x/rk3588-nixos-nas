@@ -16,7 +16,16 @@
     fsType = "vfat";
   };
 
-  # ZFS pools auto-populate
+  # ZFS pool mount
+  # First boot: create pool, then rebuild:
+  #   sudo zpool create -o ashift=12 -O compression=lz4 -O atime=off -O mountpoint=/media media mirror /dev/disk/by-id/<disk1> /dev/disk/by-id/<disk2>
+  fileSystems."/media" = {
+    device = "media";
+    fsType = "zfs";
+    options = [
+      "nofail"
+    ];
+  };
 
   # ZFS configuration
   boot = {

@@ -85,9 +85,17 @@
     timeout = 3;
   };
 
+  # Prevent "Too many open files" errors with inotify-based file watchers
+  boot.kernel.sysctl = {
+    "fs.inotify.max_user_watches" = 524288;
+    "fs.inotify.max_user_instances" = 512;
+  };
+
   # ===================
   # User
   # ===================
+  users.groups.media = { };
+
   users.users.${settings.adminUser} = {
     isNormalUser = true;
     hashedPasswordFile = config.sops.secrets.user_hashedPassword.path;
@@ -95,6 +103,7 @@
     extraGroups = [
       "wheel"
       "video"
+      "media"
     ];
     openssh.authorizedKeys.keys = settings.sshPubKeys;
   };

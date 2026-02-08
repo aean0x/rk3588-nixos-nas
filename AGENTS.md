@@ -19,20 +19,27 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   └── scripts.nix          # On-device management commands (switch, help, docker-ps, etc.)
 ├── hosts/
 │   ├── system/              # Target system (what gets installed)
-│   │   ├── default.nix      # Networking, SSH, users, boot loader, WiFi, bluetooth
+│   │   ├── default.nix      # Networking, SSH, users, boot loader, WiFi, bluetooth, media group
 │   │   ├── packages.nix     # System-wide packages
-│   │   ├── partitions.nix   # Filesystem mounts (label-based), ZFS config
+│   │   ├── partitions.nix   # Filesystem mounts (label-based), ZFS dataset mounts
 │   │   ├── services.nix     # Service imports (uncomment to enable)
 │   │   └── services/        # Service modules
-│   │       ├── containers.nix   # Docker containers (HA, Matter, Tailscale, OTBR)
-│   │       ├── arr-suite.nix    # nixarr media stack (Sonarr, Radarr, etc.)
-│   │       ├── caddy.nix        # Reverse proxy with Cloudflare DNS ACME
-│   │       ├── cockpit.nix      # Web-based system management
+│   │       ├── containers.nix     # Docker/Podman engine, ZFS storage, auto-pull/restart timers
+│   │       ├── home-assistant.nix # Home Assistant, Matter Server, OTBR (Docker)
+│   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
+│   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
+│   │       ├── openclaw.nix       # OpenClaw + Composio + Signal (Docker)
+│   │       ├── cloudflared.nix    # Cloudflare tunnel (native NixOS)
 │   │       ├── remote-desktop.nix # XFCE + xrdp
-│   │       ├── tasks.nix        # Auto-upgrade and garbage collection
-│   │       └── transmission.nix # Torrent client with VPN killswitch
+│   │       ├── tasks.nix          # Auto-upgrade and garbage collection
+│   │       ├── arr-suite.nix      # nixarr media stack (Sonarr, Radarr, etc.)
+│   │       ├── caddy.nix          # Reverse proxy with Cloudflare DNS ACME
+│   │       ├── cockpit.nix        # Web-based system management
+│   │       └── transmission.nix   # Torrent client with VPN killswitch
 │   └── iso/                  # Installer image (shared by ISO + netboot)
-│       └── default.nix      # Minimal env: SSH + pubkeys + avahi + rsync (no secrets)
+│       ├── default.nix       # Minimal env: SSH + pubkeys + avahi + rsync (no secrets)
+│       ├── iso.nix           # ISO-specific config (isoImage settings)
+│       └── netboot.nix       # Netboot-specific config (placeholder)
 └── secrets/                 # SOPS-encrypted secrets
     ├── sops.nix             # Secrets module (conditional WiFi, mkIf guards)
     ├── secrets.yaml         # Encrypted secrets (committed)
@@ -52,13 +59,56 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `enableWifi`, `wifiSsid` — Optional WiFi (PSK is a secret)
 - Build systems (`hostSystem`, `targetSystem`) for cross-compilation
 - `kernelPackage` — Kernel version (6.18 for rk3588)
-- Service ports live in their respective modules (e.g. containers.nix let-in block)
+- Service ports live in their respective modules as `let` bindings
 
 **secrets/sops.nix** — Runtime secrets (decrypted at activation):
 - `user_hashedPassword` — Login password
 - `tailscale_authKey` — Tailscale auth key
 - `wifi_psk` — WiFi password (conditional on `settings.enableWifi`)
-- Service-specific secrets declared in their respective modules
+- `openclaw_gateway_token` — OpenClaw gateway authentication
+- `composio_encryption_key`, `composio_jwt_secret` — Composio self-hosted secrets
+- `signal_phone_number` — Signal CLI phone number
+- `cloudflared_tunnel_credentials` — Cloudflare tunnel JSON (owned by cloudflared user)
+
+### Service Architecture
+
+Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simple/well-supported services.**
+
+| Service | Type | Module |
+|---------|------|--------|
+| Docker/Podman engine | Native | `containers.nix` |
+| Home Assistant + Matter + OTBR | Docker | `home-assistant.nix` |
+| Tailscale VPN | Native | `tailscale.nix` |
+| AdGuard Home DNS | Native | `adguard.nix` |
+| OpenClaw + Composio + Signal | Docker | `openclaw.nix` |
+| Cloudflare tunnel | Native | `cloudflared.nix` |
+
+**containers.nix** is pure infrastructure — Docker engine, Podman, ZFS storage driver, auto-pull/restart timers. It contains **no container definitions**. Container definitions live in their respective service modules.
+
+**Auto-derived timers**: `containerNames = builtins.attrNames config.virtualisation.oci-containers.containers` auto-discovers containers from ALL imported modules. No manual registration needed when adding new service modules.
+
+### Docker Network Patterns
+
+- **Host network** (`--network=host`): Used by HA, Matter, OTBR for mDNS/multicast discovery
+- **Bridge network** (`--network=composio`): Used by OpenClaw stack for isolated inter-container DNS. Created by a systemd oneshot service; all containers depend on `docker-network-composio.service`.
+
+### Env Injection Pattern (preStart)
+
+Docker containers that need sops secrets use `systemd.services.docker-<name>.preStart` to:
+1. Create data directories (`mkdir -p /var/lib/...`)
+2. Read secrets from sops paths (`cat ${config.sops.secrets.*.path}`)
+3. Write env files to `/run/<name>.env` (mode 600)
+4. Container references via `environmentFiles = [ "/run/<name>.env" ]`
+
+### ZFS Pool
+
+Single pool mounted at `/media` with `nofail` + `zfsutil` (boot succeeds even if pool doesn't exist):
+- `/media` — `media` — General data root + state (subdirectories live under `/media`)
+
+Manual pool creation on first boot:
+```bash
+zpool create -f -o ashift=12 -O compression=lz4 -O atime=off -O mountpoint=/media media mirror /dev/disk/by-id/<disk1> /dev/disk/by-id/<disk2>
+```
 
 ### Flake Outputs
 
@@ -66,9 +116,9 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `nixosConfigurations.${hostName}-ISO` — ISO installer image
 - `nixosConfigurations.${hostName}-netboot` — Netboot installer image
 - `packages.${hostSystem}.iso` — ISO build artifact
-- `packages.${hostSystem}.netboot` — Netboot build artifact (kernel, initrd, squashfs, snp.efi, netboot.ipxe)
+- `packages.${hostSystem}.netboot` — Netboot build artifact (kernel, initrd, snp.efi, netboot.ipxe)
 
-ISO and netboot share `installerModules` (cross-compilation config + `hosts/iso/default.nix`). ISO-specific config (isoImage settings) is inline in flake.nix.
+ISO and netboot share `installerModules` (cross-compilation config + `hosts/iso/default.nix`). ISO-specific config in `hosts/iso/iso.nix`, netboot-specific in `hosts/iso/netboot.nix`.
 
 ### Container Exec (auto-derived)
 
@@ -86,6 +136,8 @@ Container wrapper scripts are auto-generated from `config.virtualisation.oci-con
 4. Retry all candidates with password auth (for fresh installer/netboot)
 
 All subsequent ssh/scp/rsync calls use `$TARGET` and `$SSH_OPTS` — no redundant resolution.
+
+**Remote interaction policy:** agents are expected to interact with the server directly when needed (remote commands, logs, service status, container exec, rebuilds, etc.). `./deploy` is the preferred and easiest interface for remote access because it handles discovery, SSH options, and consistent command wrapping; use it by default for both read-only and sudo-level actions (e.g., `./deploy help`, `./deploy system-info`, `./deploy journal`, `./deploy switch`, `./deploy <container>`). Direct `ssh` is acceptable when necessary, but `./deploy` should be the first choice. Server is ARM64 based and may have limited resources, so avoid heavy operations directly on the device when possible (prefer `remote-switch` for rebuilds). When pulling logs, always cap output (default to `--tail 100` or `-n 100`, and only increase if needed).
 
 ### Installation Flow
 
@@ -134,11 +186,19 @@ After netboot completes, plug device into router for WAN access before running `
 2. Ensure required secrets are configured (check service file for `config.sops.secrets.*` references)
 3. Commit, push, rebuild
 
-### Adding Containers
-1. Add container definition to `containers.nix` under `virtualisation.oci-containers.containers`
-2. Container exec wrapper is auto-generated (no manual step needed)
-3. Firewall ports: add to `networking.firewall` in the same file
-4. Pull timer and restart timer auto-include all containers
+### Adding Docker Containers
+1. Create a new service module in `hosts/system/services/`
+2. Define containers under `virtualisation.oci-containers.containers`
+3. Add firewall ports in the same module
+4. Add import line to `services.nix`
+5. Pull timer and restart timer in `containers.nix` auto-include all containers (no manual step)
+6. Container exec wrapper in `scripts.nix` auto-generates (no manual step)
+
+### Adding Native Services
+1. Create a new service module in `hosts/system/services/`
+2. Use the NixOS module system (`services.<name>.enable = true`)
+3. Reference sops secrets via `config.sops.secrets.*`
+4. Add import line to `services.nix`
 
 ## Gotchas
 
@@ -146,9 +206,14 @@ After netboot completes, plug device into router for WAN access before running `
 - `adminUser` cannot move to SOPS (needed at Nix eval time for attribute name)
 - Static IP is used (no NetworkManager) — `useDHCP = false` in system config, `useDHCP = true` in installer
 - Services are toggled in `hosts/system/services.nix` by uncommenting imports
-- `hosts/iso/default.nix` is shared between ISO and netboot — `isoImage` config lives in flake.nix inline module
+- `hosts/iso/default.nix` is shared between ISO and netboot — platform-specific config in `iso.nix`/`netboot.nix`
 - `setupPassword` is only used in the installer, not the installed system
 - Kernel 6.18 is required for rk3588 — builds are slow due to cross-compilation
 - Installer image includes rsync (needed by `./deploy install`)
 - `ADMIN` variable in scripts (not `USER`) to avoid shadowing shell builtin
 - sops-nix warnings during `nixos-install` ("password file not found", "cannot read ssh key") are normal — secrets and host keys materialize on first real boot
+- ZFS dataset mounts use `nofail` — boot succeeds even if pool isn't created yet
+- `services.resolved.enable = false` in adguard.nix — systemd-resolved conflicts with port 53
+- Cloudflared credentials must be owned by `cloudflared` user/group (set in sops.nix)
+- Composio bridge network containers must all depend on `docker-network-composio.service`
+- Persistent settings go in `/var/lib` — both for native services and Docker container volume mounts

@@ -7,7 +7,7 @@
     enable = true;
 
     # Media directories managed by nixarr
-    # Default: /data/media for media, /data/.state/nixarr for state
+    # Default: /media for media, /media/.state/nixarr for state
     mediaUsers = [ settings.adminUser ];
 
     # VPN configuration for Transmission killswitch
