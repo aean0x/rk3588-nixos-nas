@@ -319,6 +319,8 @@ in
 
     CONF=/var/lib/openclaw/config/openclaw.json
     if [ -f "$CONF" ]; then
+      # Remove invalid keys that persist from previous configs
+      ${pkgs.jq}/bin/jq 'del(.browser.launchArgs)' "$CONF" > "$CONF.clean" && mv "$CONF.clean" "$CONF"
       ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$CONF" ${configFile} > "$CONF.tmp" && mv "$CONF.tmp" "$CONF"
     else
       cp ${configFile} "$CONF"
