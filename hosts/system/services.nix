@@ -7,7 +7,7 @@
     ./services/containers.nix # Docker/Podman engine, ZFS storage, auto-pull/restart timers
     ./services/home-assistant.nix # Home Assistant, Matter Server, OTBR (Docker)
     ./services/tailscale.nix # Tailscale VPN (native)
-    ./services/openclaw.nix # OpenClaw (Docker) — enable after secrets
+    ./services/openclaw.nix # OpenClaw (native) — enable after secrets
     ./services/onedrive.nix # OneDrive sync for OpenClaw workspace
     # ./services/cloudflared.nix # Cloudflare tunnel — enable after tunnel creation
     ./services/remote-desktop.nix # XFCE + xrdp

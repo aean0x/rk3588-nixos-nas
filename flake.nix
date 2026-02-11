@@ -1,6 +1,13 @@
 {
   description = "NixOS configuration for ROCK 5 ITX";
 
+  nixConfig = {
+    extra-substituters = [ "https://cache.garnix.io" ];
+    extra-trusted-public-keys = [
+      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-25.11";
@@ -12,6 +19,10 @@
       url = "github:rasmus-kirk/nixarr";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nix-openclaw = {
+      url = "github:openclaw/nix-openclaw";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -21,6 +32,7 @@
       nixpkgs-stable,
       sops-nix,
       nixarr,
+      nix-openclaw,
       ...
     }@inputs:
     let
@@ -34,6 +46,7 @@
             config.allowUnfree = true;
           };
         })
+        nix-openclaw.overlays.default
       ];
 
       # Shared modules for installer images (ISO + netboot)
@@ -104,5 +117,7 @@
             cp ${ipxeArm64}/snp.efi $out/snp.efi
           '';
       };
+
+      nix-openclaw = nix-openclaw;
     };
 }

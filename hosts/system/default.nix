@@ -115,7 +115,17 @@
   # ===================
   services.journald.extraConfig = "SystemMaxUse=1000M";
 
-  nix.settings.trusted-users = [ "@wheel" ];
+  nix.settings = {
+    trusted-users = [ "@wheel" ];
+    substituters = [
+      "https://cache.nixos.org/"
+      "https://cache.garnix.io"
+    ];
+    trusted-public-keys = [
+      "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
+    ];
+  };
 
   # ===================
   # System
