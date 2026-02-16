@@ -31,9 +31,7 @@ in
         google_workspace_client_secret = { };
         google_places_api_key = { };
         onedrive_rclone_config = {
-          owner = "openclaw";
-          group = "openclaw";
-          mode = "0400";
+          mode = "0444";
         };
         browserless_api_token = { };
         maton_api_key = { };

@@ -9,6 +9,7 @@
     ./services/tailscale.nix # Tailscale VPN (native)
     # ./services/openclaw.nix # OpenClaw (native) — enable after secrets
     ./services/openclaw-docker.nix # OpenClaw (Docker) — enable after secrets
+    ./services/filebrowser.nix # Web-based file manager for OpenClaw data
     ./services/onedrive.nix # OneDrive sync for OpenClaw workspace
     # ./services/cloudflared.nix # Cloudflare tunnel — enable after tunnel creation
     ./services/remote-desktop.nix # XFCE + xrdp

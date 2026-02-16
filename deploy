@@ -29,6 +29,7 @@ usage() {
     echo "  system-info          Show system status and disk usage"
     echo ""
     echo "Services:"
+    echo "  oc <cmd> [args]      OpenClaw CLI (oc wizard, oc gateway status, ...)"
     echo "  onedrive-sync        Trigger OneDrive sync now"
     echo ""
     echo "Troubleshooting:"

@@ -26,7 +26,10 @@ let
         enabled = true;
         dangerouslyDisableDeviceAuth = true;
       };
-      trustedProxies = [ "127.0.0.1" "::1" ];
+      trustedProxies = [
+        "127.0.0.1"
+        "::1"
+      ];
     };
 
     # -- Commands --------------------------------------------------------------
@@ -41,15 +44,24 @@ let
     # -- Tools -----------------------------------------------------------------
     tools = {
       web = {
-        search = { enabled = true; maxResults = 5; };
-        fetch = { enabled = true; maxChars = 50000; };
+        search = {
+          enabled = true;
+          maxResults = 5;
+        };
+        fetch = {
+          enabled = true;
+          maxChars = 50000;
+        };
       };
     };
 
     # -- Auth profiles ---------------------------------------------------------
     auth = {
       profiles = {
-        "xai:default" = { provider = "xai"; mode = "api_key"; };
+        "xai:default" = {
+          provider = "xai";
+          mode = "api_key";
+        };
       };
     };
 
@@ -82,18 +94,16 @@ let
           workspaceAccess = "rw";
           docker = {
             network = "bridge";
-            binds = [];
-            setupCommand = "apt-get update && apt-get install -y git curl jq nodejs python3-pip";
+            binds = [ ];
+            setupCommand = "apt-get update && apt-get install -y git uv curl jq nodejs python3-pip";
             readOnlyRoot = true;
             capDrop = [ "ALL" ];
             user = "1000:1000";
             memory = "1g";
             cpus = 1;
           };
-          browser = { enabled = true; };
-          tools = {
-            sandbox = { tools = { allow = [ "exec" "read" "write" "edit" ]; }; };
-            elevated = false;
+          browser = {
+            enabled = true;
           };
         };
       };
@@ -101,20 +111,27 @@ let
     models = {
       providers = {
         xai = {
-          provider = "xai";
           baseUrl = "https://api.x.ai/v1";
           api = "openai-responses";
           apiKey = "\${XAI_API_KEY}";
           models = [
-            { id = "grok-4.1-fast"; name = "Grok 4.1 Fast"; }
-            { id = "grok-4.1-fast-reasoning"; name = "Grok 4.1 Fast Reasoning"; }
+            {
+              id = "grok-4.1-fast";
+              name = "Grok 4.1 Fast";
+            }
+            {
+              id = "grok-4.1-fast-reasoning";
+              name = "Grok 4.1 Fast Reasoning";
+            }
           ];
         };
       };
     };
     plugins = {
       entries = {
-        telegram = { enabled = true; };
+        telegram = {
+          enabled = true;
+        };
       };
     };
     channels = {
@@ -141,7 +158,7 @@ let
     };
   };
 
-  defaultConfigJson = builtins.toJSON defaultConfig;
+  defaultConfigFile = pkgs.writeText "openclaw-defaults.json" (builtins.toJSON defaultConfig);
 in
 {
   # ===================
@@ -157,13 +174,9 @@ in
       };
       environmentFiles = [ "/run/openclaw.env" ];
       volumes = [ "${configDir}:/home/node/.openclaw:rw" ];
-      ports = [
-        "${toString openclawPort}:18789"
-        "${toString bridgePort}:18790"
-      ];
       extraOptions = [
         "--init"
-        "--restart=unless-stopped"
+        "--network=host"
       ];
       cmd = [
         "node"
@@ -190,6 +203,7 @@ in
       extraOptions = [
         "--init"
         "--tty"
+        "--network=host"
       ];
       entrypoint = "node";
       cmd = [ "dist/index.js" ];
@@ -256,10 +270,10 @@ in
     # Merge or create config
     CONFIG_FILE="${configDir}/openclaw.json"
     if [ -f "$CONFIG_FILE" ]; then
-      ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$CONFIG_FILE" <(echo '${defaultConfigJson}') > /tmp/openclaw-new.json
+      ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$CONFIG_FILE" ${defaultConfigFile} > /tmp/openclaw-new.json
       mv /tmp/openclaw-new.json "$CONFIG_FILE"
     else
-      echo '${defaultConfigJson}' > "$CONFIG_FILE"
+      cp ${defaultConfigFile} "$CONFIG_FILE"
     fi
     chown 1000:1000 "$CONFIG_FILE"
     chmod 0600 "$CONFIG_FILE"
@@ -276,8 +290,27 @@ in
       "BRAVE_API_KEY=$BRAVE_KEY" \
       "BRAVE_SEARCH_API_KEY=$BRAVE_KEY" \
       "TELEGRAM_BOT_TOKEN=$(cat ${config.sops.secrets.telegram_bot_token.path})" \
+      "GOOGLE_PLACES_API_KEY=$(cat ${config.sops.secrets.google_places_api_key.path})" \
+      "BROWSERLESS_API_TOKEN=$(cat ${config.sops.secrets.browserless_api_token.path})" \
+      "MATON_API_KEY=$(cat ${config.sops.secrets.maton_api_key.path})" \
+      "HA_TOKEN=$(cat ${config.sops.secrets.ha_token.path})" \
+      "HA_URL=$(cat ${config.sops.secrets.ha_url.path})" \
+      "GOOGLE_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
+      "GEMINI_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
       > /run/openclaw.env
     chmod 0640 /run/openclaw.env
+  '';
+
+  # Install uv + skills deps inside the running gateway container after startup
+  systemd.services.docker-openclaw-gateway.postStart = ''
+    for attempt in $(seq 1 15); do
+      ${pkgs.docker}/bin/docker exec openclaw-gateway true 2>/dev/null && break
+      sleep 2
+    done
+    ${pkgs.docker}/bin/docker exec -u root openclaw-gateway sh -c '
+      apt-get update && apt-get install -y python3-pip nodejs npm curl git && \
+      curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh 2>/dev/null
+    ' || true
   '';
 
   # ===================
@@ -320,6 +353,6 @@ in
   };
 
   services.caddy.proxyServices = {
-    "openclaw.rocknas.local" = openclawPort;
+    "openclaw.${settings.domain}" = openclawPort;
   };
 }

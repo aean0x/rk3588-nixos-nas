@@ -171,6 +171,28 @@ in
         done
       '')
 
+      # OpenClaw CLI (ephemeral container, one-shot)
+      (writeShellScriptBin "oc" ''
+        set -euo pipefail
+        if [[ $# -eq 0 ]]; then
+          echo "Usage: oc <command> [args]"
+          echo "  oc wizard              Initial setup wizard"
+          echo "  oc gateway status      Check gateway status"
+          echo "  oc doctor --fix        Fix config issues"
+          echo "  oc channels add ...    Add a channel"
+          echo "  oc --version           Show version"
+          exit 0
+        fi
+        exec sudo docker run --rm -it \
+          --network=host \
+          --user=root \
+          -e HOME=/home/node \
+          --env-file /run/openclaw.env \
+          -v /var/lib/openclaw:/home/node/.openclaw:rw \
+          ghcr.io/openclaw/openclaw:latest \
+          node dist/index.js "$@"
+      '')
+
       (writeShellScriptBin "help" ''
         echo "${settings.description} -- Management Commands"
         echo ""
@@ -183,6 +205,9 @@ in
         echo "  cleanup          Garbage collect and optimize store"
         echo "  build-log        View last build log"
         echo "  system-info      Show system status and disk usage"
+        echo ""
+        echo "Services:"
+        echo "  oc <cmd> [args]  OpenClaw CLI (oc wizard, oc gateway status, ...)"
         echo ""
         echo "Troubleshooting:"
         echo "  docker-ps        List containers (docker ps)"
