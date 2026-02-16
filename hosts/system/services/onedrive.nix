@@ -1,4 +1,5 @@
 # OneDrive sync for OpenClaw workspace (rclone copy, no deletions)
+# Runs as UID 1000 to match Docker container user in openclaw-docker.nix
 { config, pkgs, ... }:
 let
   workspaceRoot = "/var/lib/openclaw/workspace";
@@ -14,8 +15,8 @@ in
 
     serviceConfig = {
       Type = "oneshot";
-      User = "openclaw";
-      Group = "openclaw";
+      User = "1000";
+      Group = "1000";
       Environment = [
         "HOME=/var/lib/openclaw"
       ];

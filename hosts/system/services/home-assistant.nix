@@ -1,5 +1,6 @@
 # Home Assistant ecosystem: HA Core, Matter Server, OTBR (Docker)
 {
+  pkgs,
   settings,
   ...
 }:
@@ -8,6 +9,10 @@ let
   matterPort = 5580;
   otbrPort = 8082;
   otbrRestPort = 8081;
+
+  haImage = "ghcr.io/home-assistant/home-assistant:stable";
+  matterImage = "ghcr.io/matter-js/matterjs-server:latest";
+  otbrImage = "ghcr.io/ownbee/hass-otbr-docker:latest";
 in
 {
   services.caddy.proxyServices = {
@@ -19,7 +24,7 @@ in
     # Home Assistant
     # ===================
     home-assistant = {
-      image = "ghcr.io/home-assistant/home-assistant:stable";
+      image = haImage;
       volumes = [
         "/var/lib/home-assistant:/config"
         "/run/dbus:/run/dbus:ro"
@@ -40,7 +45,7 @@ in
     # Matter Server
     # ===================
     matter-server = {
-      image = "ghcr.io/matter-js/matterjs-server:latest";
+      image = matterImage;
       volumes = [
         "/var/lib/matter-server:/data"
         "/run/dbus:/run/dbus:ro"
@@ -66,7 +71,7 @@ in
     # OpenThread Border Router (OTBR)
     # ===================
     otbr = {
-      image = "ghcr.io/ownbee/hass-otbr-docker:latest";
+      image = otbrImage;
       volumes = [
         "/var/lib/otbr:/data"
         "/run/dbus:/run/dbus:ro"
@@ -148,6 +153,36 @@ in
   systemd.services.docker-otbr = {
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
+  };
+
+  # ===================
+  # Refresh service (pull + restart)
+  # ===================
+  systemd.services.home-assistant-refresh = {
+    description = "Pull latest Home Assistant ecosystem images and refresh containers";
+    serviceConfig = {
+      Type = "oneshot";
+    };
+    script = ''
+      ${pkgs.docker}/bin/docker pull ${haImage} || true
+      ${pkgs.docker}/bin/docker pull ${matterImage} || true
+      ${pkgs.docker}/bin/docker pull ${otbrImage} || true
+      ${pkgs.docker}/bin/docker image prune -f
+      ${pkgs.systemd}/bin/systemctl try-restart docker-home-assistant.service
+      ${pkgs.systemd}/bin/systemctl try-restart docker-matter-server.service
+      ${pkgs.systemd}/bin/systemctl try-restart docker-otbr.service
+    '';
+    after = [ "docker.service" ];
+    requires = [ "docker.service" ];
+  };
+
+  systemd.timers.home-assistant-refresh = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "Mon 05:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "3600";
+    };
   };
 
 }

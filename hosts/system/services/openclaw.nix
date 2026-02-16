@@ -256,7 +256,7 @@ in
   # ==================
   users.users.openclaw = {
     isSystemUser = true;
-    uid = 1540;
+    uid = 1000;
     group = "openclaw";
     description = "OpenClaw service user";
     home = openclawHome;
@@ -265,7 +265,7 @@ in
   };
 
   users.groups.openclaw = {
-    gid = 1540;
+    gid = 1000;
   };
 
   # ===================
