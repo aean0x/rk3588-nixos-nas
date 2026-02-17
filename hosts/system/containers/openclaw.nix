@@ -1,6 +1,6 @@
 # OpenClaw gateway + CLI (Docker)
-# Custom image built on pinned upstream base via dockerTools.pullImage
-# Hashes stored in image-hashes.json, updated by GitHub Actions workflow
+# Custom image built at runtime on the device via docker build.
+# This avoids dockerTools.pullImage cross-arch sandbox issues.
 {
   config,
   pkgs,
@@ -10,47 +10,10 @@
 let
   openclawPort = 18789;
   bridgePort = 18790;
+  baseImage = "ghcr.io/phioranex/openclaw-docker:latest";
+  customImage = "openclaw-custom:latest";
   configDir = "/var/lib/openclaw";
   workspaceDir = "${configDir}/workspace";
-
-  # Load pinned hashes from JSON (updated by CI)
-  imageHashes = builtins.fromJSON (builtins.readFile ./image-hashes.json);
-  openclawHashes = imageHashes.openclaw;
-
-  # Pull natively on x86_64 to avoid qemu emulation bottleneck during cross-builds.
-  # Safe because pullImage is a fixed-output derivation (output is just a tar).
-  x86Pkgs = import pkgs.path { system = "x86_64-linux"; };
-  baseImage = x86Pkgs.dockerTools.pullImage {
-    imageName = openclawHashes.imageName;
-    imageDigest = openclawHashes.imageDigest;
-    sha256 = openclawHashes.sha256;
-    os = "linux";
-    arch = "arm64";
-  };
-
-  customImage = pkgs.dockerTools.buildLayeredImage {
-    name = "openclaw-custom";
-    tag = "latest";
-    fromImage = baseImage;
-    contents = [
-      pkgs.docker-client
-      pkgs.git
-      pkgs.curl
-      pkgs.jq
-      pkgs.nodejs
-      pkgs.python3
-      pkgs.uv
-    ];
-    config = {
-      User = "1000:1000";
-      Env = [
-        "HOME=/home/node"
-        "TERM=xterm-256color"
-        "DOCKER_HOST=unix:///var/run/docker.sock"
-        "DOCKER_API_VERSION=1.44"
-      ];
-    };
-  };
 
   dockerGid =
     if (config.users.groups ? docker && config.users.groups.docker.gid != null) then
@@ -199,20 +162,53 @@ let
   defaultConfigFile = pkgs.writeText "openclaw-defaults.json" (builtins.toJSON defaultConfig);
 in
 {
-  # Load custom image before container starts
-  systemd.services.docker-load-openclaw = {
-    description = "Load custom OpenClaw image";
-    before = [ "docker-openclaw-gateway.service" ];
-    wantedBy = [ "docker-openclaw-gateway.service" ];
+  # Build custom image on-device (native docker build, no qemu)
+  systemd.services.openclaw-builder = {
+    description = "Build custom OpenClaw image with Docker CLI";
+    before = [
+      "docker-openclaw-gateway.service"
+      "docker-openclaw-cli.service"
+    ];
+    requiredBy = [
+      "docker-openclaw-gateway.service"
+      "docker-openclaw-cli.service"
+    ];
+    path = [
+      pkgs.docker
+      pkgs.curl
+    ];
+    script = ''
+      docker build -t ${customImage} - <<'EOF'
+      FROM ${baseImage}
+      USER root
+      RUN apt-get update && apt-get install -y curl && \
+          curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz -o docker.tgz && \
+          tar -xzf docker.tgz && \
+          mv docker/docker /usr/local/bin/docker && \
+          rm -rf docker.tgz docker && \
+          chmod +x /usr/local/bin/docker && \
+          ln -sf /usr/local/bin/docker /usr/bin/docker && \
+          ln -sf /usr/local/bin/docker /bin/docker && \
+          rm -rf /var/lib/apt/lists/*
+      RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh 2>/dev/null
+      USER 1000
+      EOF
+    '';
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.docker}/bin/docker load -i ${customImage}";
+      TimeoutStartSec = "300";
     };
   };
 
   virtualisation.oci-containers.containers = {
     openclaw-gateway = {
-      image = "openclaw-custom:latest";
+      image = customImage;
+      environment = {
+        HOME = "/home/node";
+        TERM = "xterm-256color";
+        DOCKER_HOST = "unix:///var/run/docker.sock";
+        DOCKER_API_VERSION = "1.44";
+      };
       environmentFiles = [ "/run/openclaw.env" ];
       volumes = [
         "${configDir}:/home/node/.openclaw:rw"
@@ -237,9 +233,13 @@ in
     };
 
     openclaw-cli = {
-      image = "openclaw-custom:latest";
+      image = customImage;
       environment = {
+        HOME = "/home/node";
+        TERM = "xterm-256color";
         BROWSER = "echo";
+        DOCKER_HOST = "unix:///var/run/docker.sock";
+        DOCKER_API_VERSION = "1.44";
       };
       environmentFiles = [ "/run/openclaw.env" ];
       volumes = [
@@ -258,7 +258,7 @@ in
     };
   };
 
-  # Setup directories, config, secrets, and docker group access
+  # Setup directories, config, secrets
   systemd.services.docker-openclaw-gateway.preStart = ''
     set -euo pipefail
     mkdir -p ${configDir} ${workspaceDir}
@@ -275,6 +275,7 @@ in
     chown 1000:1000 "$CONFIG_FILE"
     chmod 0600 "$CONFIG_FILE"
 
+    BRAVE_KEY="$(cat ${config.sops.secrets.brave_search_api_key.path})"
     printf '%s\n' \
       "OPENCLAW_GATEWAY_TOKEN=$(cat ${config.sops.secrets.openclaw_gateway_token.path})" \
       "OPENCLAW_GATEWAY_PASSWORD=$(cat ${config.sops.secrets.openclaw_gateway_password.path})" \
@@ -282,7 +283,8 @@ in
       "OPENROUTER_API_KEY=$(cat ${config.sops.secrets.openrouter_api_key.path})" \
       "OPENAI_API_KEY=$(cat ${config.sops.secrets.openrouter_api_key.path})" \
       "ANTHROPIC_API_KEY=$(cat ${config.sops.secrets.anthropic_api_key.path})" \
-      "BRAVE_API_KEY=$(cat ${config.sops.secrets.brave_search_api_key.path})" \
+      "BRAVE_API_KEY=$BRAVE_KEY" \
+      "BRAVE_SEARCH_API_KEY=$BRAVE_KEY" \
       "TELEGRAM_BOT_TOKEN=$(cat ${config.sops.secrets.telegram_bot_token.path})" \
       "GOOGLE_PLACES_API_KEY=$(cat ${config.sops.secrets.google_places_api_key.path})" \
       "BROWSERLESS_API_TOKEN=$(cat ${config.sops.secrets.browserless_api_token.path})" \
@@ -293,14 +295,30 @@ in
       "GEMINI_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
       > /run/openclaw.env
     chmod 0640 /run/openclaw.env
-
-    ${pkgs.docker}/bin/docker exec -u root openclaw-gateway sh -c "
-      DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
-      groupadd -g \$DOCKER_GID docker || true
-      usermod -aG docker node
-      chown -R node:node /home/node/.openclaw
-    " || true
   '';
+
+  # Weekly image refresh
+  systemd.services.openclaw-refresh = {
+    description = "Pull latest OpenClaw image and rebuild custom image";
+    serviceConfig.Type = "oneshot";
+    script = ''
+      ${pkgs.docker}/bin/docker pull ${baseImage} || true
+      ${pkgs.docker}/bin/docker image prune -f --filter "until=168h"
+      ${pkgs.systemd}/bin/systemctl restart openclaw-builder.service
+      ${pkgs.systemd}/bin/systemctl try-restart docker-openclaw-gateway.service
+    '';
+    after = [ "docker.service" ];
+    requires = [ "docker.service" ];
+  };
+
+  systemd.timers.openclaw-refresh = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "Mon 04:00:00";
+      Persistent = true;
+      RandomizedDelaySec = "3600";
+    };
+  };
 
   networking.firewall = {
     allowedTCPPorts = [
