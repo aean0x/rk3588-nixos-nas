@@ -123,7 +123,11 @@ in
 
       (writeShellScriptBin "docker-restart" ''
         set -euo pipefail
-        containers="${builtins.concatStringsSep " " containerNames}"
+        if [[ $# -gt 0 ]]; then
+          containers="$@"
+        else
+          containers="${builtins.concatStringsSep " " containerNames}"
+        fi
         echo "Restarting: $containers"
         sudo docker restart $containers || true
         echo "Done."

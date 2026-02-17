@@ -40,3 +40,5 @@ firmware/output/
 *.img
 *.itb
 *.bin
+
+.claude/

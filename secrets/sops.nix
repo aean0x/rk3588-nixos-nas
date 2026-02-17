@@ -39,6 +39,7 @@ in
         ha_url = { };
         cloudflare_dns_api_token = { };
         xai_api_key = { };
+        filebrowser_password = { };
       }
       (lib.mkIf (config.users.users ? cloudflared) {
         cloudflared_tunnel_credentials = {
