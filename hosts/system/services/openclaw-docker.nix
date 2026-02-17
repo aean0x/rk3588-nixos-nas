@@ -21,8 +21,8 @@ let
   # Pinned base image - update hashes to upgrade
   baseImage = pkgs.dockerTools.pullImage {
     imageName = "ghcr.io/phioranex/openclaw-docker";
-    imageDigest = "sha256:36cd52e7c30f9e8472bf1f9ae16f43c0fd39e0590fcbcf821883ed87dba7779b"; # docker inspect --format '{{index .RepoDigests 0}}'
-    sha256 = "REPLACE_WITH_NIX_SHA256"; # nix-prefetch-docker output
+    imageDigest = "sha256:384cf56cef20181a2c60784f965f4ff93cf833dee51458c700c437cfc4106a46"; # docker inspect --format '{{index .RepoDigests 0}}'
+    sha256 = "36cd52e7c30f9e8472bf1f9ae16f43c0fd39e0590fcbcf821883ed87dba7779b"; # nix-prefetch-docker output
     os = "linux";
     arch = "arm64";
   };
