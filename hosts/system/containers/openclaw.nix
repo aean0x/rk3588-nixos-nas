@@ -35,7 +35,7 @@ let
       pkgs.curl
       pkgs.jq
       pkgs.nodejs
-      pkgs.python3Full
+      pkgs.python3
       pkgs.uv
     ];
     config = {
