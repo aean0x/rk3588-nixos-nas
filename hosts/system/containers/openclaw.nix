@@ -17,7 +17,8 @@ let
   imageHashes = builtins.fromJSON (builtins.readFile ./image-hashes.json);
   openclawHashes = imageHashes.openclaw;
 
-  baseImage = pkgs.dockerTools.pullImage {
+  # Pull with build-platform skopeo to avoid qemu emulation bottleneck
+  baseImage = pkgs.pkgsBuildBuild.dockerTools.pullImage {
     imageName = openclawHashes.imageName;
     imageDigest = openclawHashes.imageDigest;
     sha256 = openclawHashes.sha256;
