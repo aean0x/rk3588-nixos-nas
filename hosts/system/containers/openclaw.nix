@@ -68,7 +68,7 @@ let
     };
     agents = {
       defaults = {
-        workspace = "~/.openclaw/workspace";
+        workspace = "${workspaceDir}";
         model = {
           primary = "xai/grok-4-1-fast-non-reasoning";
           fallbacks = [ "xai/grok-4.1-fast-reasoning" ];
