@@ -16,7 +16,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       User = "1000";
-      Group = "1000";
+      Group = "users";
       Environment = [
         "HOME=/var/lib/openclaw"
       ];
@@ -24,11 +24,18 @@ in
 
     script = ''
       set -euo pipefail
+
+      RCLONE_CONF="/tmp/onedrive-rclone.conf"
+      cp "${onedriveConfig}" "$RCLONE_CONF"
+      chmod 600 "$RCLONE_CONF"
+      trap 'rm -f "$RCLONE_CONF"' EXIT
+
       mkdir -p "${workspaceRoot}/onedrive/Shared" "${workspaceRoot}/onedrive/Documents"
-      ${pkgs.rclone}/bin/rclone copy --update --config "${onedriveConfig}" "onedrive:Shared" "${workspaceRoot}/onedrive/Shared"
-      ${pkgs.rclone}/bin/rclone copy --update --config "${onedriveConfig}" "${workspaceRoot}/onedrive/Shared" "onedrive:Shared"
-      ${pkgs.rclone}/bin/rclone copy --update --config "${onedriveConfig}" "onedrive:Documents" "${workspaceRoot}/onedrive/Documents"
-      ${pkgs.rclone}/bin/rclone copy --update --config "${onedriveConfig}" "${workspaceRoot}/onedrive/Documents" "onedrive:Documents"
+      RCLONE="${pkgs.rclone}/bin/rclone copy --update --config $RCLONE_CONF"
+      $RCLONE "onedrive:Shared" "${workspaceRoot}/onedrive/Shared"
+      $RCLONE "${workspaceRoot}/onedrive/Shared" "onedrive:Shared"
+      $RCLONE "onedrive:Documents" "${workspaceRoot}/onedrive/Documents"
+      $RCLONE "${workspaceRoot}/onedrive/Documents" "onedrive:Documents"
     '';
   };
 

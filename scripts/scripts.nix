@@ -13,6 +13,12 @@ let
 
   containerNames = builtins.attrNames config.virtualisation.oci-containers.containers;
 
+  dockerGid =
+    if (config.users.groups ? docker && config.users.groups.docker.gid != null) then
+      config.users.groups.docker.gid
+    else
+      131;
+
   mkContainerExec =
     name:
     pkgs.writeShellScriptBin name ''
@@ -46,6 +52,8 @@ in
         echo "=== Upgrade started at $(date) ===" | tee "${logFile}"
         echo "Rebuilding from ${flakeRef} with --upgrade (updates nixpkgs, etc.)..." | tee -a "${logFile}"
         sudo nixos-rebuild switch --flake "${flakeRef}" --upgrade "$@" 2>&1 | tee -a "${logFile}"
+        echo "Refreshing container images..." | tee -a "${logFile}"
+        sudo systemctl start refresh-containers.service 2>&1 | tee -a "${logFile}"
         echo "Upgrade complete at $(date)" | tee -a "${logFile}"
       '')
 
@@ -189,11 +197,16 @@ in
         fi
         exec sudo docker run --rm -it \
           --network=host \
-          --user=root \
+          --user=1000:1000 \
+          --group-add=${toString dockerGid} \
           -e HOME=/home/node \
+          -e TERM=xterm-256color \
+          -e BROWSER=echo \
+          -e DOCKER_HOST=unix:///var/run/docker.sock \
           --env-file /run/openclaw.env \
           -v /var/lib/openclaw:/home/node/.openclaw:rw \
-          ghcr.io/phioranex/openclaw-docker:latest \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          openclaw-custom:latest \
           "$@"
       '')
 

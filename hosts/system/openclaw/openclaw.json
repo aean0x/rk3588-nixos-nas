@@ -1,42 +1,64 @@
 {
-  "gateway": {
-    "port": 18789,
-    "mode": "local",
-    "bind": "lan",
-    "auth": {
-      "mode": "password",
-      "allowTailscale": true
-    },
-    "controlUi": {
-      "enabled": true,
-      "dangerouslyDisableDeviceAuth": true
-    },
-    "trustedProxies": ["127.0.0.1", "::1"]
+  "meta": {
+    "lastTouchedVersion": "2026.2.16",
+    "lastTouchedAt": "2026-02-18T17:46:21.047Z"
   },
-  "commands": {
-    "native": "auto",
-    "text": true,
-    "bash": false,
-    "config": true,
-    "restart": true
+  "wizard": {
+    "lastRunAt": "2026-02-18T17:46:21.007Z",
+    "lastRunVersion": "2026.2.16",
+    "lastRunCommand": "doctor",
+    "lastRunMode": "local"
   },
-  "tools": {
-    "web": {
-      "search": { "enabled": true, "maxResults": 5 },
-      "fetch": { "enabled": true, "maxChars": 50000 }
-    }
+  "logging": {
+    "redactSensitive": "tools"
   },
   "auth": {
     "profiles": {
-      "xai:default": { "provider": "xai", "mode": "api_key" }
+      "xai:default": {
+        "provider": "xai",
+        "mode": "api_key"
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "xai": {
+        "baseUrl": "https://api.x.ai/v1",
+        "apiKey": "${XAI_API_KEY}",
+        "api": "openai-responses",
+        "models": [
+          {
+            "id": "grok-4-1-fast-non-reasoning",
+            "name": "Grok 4.1 Fast"
+          },
+          {
+            "id": "grok-4.1-fast-reasoning",
+            "name": "Grok 4.1 Fast Reasoning"
+          }
+        ]
+      }
     }
   },
   "agents": {
     "defaults": {
-      "workspace": "/var/lib/openclaw/workspace",
       "model": {
         "primary": "xai/grok-4-1-fast-non-reasoning",
         "fallbacks": ["xai/grok-4.1-fast-reasoning"]
+      },
+      "models": {
+        "xai/grok-4": {
+          "alias": "Grok"
+        },
+        "xai/grok-4.1-fast-reasoning": {}
+      },
+      "workspace": "/home/node/.openclaw/workspace",
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "12h",
+        "keepLastAssistants": 3,
+        "softTrimRatio": 0.3,
+        "hardClearRatio": 0.5
       },
       "compaction": {
         "mode": "default",
@@ -47,78 +69,125 @@
           "systemPrompt": "Compacting session context. Extract only what's worth remembering. No fluff."
         }
       },
-      "contextPruning": {
-        "mode": "cache-ttl",
-        "ttl": "12h",
-        "keepLastAssistants": 3,
-        "softTrimRatio": 0.3,
-        "hardClearRatio": 0.5
+      "subagents": {
+        "model": "xai/grok-4-1-fast-non-reasoning"
       },
       "sandbox": {
         "mode": "all",
-        "scope": "agent",
         "workspaceAccess": "rw",
+        "scope": "agent",
         "docker": {
+          "readOnlyRoot": false,
           "network": "bridge",
-          "binds": [],
-          "setupCommand": "apt-get update && apt-get install -y git uv curl jq nodejs python3-pip",
-          "readOnlyRoot": true,
-          "capDrop": ["ALL"],
           "user": "1000:1000",
+          "capDrop": ["ALL"],
+          "setupCommand": "apt-get update && apt-get install -y git uv curl jq nodejs python3-pip",
           "memory": "1g",
-          "cpus": 1
+          "cpus": 1,
+          "binds": []
         },
-        "browser": { "enabled": true }
-      },
-      "subagents": {
-        "model": "xai/grok-4-1-fast-non-reasoning"
+        "browser": {
+          "enabled": true
+        }
       }
     },
     "list": [
       {
         "id": "main",
-        "sandbox": { "mode": "off" },
+        "sandbox": {
+          "mode": "off"
+        },
         "tools": {
-          "allow": ["sessions_spawn", "sessions_list", "sessions_send", "sessions_history", "memory"],
+          "allow": [
+            "sessions_spawn",
+            "sessions_list",
+            "sessions_send",
+            "sessions_history",
+            "memory"
+          ],
           "deny": ["group:web", "browser", "group:email", "group:fs", "exec"]
         }
       },
       {
         "id": "researcher",
-        "sandbox": { "mode": "all", "scope": "agent", "workspaceAccess": "ro", "docker": { "network": "bridge" } },
+        "sandbox": {
+          "mode": "all",
+          "scope": "agent",
+          "workspaceAccess": "ro",
+          "docker": {
+            "network": "bridge"
+          }
+        },
         "tools": {
           "allow": ["group:web", "browser", "fetch", "group:fs:read", "exec"],
           "deny": ["group:email", "write"]
         },
-        "identity": { "name": "Researcher" }
+        "identity": {
+          "name": "Researcher"
+        }
       },
       {
         "id": "communicator",
-        "sandbox": { "mode": "all", "scope": "agent", "workspaceAccess": "rw", "docker": { "network": "bridge" } },
+        "sandbox": {
+          "mode": "all",
+          "scope": "agent",
+          "workspaceAccess": "rw",
+          "docker": {
+            "network": "bridge"
+          }
+        },
         "tools": {
           "allow": ["group:email", "group:fs:write"],
           "deny": ["group:web", "browser", "exec"]
         },
-        "identity": { "name": "Communicator" }
+        "identity": {
+          "name": "Communicator"
+        }
       }
     ]
   },
-  "models": {
-    "providers": {
-      "xai": {
-        "baseUrl": "https://api.x.ai/v1",
-        "api": "openai-responses",
-        "apiKey": "${XAI_API_KEY}",
-        "models": [
-          { "id": "grok-4-1-fast-non-reasoning", "name": "Grok 4.1 Fast" },
-          { "id": "grok-4.1-fast-reasoning", "name": "Grok 4.1 Fast Reasoning" }
-        ]
+  "tools": {
+    "web": {
+      "search": {
+        "enabled": true,
+        "maxResults": 5
+      },
+      "fetch": {
+        "enabled": true,
+        "maxChars": 50000
       }
     }
   },
-  "plugins": {
-    "entries": {
-      "telegram": { "enabled": true }
+  "messages": {
+    "ackReactionScope": "group-mentions",
+    "tts": {
+      "auto": "inbound",
+      "provider": "edge",
+      "edge": {
+        "enabled": true,
+        "voice": "en-GB-RyanNeural"
+      }
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "text": true,
+    "bash": false,
+    "config": true,
+    "restart": true
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": {
+          "enabled": true
+        },
+        "bootstrap-extra-files": {
+          "enabled": true
+        }
+      }
     }
   },
   "channels": {
@@ -129,15 +198,51 @@
       "streamMode": "partial"
     }
   },
-  "messages": {
-    "ackReactionScope": "group-mentions",
-    "tts": {
-      "auto": "inbound",
-      "provider": "edge",
-      "edge": { "enabled": true, "voice": "en-GB-RyanNeural" }
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "controlUi": {
+      "enabled": true,
+      "dangerouslyDisableDeviceAuth": true
+    },
+    "auth": {
+      "mode": "password",
+      "password": "${OPENCLAW_GATEWAY_PASSWORD}",
+      "allowTailscale": true
+    },
+    "trustedProxies": ["127.0.0.1", "::1"],
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
     }
   },
-  "logging": {
-    "redactSensitive": "tools"
+  "skills": {
+    "install": {
+      "nodeManager": "npm"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "headless": true,
+    "noSandbox": false,
+    "defaultProfile": "remote",
+    "profiles": {
+      "remote": {
+        "cdpUrl": "https://production-ams.browserless.io/?token=${BROWSERLESS_API_TOKEN}&stealth=true&blockAds=true",
+        "color": "#00AA00"
+      },
+      "local": {
+        "cdpPort": 18800,
+        "color": "#FF0000"
+      }
+    }
   }
 }

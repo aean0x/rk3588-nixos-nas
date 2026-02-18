@@ -45,17 +45,17 @@ in
     ];
     path = [ pkgs.docker ];
     script = ''
-      docker build -t ${customImage} - <<'EOF'
-FROM ${baseImage}
-USER root
-RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz | tar -xzf - --strip-components=1 -C /usr/local/bin docker/docker && \
-    chmod +x /usr/local/bin/docker && ln -sf /usr/local/bin/docker /usr/bin/docker && \
-    curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh && \
-    rm -rf /var/lib/apt/lists/*
-RUN chown -R 1000:1000 /home/linuxbrew/.linuxbrew /home/node 2>/dev/null || true
-USER 1000
-EOF
+            docker build -t ${customImage} - <<'EOF'
+      FROM ${baseImage}
+      USER root
+      RUN apt-get update && apt-get install -y curl && \
+          curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz | tar -xzf - --strip-components=1 -C /usr/local/bin docker/docker && \
+          chmod +x /usr/local/bin/docker && ln -sf /usr/local/bin/docker /usr/bin/docker && \
+          curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh && \
+          rm -rf /var/lib/apt/lists/*
+      RUN chown -R 1000:1000 /home/linuxbrew/.linuxbrew /home/node 2>/dev/null || true
+      USER 1000
+      EOF
     '';
     serviceConfig = {
       Type = "oneshot";
@@ -71,6 +71,9 @@ EOF
         TERM = "xterm-256color";
         DOCKER_HOST = "unix:///var/run/docker.sock";
         DOCKER_API_VERSION = "1.44";
+        OPENCLAW_HOME = "/home/node";
+        OPENCLAW_STATE_DIR = "/home/node/.openclaw";
+        OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
       };
       environmentFiles = [ "/run/openclaw.env" ];
       volumes = [
@@ -118,49 +121,52 @@ EOF
   };
 
   # Setup directories, config, workspace dotfiles, secrets
-  systemd.services.docker-openclaw-gateway.preStart = ''
-    set -euo pipefail
-    mkdir -p ${configDir} ${workspaceDir}
+  systemd.services.docker-openclaw-gateway.preStart =
+    let
+      secretsScript = pkgs.writeShellScript "openclaw-prestart" ''
+        set -euo pipefail
+        mkdir -p ${configDir} ${workspaceDir}
 
-    # Deploy workspace dotfiles (Nix-managed, always overwritten) - disabled for now
-    # ${builtins.concatStringsSep "\n" (
-    #   builtins.attrValues (builtins.mapAttrs (name: src: ''
-    #     cp ${src} ${workspaceDir}/${name}
-    #   '') workspaceFiles)
-    # )}
+        chown -R 1000:1000 ${configDir}
+        chmod -R 700 ${configDir}
 
-    chown -R 1000:1000 ${configDir}
-    chmod -R 700 ${configDir}
+        # TODO: re-enable workspace dotfile deployment (see workspaceFiles in let block)
 
-    CONFIG_FILE="${configDir}/openclaw.json"
-    if [ -f "$CONFIG_FILE" ]; then
-      ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$CONFIG_FILE" ${defaultConfigFile} > /tmp/openclaw-new.json
-      mv /tmp/openclaw-new.json "$CONFIG_FILE"
-    else
-      cp ${defaultConfigFile} "$CONFIG_FILE"
-    fi
-    chown 1000:1000 "$CONFIG_FILE"
-    chmod 0600 "$CONFIG_FILE"
+        # Symlink so Docker daemon resolves openclaw's default paths from host
+        mkdir -p /home/node
+        ln -sfn ${configDir} /home/node/.openclaw
 
-    printf '%s\n' \
-      "OPENCLAW_GATEWAY_TOKEN=$(cat ${config.sops.secrets.openclaw_gateway_token.path})" \
-      "OPENCLAW_GATEWAY_PASSWORD=$(cat ${config.sops.secrets.openclaw_gateway_password.path})" \
-      "XAI_API_KEY=$(cat ${config.sops.secrets.xai_api_key.path})" \
-      "OPENROUTER_API_KEY=$(cat ${config.sops.secrets.openrouter_api_key.path})" \
-      "OPENAI_API_KEY=$(cat ${config.sops.secrets.openrouter_api_key.path})" \
-      "ANTHROPIC_API_KEY=$(cat ${config.sops.secrets.anthropic_api_key.path})" \
-      "BRAVE_API_KEY=$(cat ${config.sops.secrets.brave_search_api_key.path})" \
-      "TELEGRAM_BOT_TOKEN=$(cat ${config.sops.secrets.telegram_bot_token.path})" \
-      "GOOGLE_PLACES_API_KEY=$(cat ${config.sops.secrets.google_places_api_key.path})" \
-      "BROWSERLESS_API_TOKEN=$(cat ${config.sops.secrets.browserless_api_token.path})" \
-      "MATON_API_KEY=$(cat ${config.sops.secrets.maton_api_key.path})" \
-      "HA_TOKEN=$(cat ${config.sops.secrets.ha_token.path})" \
-      "HA_URL=$(cat ${config.sops.secrets.ha_url.path})" \
-      "GOOGLE_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
-      "GEMINI_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
-      > /run/openclaw.env
-    chmod 0640 /run/openclaw.env
-  '';
+        CONFIG_FILE="${configDir}/openclaw.json"
+        if [ -f "$CONFIG_FILE" ]; then
+          ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$CONFIG_FILE" ${defaultConfigFile} > /tmp/openclaw-new.json
+          mv /tmp/openclaw-new.json "$CONFIG_FILE"
+        else
+          cp ${defaultConfigFile} "$CONFIG_FILE"
+        fi
+        chown 1000:1000 "$CONFIG_FILE"
+        chmod 0600 "$CONFIG_FILE"
+
+        printf '%s\n' \
+          "OPENCLAW_GATEWAY_TOKEN=$(cat ${config.sops.secrets.openclaw_gateway_token.path})" \
+          "OPENCLAW_GATEWAY_PASSWORD=$(cat ${config.sops.secrets.openclaw_gateway_password.path})" \
+          "XAI_API_KEY=$(cat ${config.sops.secrets.xai_api_key.path})" \
+          "OPENROUTER_API_KEY=$(cat ${config.sops.secrets.openrouter_api_key.path})" \
+          "OPENAI_API_KEY=$(cat ${config.sops.secrets.openrouter_api_key.path})" \
+          "ANTHROPIC_API_KEY=$(cat ${config.sops.secrets.anthropic_api_key.path})" \
+          "BRAVE_API_KEY=$(cat ${config.sops.secrets.brave_search_api_key.path})" \
+          "TELEGRAM_BOT_TOKEN=$(cat ${config.sops.secrets.telegram_bot_token.path})" \
+          "GOOGLE_PLACES_API_KEY=$(cat ${config.sops.secrets.google_places_api_key.path})" \
+          "BROWSERLESS_API_TOKEN=$(cat ${config.sops.secrets.browserless_api_token.path})" \
+          "MATON_API_KEY=$(cat ${config.sops.secrets.maton_api_key.path})" \
+          "HA_TOKEN=$(cat ${config.sops.secrets.ha_token.path})" \
+          "HA_URL=$(cat ${config.sops.secrets.ha_url.path})" \
+          "GOOGLE_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
+          "GEMINI_API_KEY=$(cat ${config.sops.secrets.google_api_key.path})" \
+          > /run/openclaw.env
+        chmod 0640 /run/openclaw.env
+      '';
+    in
+    toString secretsScript;
 
   # Weekly image refresh
   systemd.services.openclaw-refresh = {

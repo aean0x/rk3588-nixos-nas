@@ -108,10 +108,12 @@ case "$CMD" in
         check_ssh
 
         ACTION="${CMD#remote-}"
+        IS_UPGRADE=false
 
         # Update flake inputs first if upgrading
         if [[ "$ACTION" == "upgrade" ]]; then
             update_flake
+            IS_UPGRADE=true
             ACTION="switch"
         fi
 
@@ -124,6 +126,11 @@ case "$CMD" in
 
         build_system
         deploy_system "$ACTION"
+
+        if [[ "$IS_UPGRADE" == true ]]; then
+            info "Refreshing container images..."
+            ssh -t ${SSH_OPTS} "$TARGET" "sudo systemctl start refresh-containers.service"
+        fi
         ;;
 
     # Catch-all: forward to device (container exec, etc.)
