@@ -5,7 +5,6 @@
   imports = [
     # ./services/cockpit.nix      # Web-based system management (port 9090)
     ./services/tailscale.nix # Tailscale VPN (native)
-    ./services/onedrive.nix # OneDrive sync for OpenClaw workspace
     # ./services/cloudflared.nix # Cloudflare tunnel — enable after tunnel creation
     ./services/remote-desktop.nix # XFCE + xrdp
     # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin, etc.)

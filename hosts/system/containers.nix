@@ -15,8 +15,8 @@ in
 {
   imports = [
     ./containers/home-assistant.nix
-    ./containers/openclaw.nix
     ./containers/filebrowser.nix
+    ./openclaw
   ];
 
   # ===================

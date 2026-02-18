@@ -26,16 +26,22 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   ├── containers.nix   # Docker engine, refresh timer, imports containers/*
 │   │   ├── containers/      # Docker container modules
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
-│   │   │   ├── openclaw.nix       # OpenClaw gateway + CLI (runtime docker build)
 │   │   │   └── filebrowser.nix    # Web-based file manager (SOPS-managed admin password)
+│   │   ├── openclaw/         # OpenClaw gateway, workspace dotfiles, related services
+│   │   │   ├── default.nix        # Docker containers, builder, preStart, refresh timer
+│   │   │   ├── openclaw.json      # Gateway config (committed, merged into /var/lib/openclaw/)
+│   │   │   ├── onedrive.nix       # OneDrive bidirectional sync into workspace
+│   │   │   └── workspace/         # Nix-managed dotfiles deployed to /var/lib/openclaw/workspace/
+│   │   │       ├── AGENTS.md      # Agent role descriptions and guidelines
+│   │   │       ├── SOUL.md        # Personality directives
+│   │   │       └── STYLE.md       # Message formatting and output rules
 │   │   └── services/        # Native service modules
 │   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
 │   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
 │   │       ├── cloudflared.nix    # Cloudflare tunnel (native NixOS)
 │   │       ├── remote-desktop.nix # XFCE + xrdp
 │   │       ├── tasks.nix          # Auto-upgrade and garbage collection
-│   │       ├── caddy.nix          # Reverse proxy with ACME DNS-01 via Cloudflare
-│   │       └── onedrive.nix       # OneDrive sync
+│   │       └── caddy.nix          # Reverse proxy with ACME DNS-01 via Cloudflare
 │   └── iso/                  # Installer image (shared by ISO + netboot)
 │       ├── default.nix       # Minimal env: SSH + pubkeys + avahi + rsync (no secrets)
 │       ├── iso.nix           # ISO-specific config (isoImage settings)
@@ -103,12 +109,16 @@ Docker containers that need sops secrets use `systemd.services.docker-<name>.pre
 
 ### OpenClaw Docker Architecture
 
-OpenClaw runs as two Docker containers (`openclaw-gateway` + `openclaw-cli`) using a custom image built at runtime on the device via `docker build`. State at `/var/lib/openclaw/` with subdirs volume-mounted into containers.
+OpenClaw lives in `hosts/system/openclaw/` as a self-contained module. Two Docker containers (`openclaw-gateway` + `openclaw-cli`) using a custom image built at runtime on the device via `docker build`. Runs entirely non-root as `node:1000`. State at `/var/lib/openclaw/` mounted to `/home/node/.openclaw` inside containers.
 
-- **`openclaw-builder`** (oneshot) — builds `openclaw-custom:latest` from the upstream base image, injecting Docker CLI and uv. Runs before gateway starts via `requiredBy`
-- **`preStart`** — creates data dirs, deep-merges Nix-declared config into `openclaw.json` via jq, writes `/run/openclaw.env` with all API keys from SOPS
-- **`openclaw-refresh`** timer (Mon 04:00) — pulls latest base image, rebuilds custom image, restarts gateway
-- Base image uses its own entrypoint (`node /app/dist/index.js`), so container `cmd` passes subcommands directly (e.g. `gateway --bind lan --port 18789`)
+- **Non-root runtime**: `user: "1000:1000"` on both containers, `--group-add=${dockerGid}` for socket access. No root anywhere in running containers.
+- **`openclaw-builder`** (oneshot) — builds `openclaw-custom:latest` from upstream `ghcr.io/phioranex/openclaw-docker:latest`, adds Docker CLI (static binary) + uv, fixes `/home/linuxbrew` and `/home/node` ownership. Single-RUN layer for efficiency. Runs before gateway via `requiredBy`.
+- **`preStart`** — deploys workspace dotfiles from Nix store, `chown -R 1000:1000 /var/lib/openclaw`, deep-merges committed `openclaw.json` into runtime config via jq, writes `/run/openclaw.env` with all API keys from SOPS.
+- **Config as JSON**: `openclaw.json` is committed as a plain JSON file (not generated from Nix attrset). Merged over any existing runtime config on each start so manual tweaks are preserved but Nix-declared values always win.
+- **Workspace dotfiles**: `workspace/AGENTS.md`, `workspace/SOUL.md`, and `workspace/STYLE.md` are Nix-managed and deployed to `/var/lib/openclaw/workspace/` on every preStart (always overwritten). Add new files to `workspaceFiles` attrset in `default.nix`.
+- **Agent sandboxes** — gateway spawns sandbox containers via mounted `docker.sock`. Sandbox defaults in `openclaw.json`: `user: "1000:1000"`, `readOnlyRoot: true`, `capDrop: ["ALL"]`, bridge network, 1g memory limit. `setupCommand` runs once at sandbox creation.
+- **OneDrive sync** — `onedrive.nix` (imported by openclaw `default.nix`) runs bidirectional rclone copy on a 15m timer as UID 1000. Syncs `Shared` and `Documents` into `workspace/onedrive/`.
+- **`openclaw-refresh`** timer (Mon 04:00) — pulls latest base image, rebuilds custom image, restarts gateway.
 
 ### ZFS Pool
 

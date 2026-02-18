@@ -1,0 +1,143 @@
+{
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "auth": {
+      "mode": "password",
+      "allowTailscale": true
+    },
+    "controlUi": {
+      "enabled": true,
+      "dangerouslyDisableDeviceAuth": true
+    },
+    "trustedProxies": ["127.0.0.1", "::1"]
+  },
+  "commands": {
+    "native": "auto",
+    "text": true,
+    "bash": false,
+    "config": true,
+    "restart": true
+  },
+  "tools": {
+    "web": {
+      "search": { "enabled": true, "maxResults": 5 },
+      "fetch": { "enabled": true, "maxChars": 50000 }
+    }
+  },
+  "auth": {
+    "profiles": {
+      "xai:default": { "provider": "xai", "mode": "api_key" }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/var/lib/openclaw/workspace",
+      "model": {
+        "primary": "xai/grok-4-1-fast-non-reasoning",
+        "fallbacks": ["xai/grok-4.1-fast-reasoning"]
+      },
+      "compaction": {
+        "mode": "default",
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 40000,
+          "prompt": "Extract key decisions, state changes, lessons, blockers to memory/YYYY-MM-DD.md. Format: ## [HH:MM] Topic. Skip routine work. NO_FLUSH if nothing important.",
+          "systemPrompt": "Compacting session context. Extract only what's worth remembering. No fluff."
+        }
+      },
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "12h",
+        "keepLastAssistants": 3,
+        "softTrimRatio": 0.3,
+        "hardClearRatio": 0.5
+      },
+      "sandbox": {
+        "mode": "all",
+        "scope": "agent",
+        "workspaceAccess": "rw",
+        "docker": {
+          "network": "bridge",
+          "binds": [],
+          "setupCommand": "apt-get update && apt-get install -y git uv curl jq nodejs python3-pip",
+          "readOnlyRoot": true,
+          "capDrop": ["ALL"],
+          "user": "1000:1000",
+          "memory": "1g",
+          "cpus": 1
+        },
+        "browser": { "enabled": true }
+      },
+      "subagents": {
+        "model": "xai/grok-4-1-fast-non-reasoning"
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "sandbox": { "mode": "off" },
+        "tools": {
+          "allow": ["sessions_spawn", "sessions_list", "sessions_send", "sessions_history", "memory"],
+          "deny": ["group:web", "browser", "group:email", "group:fs", "exec"]
+        }
+      },
+      {
+        "id": "researcher",
+        "sandbox": { "mode": "all", "scope": "agent", "workspaceAccess": "ro", "docker": { "network": "bridge" } },
+        "tools": {
+          "allow": ["group:web", "browser", "fetch", "group:fs:read", "exec"],
+          "deny": ["group:email", "write"]
+        },
+        "identity": { "name": "Researcher" }
+      },
+      {
+        "id": "communicator",
+        "sandbox": { "mode": "all", "scope": "agent", "workspaceAccess": "rw", "docker": { "network": "bridge" } },
+        "tools": {
+          "allow": ["group:email", "group:fs:write"],
+          "deny": ["group:web", "browser", "exec"]
+        },
+        "identity": { "name": "Communicator" }
+      }
+    ]
+  },
+  "models": {
+    "providers": {
+      "xai": {
+        "baseUrl": "https://api.x.ai/v1",
+        "api": "openai-responses",
+        "apiKey": "${XAI_API_KEY}",
+        "models": [
+          { "id": "grok-4-1-fast-non-reasoning", "name": "Grok 4.1 Fast" },
+          { "id": "grok-4.1-fast-reasoning", "name": "Grok 4.1 Fast Reasoning" }
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": { "enabled": true }
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "groupPolicy": "allowlist",
+      "streamMode": "partial"
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions",
+    "tts": {
+      "auto": "inbound",
+      "provider": "edge",
+      "edge": { "enabled": true, "voice": "en-GB-RyanNeural" }
+    }
+  },
+  "logging": {
+    "redactSensitive": "tools"
+  }
+}
