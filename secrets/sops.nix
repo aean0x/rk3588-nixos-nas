@@ -37,6 +37,7 @@ in
         maton_api_key = { };
         ha_token = { };
         ha_url = { };
+        telegram_admin_id = { };
         cloudflare_dns_api_token = { };
         xai_api_key = { };
         filebrowser_password = { };

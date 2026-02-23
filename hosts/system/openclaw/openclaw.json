@@ -33,7 +33,7 @@
             "name": "Grok 4.1 Fast"
           },
           {
-            "id": "grok-4.1-fast-reasoning",
+            "id": "grok-4-1-fast-reasoning",
             "name": "Grok 4.1 Fast Reasoning"
           }
         ]
@@ -43,14 +43,12 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "xai/grok-4-1-fast-non-reasoning",
-        "fallbacks": ["xai/grok-4.1-fast-reasoning"]
+        "primary": "xai/grok-4-1-fast-reasoning",
+        "fallbacks": ["xai/grok-4-1-fast-non-reasoning"]
       },
       "models": {
-        "xai/grok-4": {
-          "alias": "Grok"
-        },
-        "xai/grok-4.1-fast-reasoning": {}
+        "xai/grok-4-1-fast-reasoning": { "alias": "grok-reasoning" },
+        "xai/grok-4-1-fast-non-reasoning": { "alias": "grok-non-reasoning" }
       },
       "workspace": "/home/node/.openclaw/workspace",
       "contextPruning": {
@@ -70,57 +68,76 @@
         }
       },
       "subagents": {
-        "model": "xai/grok-4-1-fast-non-reasoning"
+        "model": "xai/grok-4-1-fast-reasoning"
       },
       "sandbox": {
         "mode": "all",
         "workspaceAccess": "rw",
         "scope": "agent",
         "docker": {
+          "image": "openclaw-custom:latest",
           "readOnlyRoot": false,
           "network": "bridge",
           "user": "1000:1000",
           "capDrop": ["ALL"],
-          "setupCommand": "apt-get update && apt-get install -y git uv curl jq nodejs python3-pip",
-          "memory": "1g",
           "cpus": 1,
-          "binds": []
+          "binds": ["/var/lib/openclaw:/home/node/.openclaw:ro"],
+          "env": {
+            "HOME": "/home/node",
+            "OPENCLAW_HOME": "/home/node",
+            "OPENCLAW_STATE_DIR": "/home/node/.openclaw",
+            "OPENCLAW_CONFIG_PATH": "/home/node/.openclaw/openclaw.json"
+          }
         },
         "browser": {
           "enabled": true
+        }
+      },
+      "memorySearch": {
+        "provider": "gemini",
+        "model": "gemini-embedding-001",
+        "remote": {
+          "apiKey": "${GEMINI_API_KEY}"
         }
       }
     },
     "list": [
       {
         "id": "main",
-        "sandbox": {
-          "mode": "off"
-        },
+        "sandbox": { "mode": "off" },
         "tools": {
-          "allow": [
-            "sessions_spawn",
-            "sessions_list",
-            "sessions_send",
-            "sessions_history",
-            "memory"
-          ],
-          "deny": ["group:web", "browser", "group:email", "group:fs", "exec"]
+          "deny": ["group:web", "group:email", "group:messaging"]
+        },
+        "subagents": {
+          "allowAgents": ["*"]
         }
       },
       {
         "id": "researcher",
+        "memorySearch": {
+          "enabled": false
+        },
         "sandbox": {
           "mode": "all",
           "scope": "agent",
           "workspaceAccess": "ro",
           "docker": {
-            "network": "bridge"
+            "network": "bridge",
+            "env": {
+              "BRAVE_API_KEY": "${BRAVE_API_KEY}",
+              "GOOGLE_PLACES_API_KEY": "${GOOGLE_PLACES_API_KEY}"
+            }
           }
         },
         "tools": {
-          "allow": ["group:web", "browser", "fetch", "group:fs:read", "exec"],
-          "deny": ["group:email", "write"]
+          "deny": [
+            "group:email",
+            "group:messaging",
+            "write",
+            "edit",
+            "apply_patch",
+            "group:ha"
+          ]
         },
         "identity": {
           "name": "Researcher"
@@ -133,20 +150,57 @@
           "scope": "agent",
           "workspaceAccess": "rw",
           "docker": {
-            "network": "bridge"
+            "network": "bridge",
+            "env": {
+              "MATON_API_KEY": "${MATON_API_KEY}",
+              "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}"
+            }
           }
         },
         "tools": {
-          "allow": ["group:email", "group:fs:write"],
-          "deny": ["group:web", "browser", "exec"]
+          "allow": ["group:email", "group:messaging", "write"]
         },
-        "identity": {
-          "name": "Communicator"
-        }
+        "identity": { "name": "Communicator" }
+      },
+      {
+        "id": "controller",
+        "sandbox": {
+          "mode": "all",
+          "scope": "agent",
+          "workspaceAccess": "ro",
+          "docker": {
+            "network": "bridge",
+            "env": {
+              "HA_URL": "${HA_URL}",
+              "HA_TOKEN": "${HA_TOKEN}"
+            }
+          }
+        },
+        "tools": {
+          "allow": ["group:ha", "mcp"],
+          "deny": [
+            "group:web",
+            "group:ui",
+            "group:email",
+            "group:messaging",
+            "group:runtime",
+            "write",
+            "edit",
+            "apply_patch"
+          ]
+        },
+        "identity": { "name": "Controller" }
       }
     ]
   },
   "tools": {
+    "elevated": {
+      "enabled": true,
+      "allowFrom": {
+        "telegram": ["${TELEGRAM_ADMIN_ID}"]
+      }
+    },
+    "exec": { "ask": "off", "security": "full" },
     "web": {
       "search": {
         "enabled": true,
