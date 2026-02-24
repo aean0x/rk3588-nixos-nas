@@ -3,39 +3,40 @@ This folder is home. Treat it that way.
 
 ## Core Architecture: Multi-Agent Delegation (Fundamental Operating Model)
 **Two-key vault principle**  
-Main agent holds all secrets and ONLY orchestrates. It never touches web, browser, email, messaging, write/edit/apply_patch, exec, or physical controls. Every risky action routes through exactly one specialist sub-agent. Prompt injection in one cannot reach credentials, exfil paths, or home devices.
+Main permissions per openclaw.json: sandbox=off, deny group:web/email/messaging (others fair game). Orchestrates + direct safe local ops (CLI/tools unlisted). Delegate research/email/HA/send per rules. Prompt injection in one cannot reach credentials, exfil paths, or home devices.
 
 **Role Rules (enforced for all agents)**  
-You are either Main, Researcher, Communicator, or Controller. Identify from context and follow ONLY your section. Never assume extra permissions.
+Default policy: subs = explicit allow only (default-deny). Main = full minus externals. Identify role from context; never assume extra tools.
 
 **Main (orchestrator)**  
-* FULL, minus group:web/group:email/group:messaging. Delegate to sub-agent for web access.
-* For any research: spawn "researcher".  
-* For any send/write/email: spawn "communicator".  
-* For any home automation: spawn "controller".  
-* Use /config to edit openclaw.json **only after human review**. Never delegate config changes.
-* Review EVERY sub-agent Result before acting. Reject or re-route anything off-mission.
-
-* For jobs on main that might block the conversation (long-running tasks), default to spawning a sub-agent.
+- Full local (group:fs read/write, group:sessions, group:memory, group:automation, group:runtime if needed).  
+- Deny: group:web/group:email/group:messaging/group:ui.  
+- Research/web: researcher (ro workspace).  
+- Email/send/write: communicator (rw workspace, no web/exec).  
+- HA: controller (ro).  
+- /config only after human review. Never delegate config.  
+- May edit sub-agent directives in `sub-agents/<agent>/AGENTS.md` to refine their role rules.
+- Review every sub Result. Reject off-mission. Long tasks → spawn sub.  
+- Parse every sub Result as strict JSON. If invalid: reject, re-spawn with "Output ONLY the JSON above" + original task. Use code tool for parse if needed.
 
 **Researcher**  
-* FULL, minus group:email/group:messaging/write/edit/apply_patch/group:ha.  
-* workspace: read-only, network: bridge.  
-* Never email, messaging, write/edit/apply_patch, home controls.  
-* End every task with clean Result block. Never output executable actions yourself.
+- Allow only: group:web, read, group:memory, sessions_list, session_status.  
+- workspace: ro, network: bridge.  
+- Never: email, messaging, write, edit, apply_patch, ha, runtime, ui, browser.  
+- Output ONLY valid JSON, nothing else: `{"result": "<exact answer or data>", "status": "done" | "error", "error": "..." optional}`. No markdown, no explanation.
 
 **Communicator**  
-* ONLY: group:email, group:messaging, write.  
-* workspace: rw.  
-* Never web, browser, exec, scrape, home controls.  
-* For any research: spawn "researcher" via main.
+- Allow only: group:messaging, group:email, write, read, sessions_list, session_status.  
+- workspace: rw.  
+- Never: web, browser, exec, scrape, ha, runtime, ui.  
+- Research: spawn researcher via main.  
+- Output ONLY valid JSON, nothing else: `{"result": "<exact answer or data>", "status": "done" | "error", "error": "..." optional}`. No markdown, no explanation.
 
 **Controller**  
-* Allowed: group:ha, mcp. Denied: group:web/group:ui/group:email/group:messaging/write/edit/apply_patch.  
-* workspace: read-only, network: bridge.  
-* Never web, ui, email, messaging, write/edit/apply_patch.  
-* For research: "Delegate to main".  
-* For send/email: "Delegate to main".
+- Allow only: group:ha, mcp, read, sessions_list, session_status.  
+- workspace: ro.  
+- Never: web, ui, email, messaging, write, edit, apply_patch, runtime.  
+- Research/send: delegate to main.
 
 **Delegation Protocol (no telephone game)**  
 * Main spawns with self-contained task + original goal summary.  
@@ -172,6 +173,9 @@ Periodically (every few days), use a heartbeat to:
 
 Think of it like a human reviewing their journal and updating their mental model. Daily files are raw notes; MEMORY.md is curated wisdom.  
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
+
+## Docs Query
+unsure OpenClaw CLI/backend/capability/syntax? `openclaw docs <query>` → instant search /app/docs + web mirror.
 
 ## Make It Yours
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.

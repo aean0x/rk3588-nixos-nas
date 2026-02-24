@@ -9,10 +9,14 @@ openclaw/
 ├── default.nix        # Gateway + CLI containers, builder, preStart, refresh timer
 ├── openclaw.json      # Committed gateway config (merged into runtime on each start)
 ├── onedrive.nix       # Bidirectional rclone sync (15m timer, UID 1000, group "users")
-└── workspace/         # Nix-managed dotfiles → /var/lib/openclaw/workspace/
-    ├── AGENTS.md      # Multi-agent role rules (deployed to workspace, not this file)
-    ├── SOUL.md        # Personality directives
-    └── STYLE.md       # Message formatting rules
+└── workspace/         # Nix-managed dotfiles (source)
+    ├── AGENTS.md      # Main agent role rules
+    ├── SOUL.md        # Personality directives (shared)
+    ├── STYLE.md       # Message formatting rules (shared)
+    └── sub-agents/    # Sub-agent specific config
+        ├── researcher/AGENTS.md   # Restricted role rules
+        ├── communicator/AGENTS.md # Restricted role rules
+        └── controller/AGENTS.md   # Restricted role rules
 ```
 
 ## Path Mapping
@@ -21,7 +25,8 @@ openclaw/
 |---|---|---|
 | `/var/lib/openclaw` | `/home/node/.openclaw` | Single volume mount, rw for gateway |
 | `/var/lib/openclaw/openclaw.json` | `/home/node/.openclaw/openclaw.json` | Config file |
-| `/var/lib/openclaw/workspace` | `/home/node/.openclaw/workspace` | Agent workspace |
+| `/var/lib/openclaw/workspace` | `/home/node/.openclaw/workspace` | Main Agent workspace |
+| `.../workspace/sub-agents/*` | `.../workspace/sub-agents/*` | Sub-agent workspaces (nested) |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | For sandbox spawning |
 
 Gateway env vars (`OPENCLAW_HOME`, `OPENCLAW_STATE_DIR`, `OPENCLAW_CONFIG_PATH`) explicitly point to container paths. Subagent sandboxes get these via `agents.defaults.sandbox.docker.env` in `openclaw.json`.
@@ -49,12 +54,15 @@ Sandbox defaults in `openclaw.json` apply to ALL sandboxed agents unless overrid
 
 | Agent | Tools (allow) | Keys | Deny |
 |---|---|---|---|
-| main | `group:sessions`, `memory`, `config` | All (gateway env) | web, browser, email, fs, exec |
-| researcher | `group:web`, `browser`, `read`, `exec` | BRAVE, BROWSERLESS, GOOGLE_PLACES | email, write |
-| communicator | `group:email`, `write` | MATON, TELEGRAM | web, browser, exec |
-| controller | `group:ha`, `mcp` | HA_URL, HA_TOKEN | web, browser, email, exec |
+| main | FULL (minus deny list) | All (gateway env) | `group:web`, `group:email`, `group:messaging`, `group:ui` |
+| researcher | `group:web`, `read`, `group:memory` | BRAVE, BROWSERLESS, GOOGLE_PLACES | **Implicit deny (whitelist only)** |
+| communicator | `group:email`, `group:messaging`, `write` | MATON, TELEGRAM | **Implicit deny (whitelist only)** |
+| controller | `group:ha`, `mcp`, `read` | HA_URL, HA_TOKEN | **Implicit deny (whitelist only)** |
 
-This is the two-key vault principle: main holds all keys but never touches the network directly. Specialists get only what they need. Prompt injection in one sandbox can't reach another's credentials.
+This is the two-key vault principle + default deny:
+- **Main**: Has broad local access (files, memory, config) but is **blind** to the web/messaging/UI.
+- **Sub-agents**: Have access **only** to whitelisted tools/keys. If it's not allowed, it's denied.
+- **Protocol**: Sub-agents must output strict JSON (`{"result": "...", "status": "..."}`). Main parses this safely.
 
 ## Editing openclaw.json
 

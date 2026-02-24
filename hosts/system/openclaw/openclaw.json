@@ -71,13 +71,13 @@
         "model": "xai/grok-4-1-fast-reasoning"
       },
       "sandbox": {
-        "mode": "all",
-        "workspaceAccess": "rw",
+        "mode": "non-main",
+        "workspaceAccess": "none",
         "scope": "agent",
         "docker": {
           "image": "openclaw-custom:latest",
-          "readOnlyRoot": false,
-          "network": "bridge",
+          "readOnlyRoot": true,
+          "network": "none",
           "user": "1000:1000",
           "capDrop": ["ALL"],
           "cpus": 1,
@@ -106,20 +106,16 @@
         "id": "main",
         "sandbox": { "mode": "off" },
         "tools": {
-          "deny": ["group:web", "group:email", "group:messaging"]
+          "profile": "full",
+          "deny": ["group:web", "group:email", "group:messaging", "group:ui"]
         },
-        "subagents": {
-          "allowAgents": ["*"]
-        }
+        "subagents": { "allowAgents": ["*"] }
       },
       {
         "id": "researcher",
-        "memorySearch": {
-          "enabled": false
-        },
+        "workspace": "/home/node/.openclaw/workspace/sub-agents/researcher",
+        "memorySearch": { "enabled": false },
         "sandbox": {
-          "mode": "all",
-          "scope": "agent",
           "workspaceAccess": "ro",
           "docker": {
             "network": "bridge",
@@ -130,24 +126,20 @@
           }
         },
         "tools": {
-          "deny": [
-            "group:email",
-            "group:messaging",
-            "write",
-            "edit",
-            "apply_patch",
-            "group:ha"
+          "allow": [
+            "group:web",
+            "read",
+            "group:memory",
+            "sessions_list",
+            "session_status"
           ]
         },
-        "identity": {
-          "name": "Researcher"
-        }
+        "identity": { "name": "Researcher" }
       },
       {
         "id": "communicator",
+        "workspace": "/home/node/.openclaw/workspace/sub-agents/communicator",
         "sandbox": {
-          "mode": "all",
-          "scope": "agent",
           "workspaceAccess": "rw",
           "docker": {
             "network": "bridge",
@@ -158,35 +150,33 @@
           }
         },
         "tools": {
-          "allow": ["group:email", "group:messaging", "write"]
+          "allow": [
+            "group:messaging",
+            "group:email",
+            "write",
+            "read",
+            "sessions_list",
+            "session_status"
+          ]
         },
         "identity": { "name": "Communicator" }
       },
       {
         "id": "controller",
+        "workspace": "/home/node/.openclaw/workspace/sub-agents/controller",
         "sandbox": {
-          "mode": "all",
-          "scope": "agent",
           "workspaceAccess": "ro",
           "docker": {
-            "network": "bridge",
-            "env": {
-              "HA_URL": "${HA_URL}",
-              "HA_TOKEN": "${HA_TOKEN}"
-            }
+            "env": { "HA_URL": "${HA_URL}", "HA_TOKEN": "${HA_TOKEN}" }
           }
         },
         "tools": {
-          "allow": ["group:ha", "mcp"],
-          "deny": [
-            "group:web",
-            "group:ui",
-            "group:email",
-            "group:messaging",
-            "group:runtime",
-            "write",
-            "edit",
-            "apply_patch"
+          "allow": [
+            "group:ha",
+            "mcp",
+            "read",
+            "sessions_list",
+            "session_status"
           ]
         },
         "identity": { "name": "Controller" }
@@ -194,9 +184,42 @@
     ]
   },
   "tools": {
+    "sandbox": {
+      "tools": {
+        "allow": [
+          "exec",
+          "process",
+          "read",
+          "write",
+          "edit",
+          "apply_patch",
+          "sessions_list",
+          "sessions_history",
+          "sessions_send",
+          "sessions_spawn",
+          "session_status"
+        ],
+        "deny": [
+          "browser",
+          "canvas",
+          "nodes",
+          "cron",
+          "gateway",
+          "telegram",
+          "whatsapp",
+          "discord",
+          "irc",
+          "googlechat",
+          "slack",
+          "signal",
+          "imessage"
+        ]
+      }
+    },
     "elevated": {
       "enabled": true,
       "allowFrom": {
+        "main": ["*"],
         "telegram": ["${TELEGRAM_ADMIN_ID}"]
       }
     },

@@ -22,12 +22,6 @@ let
       131;
 
   defaultConfigFile = ./openclaw.json;
-
-  workspaceFiles = {
-    "AGENTS.md" = ./workspace/AGENTS.md;
-    "SOUL.md" = ./workspace/SOUL.md;
-    "STYLE.md" = ./workspace/STYLE.md;
-  };
 in
 {
   imports = [ ./onedrive.nix ];
@@ -164,6 +158,25 @@ in
       mkdir -p ${configDir} ${workspaceDir}
       mkdir -p /home/node
       ln -sfn ${configDir} /home/node/.openclaw
+
+      # Deploy Main agent (everything from hosts/system/openclaw/workspace/)
+      # This includes sub-agents/ folder which contains specific configs
+      cp -r ${./workspace}/* "${workspaceDir}/"
+      mkdir -p "${workspaceDir}/memory"
+
+      # Ensure sub-agents directories exist and have memory folders
+      # We iterate over the folders that were copied into workspace-main/sub-agents
+      for agent in researcher communicator controller; do
+        agent_dir="${workspaceDir}/sub-agents/$agent"
+        mkdir -p "$agent_dir/memory"
+
+        # Link shared context from main workspace if they exist and don't overwrite existing files
+        for shared in SOUL.md STYLE.md USER.md; do
+            if [ -f "${workspaceDir}/$shared" ] && [ ! -f "$agent_dir/$shared" ]; then
+                ln -s "${workspaceDir}/$shared" "$agent_dir/$shared"
+            fi
+        done
+      done
 
       chown -R 1000:1000 ${configDir}
       chmod -R 700 ${configDir}
