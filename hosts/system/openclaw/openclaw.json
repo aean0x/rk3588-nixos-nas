@@ -75,18 +75,19 @@
         "workspaceAccess": "none",
         "scope": "agent",
         "docker": {
-          "image": "openclaw-custom:latest",
+          "image": "openclaw-sandbox:bookworm-slim",
+          "network": "bridge",
           "readOnlyRoot": true,
-          "network": "none",
           "user": "1000:1000",
           "capDrop": ["ALL"],
           "cpus": 1,
-          "binds": ["/var/lib/openclaw:/home/node/.openclaw:ro"],
           "env": {
             "HOME": "/home/node",
             "OPENCLAW_HOME": "/home/node",
             "OPENCLAW_STATE_DIR": "/home/node/.openclaw",
-            "OPENCLAW_CONFIG_PATH": "/home/node/.openclaw/openclaw.json"
+            "OPENCLAW_CONFIG_PATH": "/home/node/.openclaw/openclaw.json",
+            "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
+            "OPENCLAW_GATEWAY_URL": "ws://172.17.0.1:18789"
           }
         },
         "browser": {
@@ -116,12 +117,14 @@
         "workspace": "/home/node/.openclaw/workspace/sub-agents/researcher",
         "memorySearch": { "enabled": false },
         "sandbox": {
-          "workspaceAccess": "ro",
+          "workspaceAccess": "rw",
           "docker": {
             "network": "bridge",
             "env": {
               "BRAVE_API_KEY": "${BRAVE_API_KEY}",
-              "GOOGLE_PLACES_API_KEY": "${GOOGLE_PLACES_API_KEY}"
+              "GOOGLE_PLACES_API_KEY": "${GOOGLE_PLACES_API_KEY}",
+              "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
+              "OPENCLAW_GATEWAY_URL": "ws://172.17.0.1:18789"
             }
           }
         },
@@ -145,7 +148,9 @@
             "network": "bridge",
             "env": {
               "MATON_API_KEY": "${MATON_API_KEY}",
-              "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}"
+              "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}",
+              "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
+              "OPENCLAW_GATEWAY_URL": "ws://172.17.0.1:18789"
             }
           }
         },
@@ -165,9 +170,15 @@
         "id": "controller",
         "workspace": "/home/node/.openclaw/workspace/sub-agents/controller",
         "sandbox": {
-          "workspaceAccess": "ro",
+          "workspaceAccess": "rw",
           "docker": {
-            "env": { "HA_URL": "${HA_URL}", "HA_TOKEN": "${HA_TOKEN}" }
+            "network": "bridge",
+            "env": {
+              "HA_URL": "${HA_URL}",
+              "HA_TOKEN": "${HA_TOKEN}",
+              "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
+              "OPENCLAW_GATEWAY_URL": "ws://172.17.0.1:18789"
+            }
           }
         },
         "tools": {
@@ -284,8 +295,8 @@
       "dangerouslyDisableDeviceAuth": true
     },
     "auth": {
-      "mode": "password",
-      "password": "${OPENCLAW_GATEWAY_PASSWORD}",
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}",
       "allowTailscale": true
     },
     "trustedProxies": ["127.0.0.1", "::1"],

@@ -9,7 +9,6 @@
 }:
 let
   openclawPort = 18789;
-  bridgePort = 18790;
   baseImage = "ghcr.io/phioranex/openclaw-docker:latest";
   customImage = "openclaw-custom:latest";
   configDir = "/var/lib/openclaw";
@@ -151,13 +150,15 @@ in
     wantedBy = [ "multi-user.target" ];
     before = [ "docker-openclaw-gateway.service" ];
     requiredBy = [ "docker-openclaw-gateway.service" ];
-    after = [ "sops-nix.service" ];
+    after = [
+      "sops-nix.service"
+      "openclaw-builder.service"
+    ];
+    requires = [ "openclaw-builder.service" ];
     serviceConfig.Type = "oneshot";
     script = ''
       set -euo pipefail
       mkdir -p ${configDir} ${workspaceDir}
-      mkdir -p /home/node
-      ln -sfn ${configDir} /home/node/.openclaw
 
       # Deploy Main agent (everything from hosts/system/openclaw/workspace/)
       # This includes sub-agents/ folder which contains specific configs
@@ -170,10 +171,10 @@ in
         agent_dir="${workspaceDir}/sub-agents/$agent"
         mkdir -p "$agent_dir/memory"
 
-        # Link shared context from main workspace if they exist and don't overwrite existing files
+        # Link shared context from main workspace (relative symlinks for container portability)
         for shared in SOUL.md STYLE.md USER.md; do
-            if [ -f "${workspaceDir}/$shared" ] && [ ! -f "$agent_dir/$shared" ]; then
-                ln -s "${workspaceDir}/$shared" "$agent_dir/$shared"
+            if [ -f "${workspaceDir}/$shared" ]; then
+                ln -sf "../../$shared" "$agent_dir/$shared"
             fi
         done
       done
@@ -186,6 +187,9 @@ in
 
       BROWSERLESS_TOKEN="$(cat ${config.sops.secrets.browserless_api_token.path})"
       ${pkgs.gnused}/bin/sed -i "s|\''${BROWSERLESS_API_TOKEN}|$BROWSERLESS_TOKEN|g" "$CONFIG_FILE"
+
+      OPENCLAW_GATEWAY_TOKEN="$(cat ${config.sops.secrets.openclaw_gateway_token.path})"
+      ${pkgs.gnused}/bin/sed -i "s|\''${OPENCLAW_GATEWAY_TOKEN}|$OPENCLAW_GATEWAY_TOKEN|g" "$CONFIG_FILE"
 
       chown 1000:${toString dockerGid} "$CONFIG_FILE"
       chmod 0660 "$CONFIG_FILE"
@@ -238,7 +242,6 @@ in
   networking.firewall = {
     allowedTCPPorts = [
       openclawPort
-      bridgePort
     ];
     allowedUDPPorts = [
       5353 # mDNS

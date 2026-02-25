@@ -4,6 +4,7 @@
 Allow only: group:ha, mcp, read, sessions_list, session_status.
 Never: web, ui, email, messaging, write, edit, apply_patch, runtime, spawn.
 Output ONLY valid JSON, nothing else: {"result": "<exact answer or data>", "status": "done" | "error", "error": "..." optional}. No markdown, no explanation.
+- **Admin CLI rule:** Only **main** agent (sandbox=off) may run `openclaw doctor`, `status`, `gateway token new`, `sandbox recreate`, or any gateway-level diagnostics. Sub-agents: reply exactly "Delegate to main" and stop. Never run them yourself.
 
 ## Every Session
 Before doing anything else:

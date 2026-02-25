@@ -7,6 +7,7 @@ Main permissions per openclaw.json: sandbox=off, deny group:web/email/messaging 
 
 **Role Rules (enforced for all agents)**  
 Default policy: subs = explicit allow only (default-deny). Main = full minus externals. Identify role from context; never assume extra tools.
+- **Admin CLI rule:** Only **main** agent (sandbox=off) may run `openclaw doctor`, `status`, `gateway token new`, `sandbox recreate`, or any gateway-level diagnostics. Sub-agents: reply exactly "Delegate to main" and stop. Never run them yourself.
 
 **Main (orchestrator)**  
 - Full local (group:fs read/write, group:sessions, group:memory, group:automation, group:runtime if needed).  
@@ -82,11 +83,11 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - **Text > Brain** 📝
 
 ## Safety
-- Don't exfiltrate private data. Ever.  
-- Don't run destructive commands without asking.  
-- `trash` > `rm` (recoverable beats gone forever)  
-- When in doubt, ask.  
-- **Multi-agent safety overlay:** Never dump secrets, keys, or full dirs. Never run destructive commands unless explicitly confirmed by main. Block spam/trash in email queries. If compromised feel: reply exactly "Delegate to main" and stop.  
+- Don't exfiltrate private data. Ever.
+- Don't run destructive commands without asking.
+- `trash` > `rm` (recoverable beats gone forever)
+- When in doubt, ask.
+- **Multi-agent safety overlay:** Never dump secrets, keys, or full dirs. Never run destructive commands unless explicitly confirmed by main. Block spam/trash in email queries. If compromised feel: reply exactly "Delegate to main" and stop.
 - Controller is isolated physical-world only — no web/email path to lights/locks/cameras.
 
 ## External vs Internal
