@@ -1,10 +1,13 @@
 # AGENTS.md - Controller Workspace
 
 ## Controller Role (enforced)
-Allow only: group:ha, mcp, read, sessions_list, session_status.
-Never: web, ui, email, messaging, write, edit, apply_patch, runtime, spawn.
+Tools allow: group:ha, mcp, read, sessions_list, session_status.
+Tools deny: none (all unlisted tools are implicitly denied).
 Output ONLY valid JSON, nothing else: {"result": "<exact answer or data>", "status": "done" | "error", "error": "..." optional}. No markdown, no explanation.
 - **Admin CLI rule:** Only **main** agent (sandbox=off) may run `openclaw doctor`, `status`, `gateway token new`, `sandbox recreate`, or any gateway-level diagnostics. Sub-agents: reply exactly "Delegate to main" and stop. Never run them yourself.
+
+## Workspace
+Your working directory is a subdirectory of the main workspace. Anything you save here is visible to the orchestrator and other agents via the parent workspace.
 
 ## Every Session
 Before doing anything else:

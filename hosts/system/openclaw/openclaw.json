@@ -1,11 +1,11 @@
 {
   "meta": {
     "lastTouchedVersion": "2026.2.21",
-    "lastTouchedAt": "2026-02-25T07:13:37.735Z"
+    "lastTouchedAt": "2026-02-25T19:36:34.231Z"
   },
   "wizard": {
-    "lastRunAt": "2026-02-18T17:46:21.007Z",
-    "lastRunVersion": "2026.2.16",
+    "lastRunAt": "2026-02-25T19:36:34.181Z",
+    "lastRunVersion": "2026.2.21",
     "lastRunCommand": "doctor",
     "lastRunMode": "local"
   },
@@ -15,16 +15,17 @@
   "browser": {
     "enabled": true,
     "headless": true,
-    "noSandbox": false,
-    "defaultProfile": "remote",
+    "defaultProfile": "local",
+    "executablePath": "/run/current-system/sw/bin/chromium",
+    "noSandbox": true,
     "profiles": {
-      "remote": {
-        "cdpUrl": "https://production-ams.browserless.io/?token=${BROWSERLESS_API_TOKEN}&stealth=true&blockAds=true",
-        "color": "#00AA00"
-      },
       "local": {
         "cdpPort": 18800,
-        "color": "#FF0000"
+        "color": "#00AA00"
+      },
+      "remote": {
+        "cdpUrl": "wss://production-sfo.browserless.io?token=${BROWSERLESS_API_TOKEN}",
+        "color": "#FF9900"
       }
     }
   },
@@ -118,7 +119,8 @@
           "cpus": 1
         },
         "browser": {
-          "enabled": true
+          "enabled": true,
+          "allowHostControl": true
         }
       }
     },
@@ -154,21 +156,34 @@
               "GOOGLE_PLACES_API_KEY": "${GOOGLE_PLACES_API_KEY}",
               "OPENCLAW_GATEWAY_TOKEN": "${OPENCLAW_GATEWAY_TOKEN}",
               "OPENCLAW_GATEWAY_URL": "ws://172.17.0.1:18789"
-            },
-            "extra_hosts": ["host.docker.internal:host-gateway"]
-          },
-          "tools": {
-            "allow": ["group:web", "read", "group:memory", "session_status"]
+            }
           }
         },
         "tools": {
           "allow": [
             "group:web",
+            "group:ui",
             "read",
-            "group:memory",
+            "memory_search",
+            "memory_get",
             "sessions_list",
             "session_status"
-          ]
+          ],
+          "deny": [],
+          "sandbox": {
+            "tools": {
+              "allow": [
+                "group:web",
+                "group:ui",
+                "read",
+                "memory_search",
+                "memory_get",
+                "sessions_list",
+                "session_status"
+              ],
+              "deny": []
+            }
+          }
         }
       },
       {
@@ -191,13 +206,27 @@
         },
         "tools": {
           "allow": [
-            "group:messaging",
             "group:email",
+            "group:messaging",
             "write",
             "read",
             "sessions_list",
             "session_status"
-          ]
+          ],
+          "deny": [],
+          "sandbox": {
+            "tools": {
+              "allow": [
+                "group:email",
+                "group:messaging",
+                "write",
+                "read",
+                "sessions_list",
+                "session_status"
+              ],
+              "deny": []
+            }
+          }
         }
       },
       {
@@ -225,7 +254,20 @@
             "read",
             "sessions_list",
             "session_status"
-          ]
+          ],
+          "deny": [],
+          "sandbox": {
+            "tools": {
+              "allow": [
+                "group:ha",
+                "mcp",
+                "read",
+                "sessions_list",
+                "session_status"
+              ],
+              "deny": []
+            }
+          }
         }
       }
     ]
@@ -234,7 +276,7 @@
     "web": {
       "search": {
         "enabled": true,
-        "maxResults": 5
+        "maxResults": 10
       },
       "fetch": {
         "enabled": true,
@@ -251,25 +293,6 @@
     "exec": {
       "security": "full",
       "ask": "off"
-    },
-    "sandbox": {
-      "tools": {
-        "deny": [
-          "browser",
-          "canvas",
-          "nodes",
-          "cron",
-          "gateway",
-          "telegram",
-          "whatsapp",
-          "discord",
-          "irc",
-          "googlechat",
-          "slack",
-          "signal",
-          "imessage"
-        ]
-      }
     }
   },
   "messages": {
@@ -310,7 +333,7 @@
       "enabled": true,
       "dmPolicy": "pairing",
       "groupPolicy": "allowlist",
-      "streamMode": "partial"
+      "streaming": true
     }
   },
   "gateway": {

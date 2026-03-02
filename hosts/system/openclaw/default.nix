@@ -47,9 +47,10 @@ in
           apt-get install -y --no-install-recommends \
             git curl jq nodejs python3-pip build-essential ca-certificates && \
           rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
-      # Install uv properly (official way, pinned version avoids surprises)
-      RUN curl -LsSf https://astral.sh/uv/0.5.0/install.sh | sh && \
-          rm -rf /root/.cache/uv  # optional cleanup
+      # Install uv to /usr/local/bin (accessible by non-root user)
+      RUN curl -LsSf https://github.com/astral-sh/uv/releases/download/0.5.0/uv-aarch64-unknown-linux-gnu.tar.gz | \
+          tar -xzf - --strip-components=1 -C /usr/local/bin uv-aarch64-unknown-linux-gnu/uv uv-aarch64-unknown-linux-gnu/uvx && \
+          chmod +x /usr/local/bin/uv /usr/local/bin/uvx
       # Install Docker CLI binary (arm64 variant for rocknas)
       RUN curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz | \
           tar -xzf - --strip-components=1 -C /usr/local/bin docker/docker && \
