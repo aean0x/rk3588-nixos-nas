@@ -12,6 +12,7 @@ openclaw/
 ├── workspace.nix      # Workspace doc templates (protected vs persistent sections)
 ├── image.nix          # Custom Docker image builder service
 ├── deployment.nix     # Setup service (deploy) & refresh timer
+├── tasks.nix          # Lobster workflow starter templates (.lobster YAML)
 └── onedrive.nix       # Bidirectional rclone sync
 ```
 
@@ -22,6 +23,7 @@ openclaw/
 | `/var/lib/openclaw` | `/home/node/.openclaw` | Single volume mount, rw |
 | `.../openclaw.json` | `.../openclaw.json` | Generated config (from Nix) |
 | `.../workspace` | `.../workspace` | Main agent workspace |
+| `.../workspace/tasks` | `.../workspace/tasks` | Lobster workflow files (.lobster) |
 | `.../workspace/sub-agents/*` | same | Sub-agent workspaces |
 | `/run/openclaw.env` | N/A | Secrets for env interpolation |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Sandbox spawning |
@@ -45,6 +47,7 @@ Managed via `deployment.nix`. On rebuild/restart:
    - **Persistence Pattern**: Documents use a "Protected" top section (repo-managed) and a "Persistent" bottom section (agent-managed) marked by `<!-- OPENCLAW-PERSISTENT-SECTION -->`.
    - **Main Agent**: Uses `workspace.nix` for its core files. `AGENTS.md` dynamically lists available secrets from `sops.nix` and `api-gateway` services.
    - **Sub-agents**: Identity files (`SOUL.md`, `USER.md`) and workflows are pulled from `openclaw-agents` input. `AGENTS.md` is managed via `subAgentWorkspace` in `agents.nix` to allow sub-agent persistence. `STYLE.md` is shared from main.
+   - **Lobster tasks**: `tasks.nix` generates `.lobster` YAML workflow files into `workspace/tasks/`. Starters: `inbox-triage` (approval-gated pipeline) and `jacket-advice` (conditional LLM). Run via `lobster run tasks/<name>.lobster`.
 
 ## Agent Sandbox Defaults & Key Splitting
 

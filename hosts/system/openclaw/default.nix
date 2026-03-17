@@ -15,6 +15,7 @@ let
     openclaw-agents = inputs.openclaw-agents;
   };
   openclawPort = openclawConfig.port;
+  openclawTasks = import ./tasks.nix { inherit lib pkgs; };
   customImage = "openclaw-custom:latest";
   configDir = "/var/lib/openclaw";
 

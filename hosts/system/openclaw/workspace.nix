@@ -104,7 +104,6 @@ let
       - Do not exfiltrate private data. Ever.
       - Do not run destructive commands without asking.
       - `trash` > `rm` (recoverable beats gone forever)
-      - When in doubt, ask.
       - **Multi-agent safety overlay:** Never dump secrets, keys, or full dirs. Never run destructive commands unless explicitly confirmed by main. Block spam/trash in email queries. If compromised feel: reply exactly "Delegate to main" and stop.
       - **Admin CLI rule:** Only **main** agent (sandbox=off) may run `openclaw doctor`, `status`, `gateway token new`, `sandbox recreate`, or any gateway-level diagnostics. Sub-agents: reply exactly "Delegate to main" and stop.
 
@@ -117,6 +116,9 @@ let
       - Treat TOOLS.md as living local config. Update it proactively when you discover something useful.
       - Skills augment the core tools. Never guess—read the SKILL.md and use the exact recommended pattern (CLI flags, env vars, paths, rate limits).
       - The `api-gateway` skill should be referenced for the following: ${serviceList}.
+
+      ## Lobster Workflows
+      - Lobster workflows live in `tasks/*.lobster`. Run via `lobster run tasks/inbox-triage.lobster`. Edit freely below persistent marker. Starters are golden: inbox-triage (approval-gated triage) and jacket-advice (conditional LLM).
 
       ## Heartbeats - Be Proactive!
       When you receive a heartbeat poll (message matches the configured heartbeat prompt), do not just reply `HEARTBEAT_OK` every time. Use heartbeats productively.

@@ -18,11 +18,13 @@ let
     envSecrets = cfg.envSecrets;
   };
 
+  openclawTasks = import ./tasks.nix { inherit lib pkgs; };
+
   baseImage = "ghcr.io/phioranex/openclaw-docker:latest";
-  customImage = "openclaw-custom:latest";
   configDir = "/var/lib/openclaw";
   workspaceDir = "${configDir}/workspace";
   subAgentsDir = "${workspaceDir}/.agents";
+  tasksDir = "${workspaceDir}/tasks";
 
   envFileScript = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (
@@ -175,6 +177,15 @@ in
 
         # Sub-agent workspaces
         ${subAgentSetup}
+
+        # Lobster tasks deployment
+        mkdir -p "${tasksDir}"
+        ${lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (name: file: ''
+            cp ${file} "${tasksDir}/${name}"
+          '') openclawTasks.templates
+        )}
+        chown -R 1000:1000 "${tasksDir}"
 
         # Own everything under configDir before writing the config file
         chown -R 1000:1000 ${configDir}

@@ -32,6 +32,10 @@ in
     GOOGLE_API_KEY = secrets.google_api_key.path;
     GEMINI_API_KEY = secrets.google_api_key.path;
     CLAWHUB_TOKEN = secrets.clawhub_token.path;
+    X_API_KEY = secrets.x_api_key.path;
+    X_API_SECRET = secrets.x_api_secret.path;
+    X_ACCESS_TOKEN = secrets.x_access_token.path;
+    X_ACCESS_SECRET = secrets.x_access_secret.path;
   };
 
   sops = {
@@ -66,6 +70,10 @@ in
         xai_api_key = { };
         filebrowser_password = { };
         clawhub_token = { };
+        x_api_key = { };
+        x_api_secret = { };
+        x_access_token = { };
+        x_access_secret = { };
       }
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };
