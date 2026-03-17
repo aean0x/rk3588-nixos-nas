@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 let
   yaml = pkgs.formats.yaml { };
   starters = {
