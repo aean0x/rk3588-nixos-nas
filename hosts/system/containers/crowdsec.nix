@@ -32,8 +32,7 @@ let
   configLocal = pkgs.writeText "config.yaml.local" ''
     api:
       server:
-        listen_addr: 127.0.0.1
-        listen_port: ${toString lapiPort}
+        listen_uri: 127.0.0.1:${toString lapiPort}
   '';
 
   acquis = pkgs.writeText "acquis.yaml" ''
@@ -100,13 +99,32 @@ in
       api_url = "http://127.0.0.1:${toString lapiPort}/";
       update_frequency = "10s";
       log_level = "info";
+      nftables = {
+        ipv4 = {
+          enabled = true;
+          set-only = false;
+          table = "crowdsec";
+          chain = "crowdsec-chain";
+        };
+        ipv6 = {
+          enabled = true;
+          set-only = false;
+          table = "crowdsec6";
+          chain = "crowdsec6-chain";
+        };
+      };
     };
   };
 
-  # Bouncer must wait for container LAPI to be listening
+  # Bouncer must wait for container LAPI to be listening.
+  # Container takes ~15s to initialize on first boot; restart on failure handles the race.
   systemd.services.crowdsec-firewall-bouncer = {
     after = [ "docker-crowdsec.service" ];
     wants = [ "docker-crowdsec.service" ];
+    serviceConfig = {
+      Restart = lib.mkForce "on-failure";
+      RestartSec = "10s";
+    };
   };
 
   # Caddy access logs to stderr so journald captures them for CrowdSec parsing

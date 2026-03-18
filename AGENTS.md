@@ -27,7 +27,8 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   ├── containers.nix   # Docker engine, refresh timer, imports containers/* + openclaw
 │   │   ├── containers/      # Docker container modules
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
-│   │   │   └── filebrowser.nix    # Web-based file manager (SOPS-managed admin password)
+│   │   │   ├── filebrowser.nix    # Web-based file manager (SOPS-managed admin password)
+│   │   │   └── crowdsec.nix       # CrowdSec IDS/IPS engine + native nftables bouncer
 │   │   ├── openclaw/         # OpenClaw gateway, workspace dotfiles, related services
 │   │   │   ├── default.nix        # Docker containers, builder, setup, refresh timer
 │   │   │   ├── agents.nix         # Agent definitions (tools, secrets, docs, enable flags)
@@ -39,7 +40,6 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   │       └── STYLE.md       # Message formatting and output rules
 │   │   └── services/        # Native service modules
 │   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
-│   │       ├── crowdsec.nix       # CrowdSec IDS/IPS + nftables firewall bouncer
 │   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
 │   │       ├── cloudflared.nix    # Cloudflare tunnel (native NixOS)
 │   │       ├── remote-desktop.nix # XFCE + xrdp
@@ -100,7 +100,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
-| CrowdSec | Native | `services/crowdsec.nix` | IDS/IPS engine + nftables bouncer |
+| CrowdSec | Docker+Native | `containers/crowdsec.nix` | Engine in container, nftables bouncer native |
 | Remote Desktop | Native | `services/remote-desktop.nix` | XFCE + xrdp |
 
 Disabled but available: Cockpit, Cloudflared, arr-suite, Transmission.

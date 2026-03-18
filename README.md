@@ -201,7 +201,6 @@ Services are toggled by uncommenting imports in `hosts/system/services.nix`:
 imports = [
   ./services/tailscale.nix      # Tailscale VPN
   ./services/caddy.nix          # Reverse proxy with Cloudflare HTTPS
-  ./services/crowdsec.nix       # CrowdSec IDS/IPS + nftables bouncer
   ./services/adguard.nix        # AdGuard Home DNS (port 53, web UI 3000)
   ./services/remote-desktop.nix # XFCE + xrdp
   # ./services/cockpit.nix      # Web-based system management (port 9090)

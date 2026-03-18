@@ -9,10 +9,14 @@ openclaw/
 ├── default.nix        # Module entry point (imports components)
 ├── agents.nix         # Agent definitions & JSON config logic
 ├── config.nix         # Gateway config generation
-├── workspace.nix      # Workspace doc templates (protected vs persistent sections)
+├── workspace/         # Workspace document templates (protected vs persistent sections)
+│   ├── default.nix    # Assembly entry point (documents + tasks map)
+│   ├── soul.nix       # SOUL.md template (personality, voice, continuity)
+│   ├── agents.nix     # AGENTS.md template (server rules, tooling, automation)
+│   ├── style.nix      # STYLE.md template (formatting, language policy)
+│   └── tasks.nix      # Lobster workflow starter templates (.lobster YAML)
 ├── image.nix          # Custom Docker image builder service
 ├── deployment.nix     # Setup service (deploy) & refresh timer
-├── tasks.nix          # Lobster workflow starter templates (.lobster YAML)
 └── onedrive.nix       # Bidirectional rclone sync
 ```
 
@@ -45,9 +49,9 @@ Managed via `deployment.nix`. On rebuild/restart:
 2. **Workspace**:
    - `AGENTS.md`, `SOUL.md`, `STYLE.md` (main agent) and `AGENTS.md` (sub-agents) are generated from templates.
    - **Persistence Pattern**: Documents use a "Protected" top section (repo-managed) and a "Persistent" bottom section (agent-managed) marked by `<!-- OPENCLAW-PERSISTENT-SECTION -->`.
-   - **Main Agent**: Uses `workspace.nix` for its core files. `AGENTS.md` dynamically lists available secrets from `sops.nix` and `api-gateway` services.
+   - **Main Agent**: Uses `workspace/` for its core files (`soul.nix`, `agents.nix`, `style.nix`). `AGENTS.md` dynamically lists available secrets from `sops.nix` and `api-gateway` services.
    - **Sub-agents**: Identity files (`SOUL.md`, `USER.md`) and workflows are pulled from `openclaw-agents` input. `AGENTS.md` is managed via `subAgentWorkspace` in `agents.nix` to allow sub-agent persistence. `STYLE.md` is shared from main.
-   - **Lobster tasks**: `tasks.nix` generates `.lobster` YAML workflow files into `workspace/tasks/`. Starters: `inbox-triage` (approval-gated pipeline) and `jacket-advice` (conditional LLM). Run via `lobster run tasks/<name>.lobster`.
+   - **Lobster tasks**: `workspace/default.nix` generates `.lobster` YAML workflow files into `workspace/tasks/`. Starters: `inbox-triage` (approval-gated pipeline) and `jacket-advice` (conditional LLM). Run via `lobster run tasks/<name>.lobster`.
 
 ## Agent Sandbox Defaults & Key Splitting
 

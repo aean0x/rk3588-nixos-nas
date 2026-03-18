@@ -13,12 +13,10 @@ let
     openclaw-agents = inputs.openclaw-agents;
   };
   agentDefs = openclawConfig.agentDefs;
-  workspaceDefs = import ./workspace.nix {
-    inherit lib agentDefs;
+  workspaceDefs = import ./workspace {
+    inherit lib pkgs agentDefs;
     envSecrets = cfg.envSecrets;
   };
-
-  openclawTasks = import ./tasks.nix { inherit lib pkgs; };
 
   baseImage = "ghcr.io/phioranex/openclaw-docker:latest";
   configDir = "/var/lib/openclaw";
@@ -183,7 +181,7 @@ in
         ${lib.concatStringsSep "\n" (
           lib.mapAttrsToList (name: file: ''
             cp ${file} "${tasksDir}/${name}"
-          '') openclawTasks.templates
+          '') workspaceDefs.tasks.templates
         )}
         chown -R 1000:1000 "${tasksDir}"
 
