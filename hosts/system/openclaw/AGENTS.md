@@ -89,6 +89,15 @@ After deploying config changes, verify sub-agent tool availability:
 deploy remote-switch
 deploy ssh
 
+# Directly query a sub-agent's available tools (fastest feedback loop)
+oc agent --agent scout --message "return only the output of available_tools"
+
+# Same pattern works for main
+oc agent --agent main --message "return only the output of available_tools"
+
+# General pattern: --agent <id> --message <instruction> for programmatic troubleshooting
+oc agent --agent coder --message "list your working directory contents"
+
 # Check sandbox tool policy and config health
 oc sandbox explain
 oc doctor
@@ -96,10 +105,7 @@ oc doctor
 # Verify agent routing
 oc agents list --bindings
 
-# Ask main to spawn scout and report its tools
-oc agent --message "Spawn scout and have it list every tool it has access to. Report back the tool names."
-
-# Or query docs inside the container
+# Query docs inside the container
 docker exec openclaw-gateway openclaw docs tools.sandbox.tools
 docker exec openclaw-gateway openclaw docs tools.subagents
 ```
