@@ -5,7 +5,7 @@
 # Structure:
 #   1. YAML import & shared defaults (tools, workspace templates)
 #   2. Per-agent override dicts
-#   3. mkAgent config builder
+#   3. mkAgent config builder + tool summary generator
 {
   pkgs,
   lib,
@@ -38,64 +38,101 @@ let
     in
     if builtins.length parts > 1 then builtins.elemAt parts 1 else a.name;
 
-  # ── Shared Defaults ────────────────────────────────────────
-  # Sub-agents inherit all tools from agents.defaults in config.nix.
-  # Overrides use deny lists to restrict, or extraAllow to explicitly grant group access.
+  # ── Tool Defaults ──────────────────────────────────────────
+  # Baseline tools every sub-agent gets. Per-agent extraAllow merges on top.
+  # prettier-ignore
+  defaultTools = [
+    "read"
+    "write"
+    "edit"
+    "sessions_list"
+    "sessions_history"
+    "sessions_send"
+    "lobster"
+    "group:memory"
+    "group:fs"
+    "browser"
+  ];
+
+  # Secrets every sub-agent gets (gateway token is injected separately in mkAgent).
+  defaultSecrets = {
+    BRAVE_API_KEY = env "BRAVE_API_KEY";
+    GOOGLE_PLACES_API_KEY = env "GOOGLE_PLACES_API_KEY";
+    BROWSERLESS_API_TOKEN = env "BROWSERLESS_API_TOKEN";
+  };
+
   defaultOverrides = {
     extraAllow = [ ];
-    denyTools = [ ];
-    secrets = { };
+    extraSecrets = { };
     agentsMdBlurb = null;
   };
 
   # ── Main Agent Config ─────────────────────────────────────
+  # PERMISSIONS DISABLED — all tool restrictions commented out while debugging sandbox tools.
+  # Re-enable once sub-agents confirmed to have full tool access.
   mainTools = {
     profile = "full";
-    # prettier-ignore
-    deny = [
-      "group:web"
-      "group:email"
-      "group:messaging"
-      "group:ui"
-    ];
+    # deny = [ "group:web" "group:messaging" "group:ui" ];
   };
 
   # ── Per-Agent Overrides ────────────────────────────────────
-  # Each key maps to an agent ID. Missing agents fall back to defaultOverrides.
-  # Fields:
-  #   extraAllow    - additional tool grants (e.g. "group:web", "sessions_spawn")
-  #   denyTools     - explicit deny list
-  #   secrets       - env vars injected into sandbox
-  #   agentsMdBlurb - optional markdown prepended to this agent's AGENTS.md protected section
+  # extraAllow merges with defaultTools for documentation purposes.
+  # Tool restrictions are currently disabled for debugging.
   agentOverrides = {
     planner = {
-      extraAllow = [ "sessions_spawn" ];
+      extraAllow = [
+        "exec"
+        "apply_patch"
+        "sessions_spawn"
+      ];
     };
     ideator = { };
     critic = { };
     surveyor = {
-      extraAllow = [ "group:web" ];
-      secrets = {
-        BRAVE_API_KEY = env "BRAVE_API_KEY";
-        GOOGLE_PLACES_API_KEY = env "GOOGLE_PLACES_API_KEY";
-        BROWSERLESS_API_TOKEN = env "BROWSERLESS_API_TOKEN";
-      };
+      extraAllow = [ "exec" ];
     };
-    coder = { };
-    writer = { };
-    reviewer = { };
+    coder = {
+      extraAllow = [
+        "exec"
+        "apply_patch"
+      ];
+    };
+    writer = {
+      extraAllow = [
+        "exec"
+        "apply_patch"
+      ];
+    };
+    reviewer = {
+      extraAllow = [ "exec" ];
+    };
     scout = {
-      extraAllow = [ "group:web" ];
-      secrets = {
-        BRAVE_API_KEY = env "BRAVE_API_KEY";
-        GOOGLE_PLACES_API_KEY = env "GOOGLE_PLACES_API_KEY";
-        BROWSERLESS_API_TOKEN = env "BROWSERLESS_API_TOKEN";
-      };
+      extraAllow = [ "exec" ];
     };
   };
 
-  # Merge an agent's overrides with defaults
   resolveOverrides = id: defaultOverrides // (agentOverrides.${id} or { });
+
+  # ── Tool Summary (for AGENTS.md blurb injection) ───────────
+  mkToolSummary =
+    id:
+    let
+      ovr = resolveOverrides id;
+      extras = ovr.extraAllow;
+      allSecretNames = lib.attrNames (defaultSecrets // ovr.extraSecrets);
+      extrasLine =
+        if extras == [ ] then
+          "  - **Extra tools:** none (baseline only)"
+        else
+          "  - **Extra tools:** ${lib.concatStringsSep ", " extras}";
+      secretsLine = "  - **Secrets:** ${lib.concatStringsSep ", " allSecretNames}";
+    in
+    ''
+      ## Your Permissions
+      - **Baseline:** ${lib.concatStringsSep ", " defaultTools}
+      ${extrasLine}
+      ${secretsLine}
+    '';
 
   # ── Sub-Agent Workspace Templates ──────────────────────────
   subAgentWorkspace = {
@@ -117,10 +154,11 @@ let
           All output in American English. Chinese in source files is reference content only. Apply STYLE.md rules to every message.
 
           ## Environment Context
-          - You are a sub-agent. For any admin-level commands (`openclaw doctor`, gateway operations, sandbox management, config changes), reply exactly "Delegate to main" and stop.
-          - Skills are shared from main to all sub-agents, mounted from `/home/node/.openclaw/workspace/skills`
-          - workspace/.tools is ro mounted and in PATH for common utilities.
-          - Sub-agents have full access to the same browser (Playwright), search, and tool commands as main. Use remote profile only when you specifically need stealth/different IP.
+          - You are a sub-agent running in a Docker sandbox.
+          - For dangerous admin commands (`openclaw doctor`, gateway restart, sandbox config changes, secret rotation), reply exactly "Delegate to main" and stop. Safe read-only commands (status checks, log tailing, file reads) are fine to run locally.
+          - Skills are shared from main, mounted read-only from `/home/node/.openclaw/workspace/skills`.
+          - `.tools` is ro mounted and in PATH for common utilities (uv, docker, goplaces, bird, etc).
+          - Your tool allowlist is defined in openclaw.json and summarized below.
         '';
         initialPersistent = ''
           ### Notes to Future Me
@@ -132,11 +170,15 @@ let
   };
 
   # ── mkAgent: Build JSON config entry for a sub-agent ───────
+  # PERMISSIONS DISABLED — no tools.allow or tools.deny emitted.
+  # Sub-agents inherit global profile only. Re-enable per-agent restrictions
+  # once sandbox tool provisioning is confirmed working.
   mkAgent =
     { workspace, gatewayUrl }:
     a:
     let
       ovr = resolveOverrides a.id;
+      # allowList = lib.unique (defaultTools ++ ovr.extraAllow);
     in
     {
       id = a.id;
@@ -152,25 +194,32 @@ let
             "${hostWorkspace}/skills:${workspace}/.agents/${a.id}/skills:ro"
             "${hostWorkspace}/.tools:${workspace}/.tools:ro"
           ];
-          env = ovr.secrets // {
-            OPENCLAW_GATEWAY_TOKEN = env "OPENCLAW_GATEWAY_TOKEN";
-            OPENCLAW_GATEWAY_URL = gatewayUrl;
-          };
+          env =
+            defaultSecrets
+            // ovr.extraSecrets
+            // {
+              OPENCLAW_GATEWAY_TOKEN = env "OPENCLAW_GATEWAY_TOKEN";
+              OPENCLAW_GATEWAY_URL = gatewayUrl;
+            };
         };
       };
-      tools =
-        lib.optionalAttrs (ovr.extraAllow != [ ]) { allow = ovr.extraAllow; }
-        // lib.optionalAttrs (ovr.denyTools != [ ]) { deny = ovr.denyTools; };
+      # tools = {
+      #   profile = "full";
+      #   allow = allowList;
+      # };
     };
 
 in
 {
   inherit
+    defaultTools
+    defaultSecrets
     subAgentList
     subAgentIds
     subAgentWorkspace
     agentOverrides
     resolveOverrides
+    mkToolSummary
     ;
   templateSrc = openclaw-agents;
 
@@ -181,10 +230,7 @@ in
         id = "main";
         subagents.allowAgents = [ "*" ];
         sandbox.mode = "off";
-        tools = {
-          profile = mainTools.profile;
-          deny = mainTools.deny;
-        };
+        tools = mainTools;
       };
     in
     [ mainDef ] ++ (map (mkAgent { inherit workspace gatewayUrl; }) subAgentList);

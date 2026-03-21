@@ -4,7 +4,7 @@
   lib,
   pkgs,
   agentDefs ? { },
-  envSecrets ? { },
+  secretNames ? [ ],
 }:
 
 let
@@ -24,8 +24,8 @@ let
   templateSrc = agentDefs.templateSrc or null;
 
   # ── Document templates ───────────────────────────────────────
-  soul = import ./soul.nix { inherit templateSrc; };
-  agents = import ./agents.nix { inherit lib envSecrets; };
+  soul = import ./soul.nix { inherit lib templateSrc agentDefs; };
+  agents = import ./agents.nix { inherit lib secretNames; };
   style = import ./style.nix;
 
   # ── Lobster workflow starters ────────────────────────────────

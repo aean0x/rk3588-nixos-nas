@@ -114,10 +114,14 @@ let
             systemPrompt = "Compacting session context. Extract only what's worth remembering. No fluff.";
           };
         };
+        heartbeat = {
+          model = "xai/grok-4-1-fast-reasoning";
+          every = "30m";
+        };
         subagents.model = "xai/grok-4-1-fast-reasoning";
         sandbox = {
           mode = "non-main";
-          workspaceAccess = "none";
+          workspaceAccess = "rw";
           scope = "agent";
           docker = {
             image = "openclaw-sandbox:bookworm-slim";
@@ -125,6 +129,7 @@ let
             network = "bridge";
             user = "1000:1000";
             capDrop = [ "ALL" ];
+            dangerouslyAllowExternalBindSources = true;
             env = sandboxEnv;
             cpus = 1;
           };
@@ -139,6 +144,9 @@ let
     };
 
     tools = {
+      # Global profile — registers base tool set for all agents (subs inherit this)
+      profile = "full";
+
       web = {
         search = {
           enabled = true;
@@ -177,6 +185,27 @@ let
           ];
         };
       };
+      alsoAllow = [
+        "lobster"
+      ];
+
+      # Sandbox tool filter (layer 7).
+      # Wildcards don't work here — must use explicit group names.
+      # This is a separate gate from tools.profile; both must permit a tool.
+      sandbox.tools = {
+        allow = [
+          "group:fs"
+          "group:runtime"
+          "group:sessions"
+          "group:web"
+          "group:memory"
+          "group:ui"
+          "group:openclaw"
+          "lobster"
+          "image"
+        ];
+        deny = [ ];
+      };
     };
 
     messages = {
@@ -213,13 +242,14 @@ let
       enabled = true;
       dmPolicy = "pairing";
       groupPolicy = "allowlist";
+      groupAllowFrom = [ (env "TELEGRAM_ADMIN_ID") ];
       streaming = true;
     };
 
     gateway = {
       inherit port;
       mode = "local";
-      bind = "lan";
+      bind = "loopback";
       controlUi = {
         enabled = true;
         allowedOrigins = [ "https://openclaw.${settings.domain}" ];

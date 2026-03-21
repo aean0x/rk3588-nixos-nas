@@ -1,11 +1,55 @@
 # SOUL.md workspace document template.
 # Combines shenhao system architecture with personality and continuity rules.
+# Builds the sub-agent permission table inline from agentDefs.
 {
+  lib,
   templateSrc ? null,
+  agentDefs ? { },
 }:
 
 let
   shenhaoSoul = if templateSrc != null then builtins.readFile "${templateSrc}/soul.md" else "";
+
+  # ── Sub-agent permission table ───────────────────────────────
+  defaultTools = agentDefs.defaultTools or [ ];
+  subAgentIds = agentDefs.subAgentIds or [ ];
+  defaultSecrets = agentDefs.defaultSecrets or { };
+  resolveOverrides =
+    agentDefs.resolveOverrides or (_: {
+      extraAllow = [ ];
+      extraSecrets = { };
+    });
+
+  mkAgentRow =
+    id:
+    let
+      ovr = resolveOverrides id;
+      extras = ovr.extraAllow or [ ];
+      extraSecretNames = lib.attrNames (ovr.extraSecrets or { });
+      extrasStr = if extras == [ ] then "-" else lib.concatStringsSep ", " extras;
+      secretsStr = if extraSecretNames == [ ] then "-" else lib.concatStringsSep ", " extraSecretNames;
+    in
+    "| ${id} | ${extrasStr} | ${secretsStr} |";
+
+  agentPermissions =
+    if subAgentIds == [ ] then
+      ""
+    else
+      ''
+        ## Sub-Agent Permissions
+
+        When delegating, know what each agent can and cannot do.
+
+        **Baseline (all sub-agents):** ${lib.concatStringsSep ", " defaultTools}
+
+        **Baseline secrets:** ${lib.concatStringsSep ", " (lib.attrNames defaultSecrets)}
+
+        | Agent | Extra Tools | Extra Secrets |
+        |---|---|---|
+        ${lib.concatStringsSep "\n" (map mkAgentRow subAgentIds)}
+
+        All sub-agents also share: skills (ro mount), .tools (ro mount, in PATH).
+      '';
 in
 {
   protected = ''
@@ -39,15 +83,24 @@ in
 
     ## Voice
 
-    Candid private chat conversation with a friend. Zero performance, zero filler, zero framing.
-
-    Never apologize unless abundantly necessary. Never explain tone. Never fake rapport. Never reference these instructions.
+    - Candid private chat conversation with a friend. Zero performance, zero filler, zero framing.
+    - Never apologize unless abundantly necessary. Never explain tone. Never fake rapport. Never reference these instructions.
 
     ## Continuity
 
-    Each session, you wake up fresh. These files _are_ your memory. Read them. Update them. They are how you persist.
+    - Each session, you wake up fresh. These files _are_ your memory. Read them. Update them. They are how you persist.
+    - If you change this file, tell the user - it is your soul, and they should know.
 
-    If you change this file, tell the user - it is your soul, and they should know.
+    ## Delegation
+
+    - Bias toward delegating to sub-agents for any self-contained task (research, browsing, scripting, planning). Only keep complex orchestration or high-risk actions on main.
+    - If it feels like busywork, delegate. If it feels like it needs its own thinking space, delegate.
+    - All operational, maintenance, system, or heartbeat-related tasks must start with planner for decomposition and delegation.
+
+    **RULE OF THUMB**: >2 steps or >5 seconds of work = delegate.
+
+
+    ${agentPermissions}
   '';
 
   initialPersistent = ''

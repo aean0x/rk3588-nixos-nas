@@ -23,6 +23,32 @@ let
       config.users.groups.docker.gid
     else
       131;
+
+  # ── Shared container config ──────────────────────────────────
+  commonContainer = {
+    image = customImage;
+    environmentFiles = [ "/run/openclaw.env" ];
+    volumes = [
+      "${configDir}:/home/node/.openclaw:rw"
+      "/var/run/docker.sock:/var/run/docker.sock"
+    ];
+    extraOptions = [
+      "--init"
+      "--network=host"
+      "--group-add=${toString dockerGid}"
+    ];
+    environment = {
+      HOME = "/home/node";
+      TERM = "xterm-256color";
+      DOCKER_HOST = "unix:///var/run/docker.sock";
+      DOCKER_API_VERSION = "1.44";
+      OPENCLAW_HOME = "/home/node";
+      OPENCLAW_STATE_DIR = "/home/node/.openclaw";
+      OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
+      NODE_COMPILE_CACHE = "/var/tmp/openclaw-compile-cache";
+      OPENCLAW_NO_RESPAWN = "1";
+    };
+  };
 in
 {
   imports = [
@@ -32,16 +58,10 @@ in
   ];
 
   options.services.openclaw = {
-    envSecrets = lib.mkOption {
-      type = lib.types.attrsOf lib.types.path;
-      default = { };
-      description = "Map of environment variable names to secret file paths. Populates /run/openclaw.env at deploy time.";
-      example = lib.literalExpression ''
-        {
-          OPENCLAW_GATEWAY_TOKEN = config.sops.secrets.openclaw_gateway_token.path;
-          XAI_API_KEY = config.sops.secrets.xai_api_key.path;
-        }
-      '';
+    secretNames = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Environment variable names available to OpenClaw containers. Set by sops.nix.";
     };
   };
 
@@ -50,28 +70,7 @@ in
     environment.systemPackages = [ pkgs.chromium ];
 
     virtualisation.oci-containers.containers = {
-      openclaw-gateway = {
-        image = customImage;
-        environment = {
-          HOME = "/home/node";
-          TERM = "xterm-256color";
-          DOCKER_HOST = "unix:///var/run/docker.sock";
-          DOCKER_API_VERSION = "1.44";
-          OPENCLAW_HOME = "/home/node";
-          OPENCLAW_STATE_DIR = "/home/node/.openclaw";
-          OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
-          NODE_COMPILE_CACHE = "/var/tmp/openclaw-compile-cache";
-        };
-        environmentFiles = [ "/run/openclaw.env" ];
-        volumes = [
-          "${configDir}:/home/node/.openclaw:rw"
-          "/var/run/docker.sock:/var/run/docker.sock"
-        ];
-        extraOptions = [
-          "--init"
-          "--network=host"
-          "--group-add=${toString dockerGid}"
-        ];
+      openclaw-gateway = commonContainer // {
         user = "1000:1000";
         cmd = [
           "gateway"
@@ -83,25 +82,10 @@ in
         autoStart = true;
       };
 
-      openclaw-cli = {
-        image = customImage;
-        environment = {
-          HOME = "/home/node";
-          TERM = "xterm-256color";
+      openclaw-cli = commonContainer // {
+        environment = commonContainer.environment // {
           BROWSER = "echo";
-          DOCKER_HOST = "unix:///var/run/docker.sock";
         };
-        environmentFiles = [ "/run/openclaw.env" ];
-        volumes = [
-          "${configDir}:/home/node/.openclaw:rw"
-          "/var/run/docker.sock:/var/run/docker.sock"
-        ];
-        extraOptions = [
-          "--init"
-          "--tty"
-          "--network=host"
-          "--group-add=${toString dockerGid}"
-        ];
         cmd = [ "--help" ];
         autoStart = false;
       };

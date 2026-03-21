@@ -2,11 +2,11 @@
 # Server-specific rules, tooling discipline, and automation guidelines.
 {
   lib,
-  envSecrets ? { },
+  secretNames ? [ ],
 }:
 
 let
-  secretList = lib.concatStringsSep "\n" (map (name: "- `${name}`") (lib.attrNames envSecrets));
+  secretList = lib.concatStringsSep "\n" (map (name: "- `${name}`") secretNames);
 
   # prettier-ignore
   apiGatewayServices = [

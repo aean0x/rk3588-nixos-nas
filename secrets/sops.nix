@@ -8,35 +8,37 @@
 }:
 let
   wifiEnabled = settings.enableWifi or false;
-  secrets = config.sops.secrets;
+
+  # ENV_VAR_NAME = "sops_secret_key"
+  # Add new OpenClaw secrets here — the template generates /run/openclaw.env automatically.
+  # prettier-ignore
+  openclawSecrets = {
+    OPENCLAW_GATEWAY_TOKEN = "openclaw_gateway_token";
+    OPENCLAW_GATEWAY_PASSWORD = "openclaw_gateway_password";
+    XAI_API_KEY = "xai_api_key";
+    OPENROUTER_API_KEY = "openrouter_api_key";
+    OPENAI_API_KEY = "openrouter_api_key";
+    ANTHROPIC_API_KEY = "anthropic_api_key";
+    BRAVE_API_KEY = "brave_search_api_key";
+    TELEGRAM_BOT_TOKEN = "telegram_bot_token";
+    GOOGLE_PLACES_API_KEY = "google_places_api_key";
+    BROWSERLESS_API_TOKEN = "browserless_api_token";
+    MATON_API_KEY = "maton_api_key";
+    HA_TOKEN = "ha_token";
+    HA_URL = "ha_url";
+    TELEGRAM_ADMIN_ID = "telegram_admin_id";
+    GOOGLE_API_KEY = "google_api_key";
+    GEMINI_API_KEY = "google_api_key";
+    CLAWHUB_TOKEN = "clawhub_token";
+    X_API_KEY = "x_api_key";
+    X_API_SECRET = "x_api_secret";
+    X_ACCESS_TOKEN = "x_access_token";
+    X_ACCESS_SECRET = "x_access_secret";
+    X_BEARER_TOKEN = "x_bearer_token";
+  };
 in
 {
-  # Wire OpenClaw env secrets from sops paths.
-  # Key = env var name, value = decrypted secret file path.
-  # Add new OpenClaw secrets here — the module generates the env file automatically.
-  services.openclaw.envSecrets = {
-    OPENCLAW_GATEWAY_TOKEN = secrets.openclaw_gateway_token.path;
-    OPENCLAW_GATEWAY_PASSWORD = secrets.openclaw_gateway_password.path;
-    XAI_API_KEY = secrets.xai_api_key.path;
-    OPENROUTER_API_KEY = secrets.openrouter_api_key.path;
-    OPENAI_API_KEY = secrets.openrouter_api_key.path;
-    ANTHROPIC_API_KEY = secrets.anthropic_api_key.path;
-    BRAVE_API_KEY = secrets.brave_search_api_key.path;
-    TELEGRAM_BOT_TOKEN = secrets.telegram_bot_token.path;
-    GOOGLE_PLACES_API_KEY = secrets.google_places_api_key.path;
-    BROWSERLESS_API_TOKEN = secrets.browserless_api_token.path;
-    MATON_API_KEY = secrets.maton_api_key.path;
-    HA_TOKEN = secrets.ha_token.path;
-    HA_URL = secrets.ha_url.path;
-    TELEGRAM_ADMIN_ID = secrets.telegram_admin_id.path;
-    GOOGLE_API_KEY = secrets.google_api_key.path;
-    GEMINI_API_KEY = secrets.google_api_key.path;
-    CLAWHUB_TOKEN = secrets.clawhub_token.path;
-    X_API_KEY = secrets.x_api_key.path;
-    X_API_SECRET = secrets.x_api_secret.path;
-    X_ACCESS_TOKEN = secrets.x_access_token.path;
-    X_ACCESS_SECRET = secrets.x_access_secret.path;
-  };
+  services.openclaw.secretNames = lib.attrNames openclawSecrets;
 
   sops = {
     defaultSopsFile = ./secrets.yaml;
@@ -75,6 +77,7 @@ in
         x_api_secret = { };
         x_access_token = { };
         x_access_secret = { };
+        x_bearer_token = { };
       }
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };
@@ -90,16 +93,31 @@ in
       })
     ];
 
-    templates = lib.mkIf wifiEnabled {
-      wifiEnv = {
-        owner = "root";
-        group = "root";
-        mode = "0400";
-        path = "/run/wifi.env";
-        content = ''
-          WIFI_PSK="${config.sops.placeholder."wifi_psk"}"
-        '';
-      };
-    };
+    templates = lib.mkMerge [
+      {
+        openclawEnv = {
+          owner = "root";
+          group = "root";
+          mode = "0640";
+          path = "/run/openclaw.env";
+          content = lib.concatStringsSep "\n" (
+            lib.mapAttrsToList (
+              envVar: sopsKey: ''${envVar}="${config.sops.placeholder.${sopsKey}}"''
+            ) openclawSecrets
+          );
+        };
+      }
+      (lib.mkIf wifiEnabled {
+        wifiEnv = {
+          owner = "root";
+          group = "root";
+          mode = "0400";
+          path = "/run/wifi.env";
+          content = ''
+            WIFI_PSK="${config.sops.placeholder."wifi_psk"}"
+          '';
+        };
+      })
+    ];
   };
 }

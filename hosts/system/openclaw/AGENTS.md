@@ -60,18 +60,9 @@ Sandbox defaults in `openclaw.json` apply to ALL sandboxed agents unless overrid
 - Network: bridge (connects to gateway via ws://172.17.0.1:18789)
 - `readOnlyRoot: true`
 
-**Per-agent tool & key profiles:**
+**Per-agent tool restrictions are currently disabled** while sandbox tool provisioning is being debugged. See `agents.nix` for the commented-out `tools` block in `mkAgent`.
 
-| Agent | Tools (allow) | Keys | Deny |
-|---|---|---|---|
-| main | FULL (profile) | All (gateway env) | web, email, messaging, ui |
-| researcher | web, ui, read, memory | BRAVE, GOOGLE_PLACES | implicit deny |
-| communicator | email, messaging, write, read | MATON, TELEGRAM | implicit deny |
-| controller | ha, mcp, read | HA_URL, HA_TOKEN | implicit deny |
-
-Two-key vault principle + default deny:
-- **Main**: Broad local access but blind to web/messaging/UI.
-- **Sub-agents**: Whitelisted tools/keys only. Must output strict JSON.
+Target architecture: per-agent allowlists built from `defaultTools ++ extraAllow` in `agents.nix`.
 
 ## Editing openclaw.json
 
@@ -89,6 +80,38 @@ Secrets use `${ENV_VAR}` syntax - resolved by the gateway from env vars injected
 - Bidirectional: pulls remote -> local, then pushes local -> remote
 - Syncs `Shared` and `Documents` folders into `workspace/onedrive/`
 - 15m timer with 2m jitter, 5m delay after boot
+
+## Testing Sub-Agent Tools
+
+After deploying config changes, verify sub-agent tool availability:
+
+```bash
+# Deploy config
+deploy remote-switch
+
+# SSH into device
+deploy ssh
+
+# Spawn a test sub-agent and ask it to list tools
+oc sessions spawn --agent scout --task "List every tool you have access to. Output tool names only, one per line."
+
+# Check sandbox state
+oc sandbox explain
+
+# Query docs inside the container
+docker exec openclaw-gateway openclaw docs tools.sandbox.tools
+docker exec openclaw-gateway openclaw docs tools.subagents
+```
+
+### Tool Permission Layers (all must permit a tool)
+
+1. `tools.profile` — base tool set
+2. `tools.allow/deny` — global filter
+3. `agents.list[].tools.allow/deny` — per-agent filter
+4. `tools.subagents.tools` — sub-agent filter (default: all except session tools)
+5. `tools.sandbox.tools` — sandbox filter (default: exec, browser, process only)
+
+Layer 5 (`tools.sandbox.tools`) requires **explicit group names** — wildcard `"*"` does not work.
 
 ## Upgrade & Container Refresh
 
