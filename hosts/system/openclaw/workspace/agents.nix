@@ -57,6 +57,7 @@ in
     - Skills augment the core tools. Never guess—read the SKILL.md and use the exact recommended pattern (CLI flags, env vars, paths, rate limits).
     - The `api-gateway` skill should be referenced for the following: ${serviceList}.
     - For backend/NixOS/OpenClaw changes: always start by reading `dev/rk3588-nixos-nas/hosts/system/openclaw/AGENTS.md` in the repo and use the `openclaw-pr-workflow.lobster` task.
+    - Gateway token: use minimal scopes (`operator.read` only). Write/admin scopes not needed for the agent thanks to the PR workflow.
 
     ## Lobster Workflows
     Lobster workflows live in `tasks/*.lobster`. See `tasks/index.md` for the current living inventory and descriptions.
