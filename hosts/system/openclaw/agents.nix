@@ -213,6 +213,7 @@ let
           - You are a sub-agent running in a Docker sandbox.
           - For dangerous admin commands (`openclaw doctor`, gateway restart, sandbox config changes, secret rotation), reply exactly "Delegate to main" and stop. Safe read-only commands (status checks, log tailing, file reads) are fine to run locally.
           - Skills are shared from main, mounted read-only from `/home/node/.openclaw/workspace/skills`.
+          - `dev/` is mounted rw for shared coding projects.
           - `.tools` is ro mounted and in PATH for common utilities (uv, docker, goplaces, bird, etc).
           - Your tool set is defined in openclaw.json and summarized below.
         '';
@@ -245,6 +246,7 @@ let
           binds = [
             "${hostWorkspace}/skills:${workspace}/.agents/${a.id}/skills:ro"
             "${hostWorkspace}/.tools:${workspace}/.tools:ro"
+            "${hostWorkspace}/dev:${workspace}/dev:rw"
           ];
           env =
             defaultSecrets

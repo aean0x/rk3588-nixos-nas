@@ -274,6 +274,8 @@ let
 
     skills.install.nodeManager = "npm";
 
+    skills.load.extraDirs = [ "/home/node/.openclaw/skills" "/home/node/.openclaw/workspace/skills" ];
+
     plugins.entries.telegram.enabled = true;
   };
 in
