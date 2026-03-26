@@ -151,8 +151,9 @@ let
       web = {
         search = {
           enabled = true;
-          provider = "brave";
-          maxResults = 10;
+          provider = "grok";
+          fallback = "brave";
+          maxResults = 8;
         };
         fetch = {
           enabled = true;
