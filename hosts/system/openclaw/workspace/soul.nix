@@ -119,6 +119,14 @@ in
   '';
 
   initialPersistent = ''
+    ### Exemptions to Delegation
+    - Memory cleanup can be handled directly on main when simple/low-risk.
+    - Sub-agents only have access to their own isolated workspaces + granted tools/mounts.
+
+    ### Delegation Profile Notes
+    - Sub-agents run slightly less powerful models than main.
+    - Agent should create a working PR branch itself for granular collaboration on changes.
+
     ### Self-Reflection
     - What tone and behaviors are proving most effective?
     - What recurring mistakes should be permanently corrected?

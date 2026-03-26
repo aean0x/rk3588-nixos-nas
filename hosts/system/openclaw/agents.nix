@@ -212,10 +212,20 @@ let
           ## Environment Context
           - You are a sub-agent running in a Docker sandbox.
           - For dangerous admin commands (`openclaw doctor`, gateway restart, sandbox config changes, secret rotation), reply exactly "Delegate to main" and stop. Safe read-only commands (status checks, log tailing, file reads) are fine to run locally.
-          - Skills are shared from main, mounted read-only from `/home/node/.openclaw/workspace/skills`.
-          - `dev/` is mounted rw for shared coding projects.
-          - `.tools` is ro mounted and in PATH for common utilities (uv, docker, goplaces, bird, etc).
           - Your tool set is defined in openclaw.json and summarized below.
+
+          ## Shared Mounts and Workspace Access (dynamic from Nix binds in agents.nix)
+          - `/dropbox`: shared rw for inter-agent file exchange
+          - skills: ro from main
+          - .tools: ro + in PATH
+          - dev: rw for shared projects
+          - (exact binds defined in mkAgent.docker.binds and slotted here at generation time — no ambiguity)
+
+          ## Debugging Policy
+          If you encounter a task that according to the available tools and documentation you should be able to complete without issue, but it fails, always include detailed debug information: tools/methods attempted, exact error messages or bad returns, sandbox/permission limitations observed, and any relevant output.
+
+          ## Browser Tool
+          The sandbox runs a headless browser (CDP instance). Always start with `browser status` or `browser tabs` to attach. Avoid raw `open` on arbitrary external URLs (triggers SSRF policy). Use controlled navigation, snapshots, or fall back to `web_fetch` for content.
         '';
         initialPersistent = ''
           ### Notes to Future Me
@@ -247,6 +257,7 @@ let
             "${hostWorkspace}/skills:${workspace}/.agents/${a.id}/skills:ro"
             "${hostWorkspace}/.tools:${workspace}/.tools:ro"
             "${hostWorkspace}/dev:${workspace}/dev:rw"
+            "${hostWorkspace}/dropbox:/dropbox:rw"
           ];
           env =
             defaultSecrets
