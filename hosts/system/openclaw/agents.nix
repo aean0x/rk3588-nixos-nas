@@ -215,6 +215,7 @@ let
           - Skills are shared from main, mounted read-only from `/home/node/.openclaw/workspace/skills`.
           - `dev/` is mounted rw for shared coding projects.
           - `.tools` is ro mounted and in PATH for common utilities (uv, docker, goplaces, bird, etc).
+          - `/dropbox` is a shared rw mount for inter-agent file exchange.
           - Your tool set is defined in openclaw.json and summarized below.
         '';
         initialPersistent = ''
@@ -247,6 +248,7 @@ let
             "${hostWorkspace}/skills:${workspace}/.agents/${a.id}/skills:ro"
             "${hostWorkspace}/.tools:${workspace}/.tools:ro"
             "${hostWorkspace}/dev:${workspace}/dev:rw"
+            "${hostWorkspace}/dropbox:/dropbox:rw"
           ];
           env =
             defaultSecrets
