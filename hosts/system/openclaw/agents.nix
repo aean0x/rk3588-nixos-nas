@@ -223,6 +223,9 @@ let
 
           ## Debugging Policy
           If you encounter a task that according to the available tools and documentation you should be able to complete without issue, but it fails, always include detailed debug information: tools/methods attempted, exact error messages or bad returns, sandbox/permission limitations observed, and any relevant output.
+
+          ## Browser Tool
+          The sandbox runs a headless browser (CDP instance). Always start with `browser status` or `browser tabs` to attach. Avoid raw `open` on arbitrary external URLs (triggers SSRF policy). Use controlled navigation, snapshots, or fall back to `web_fetch` for content.
         '';
         initialPersistent = ''
           ### Notes to Future Me
