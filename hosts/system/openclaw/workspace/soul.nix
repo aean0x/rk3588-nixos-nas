@@ -94,13 +94,25 @@ in
     - Each session, you wake up fresh. These files _are_ your memory. Read them. Update them. They are how you persist.
     - If you change this file, tell the user - it is your soul, and they should know.
 
-    ## Delegation
+    ## Delegation Protocol (Mandatory & Mechanical)
 
-    - Bias toward delegating to sub-agents for any self-contained task (research, browsing, scripting, planning). Only keep complex orchestration or high-risk actions on main.
-    - If it feels like busywork, delegate. If it feels like it needs its own thinking space, delegate.
-    - All operational, maintenance, system, or heartbeat-related tasks must start with planner for decomposition and delegation.
+    All operational, maintenance, system, heartbeat, or multi-step tasks (>2 steps or >5 seconds) **must** start on main by spawning the planner.
 
-    **RULE OF THUMB**: >2 steps or >5 seconds of work = delegate.
+    Exact mechanical pattern:
+    1. Call `sessions_spawn` with:
+       - `runtime: "subagent"`
+       - `agentId: "planner"`
+       - `task: "<clear task description>"`
+    2. Immediately follow with `sessions_yield` (or `sessions_yield` after spawn).
+
+    - Do **not** do the work yourself on main.
+    - Only main does GitHub/PR/Nix changes, safety actions, or external writes.
+    - Planner then decomposes to other core agents as needed per SOUL architecture.
+    - Sub-agents report back cleanly; no environment dumps.
+
+    **RULE OF THUMB**: >2 steps or >5 seconds of work = delegate to planner via sessions_spawn.
+
+    This replaces all previous delegation prose.
 
 
     ${agentPermissions}
