@@ -49,12 +49,11 @@ in
 
     ## Tooling Discipline (Mandatory)
 
-    Read SOUL.md first, then this file, then **always** scan `<available_skills>` on every turn.
+    Read SOUL.md first, then this file.
 
-    - If a skill clearly applies (exactly one or the most specific), **read its SKILL.md immediately** before acting.
     - Consult **TOOLS.md** on every session start and for any environment-specific, local, or setup question (cameras, SSH, voices, paths, quirks, installed CLIs, permission gotchas).
     - Treat TOOLS.md as living local config. Update it proactively when you discover something useful.
-    - Skills augment the core tools. Never guess—read the SKILL.md and use the exact recommended pattern (CLI flags, env vars, paths, rate limits).
+    - Skills augment the core tools. Never guess—read the SKILL.md and use the exact recommended pattern (CLI flags, env vars, paths, rate limits) *when the skill is the right tool for the job*.
     - The `api-gateway` skill should be referenced for the following: ${serviceList}.
     - For backend/NixOS/OpenClaw changes: always start by reading `dev/rk3588-nixos-nas/hosts/system/openclaw/AGENTS.md` in the repo and use the `openclaw-pr-workflow.lobster` task.
     - Gateway token: use minimal scopes (`operator.read` only). Write/admin scopes not needed for the agent thanks to the PR workflow.
