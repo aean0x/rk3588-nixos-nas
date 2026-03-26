@@ -1,3 +1,5 @@
+**Foreword:** _I (aean0x) actively use and maintain this repo. Everything here is live on my home server and tested working. It is set up to be a one-stop-shop setup for getting headless NixOS up and running on a Rock 5 ITX board without ever needing to plug in a keyboard or mouse, to include setting up ssh during the live boot procedure. It all works. The specifics of my running config are modularly imported so if you don't want to run what I'm running how I'm running it, just comment out the lines. But it'll save a lot of headache if you want to use them as a baseline. Have fun!_
+
 # Rock 5 NAS
 
 A NixOS flake for the ROCK5 ITX board - fully remote installation, SOPS secrets, Docker containers, and AI agent orchestration.
