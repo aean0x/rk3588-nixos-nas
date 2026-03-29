@@ -11,6 +11,6 @@
     # ./services/transmission.nix # Torrent client with VPN killswitch
     ./services/caddy.nix # Reverse proxy with automatic HTTPS
     ./services/adguard.nix # AdGuard Home DNS (port 53, web UI 3000) — enable after deploy
-    # ./services/router.nix # Router: NAT + WiFi AP + DHCP — enable in settings.nix
+    ./services/router.nix # Router: NAT + WiFi AP + DHCP — enable in settings.nix
   ];
 }

@@ -13,7 +13,6 @@
 }:
 let
   env = name: "\${${name}}";
-  hostWorkspace = "/home/node/.openclaw/workspace";
 
   # ── YAML Import ────────────────────────────────────────────
   python = pkgs.python3.withPackages (ps: [ ps.pyyaml ]);
@@ -54,7 +53,6 @@ let
     "edit"
     "web_search"
     "web_fetch"
-    "browser"
     "image"
     "memory_search"
     "memory_get"
@@ -214,18 +212,14 @@ let
           - For dangerous admin commands (`openclaw doctor`, gateway restart, sandbox config changes, secret rotation), reply exactly "Delegate to main" and stop. Safe read-only commands (status checks, log tailing, file reads) are fine to run locally.
           - Your tool set is defined in openclaw.json and summarized below.
 
-          ## Shared Mounts and Workspace Access (dynamic from Nix binds in agents.nix)
-          - `/dropbox`: shared rw for inter-agent file exchange
-          - skills: ro from main
-          - .tools: ro + in PATH
-          - dev: rw for shared projects
-          - (exact binds defined in mkAgent.docker.binds and slotted here at generation time — no ambiguity)
+          ## Shared Resources (binds)
+          - /usr/local (host binaries, read-only)
+          - /skills (read-only)
+          - /dev (shared projects, read-write)
+          - /dropbox (inter-agent file exchange, read-write)
 
           ## Debugging Policy
           If you encounter a task that according to the available tools and documentation you should be able to complete without issue, but it fails, always include detailed debug information: tools/methods attempted, exact error messages or bad returns, sandbox/permission limitations observed, and any relevant output.
-
-          ## Browser Tool
-          The sandbox runs a headless browser (CDP instance). Always start with `browser status` or `browser tabs` to attach. Avoid raw `open` on arbitrary external URLs (triggers SSRF policy). Use controlled navigation, snapshots, or fall back to `web_fetch` for content.
         '';
         initialPersistent = ''
           ### Notes to Future Me
@@ -248,26 +242,6 @@ let
       id = a.id;
       workspace = "${workspace}/.agents/${a.id}";
       identity.name = agentName a;
-      sandbox = {
-        workspaceAccess = "rw";
-        docker = {
-          network = "bridge";
-          setupCommand = "export PATH=\"${workspace}/.tools:\$PATH\"";
-          binds = [
-            "${hostWorkspace}/skills:${workspace}/.agents/${a.id}/skills:ro"
-            "${hostWorkspace}/.tools:${workspace}/.tools:ro"
-            "${hostWorkspace}/dev:${workspace}/dev:rw"
-            "${hostWorkspace}/dropbox:/dropbox:rw"
-          ];
-          env =
-            defaultSecrets
-            // ovr.extraSecrets
-            // {
-              OPENCLAW_GATEWAY_TOKEN = env "OPENCLAW_GATEWAY_TOKEN";
-              OPENCLAW_GATEWAY_URL = gatewayUrl;
-            };
-        };
-      };
       tools = {
         profile = "full";
         deny = denyList;
