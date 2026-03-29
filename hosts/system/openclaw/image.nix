@@ -137,13 +137,6 @@ in
 
       USER 1000:1000
       EOF
-
-      # Extract tools into workspace so sandbox binds stay within allowed roots
-      mkdir -p /home/node/.openclaw/workspace/.tools
-      docker run --rm --entrypoint sh ${customImage} -c 'tar cf - /usr/local/bin/' | \
-        tar xf - --strip-components=3 -C /home/node/.openclaw/workspace/.tools
-      chown -R 1000:1000 /home/node/.openclaw/workspace/.tools
-      chmod -R +x /home/node/.openclaw/workspace/.tools
     '';
     serviceConfig = {
       Type = "oneshot";

@@ -27,6 +27,9 @@ let
     OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
     OPENCLAW_GATEWAY_TOKEN = env "OPENCLAW_GATEWAY_TOKEN";
     OPENCLAW_GATEWAY_URL = gatewayUrl;
+    BRAVE_API_KEY = env "BRAVE_API_KEY";
+    GOOGLE_PLACES_API_KEY = env "GOOGLE_PLACES_API_KEY";
+    BROWSERLESS_API_TOKEN = env "BROWSERLESS_API_TOKEN";
   };
 
   config = {
@@ -122,17 +125,28 @@ let
         subagents.model = "xai/grok-4-1-fast-reasoning";
         sandbox = {
           mode = "non-main";
-          workspaceAccess = "rw";
+          workspaceAccess = "none";
           scope = "agent";
           docker = {
             image = "openclaw-sandbox:bookworm-slim";
-            readOnlyRoot = true;
+            readOnlyRoot = false;
+            tmpfs = [
+              "/tmp"
+              "/run"
+              "/var/tmp"
+            ];
             network = "bridge";
             user = "1000:1000";
-            capDrop = [ "ALL" ];
+            # capDrop = [ "ALL" ];
             dangerouslyAllowExternalBindSources = true;
             env = sandboxEnv;
             cpus = 1;
+            binds = [
+              "/usr/local:/usr/local:ro"
+              "${workspace}/skills:/skills:ro"
+              # "${workspace}/dev:/dev:rw"
+              "${workspace}/dropbox:/dropbox:rw"
+            ];
           };
           browser = {
             enabled = true;
@@ -152,7 +166,6 @@ let
         search = {
           enabled = true;
           provider = "grok";
-          fallback = "brave";
           maxResults = 8;
         };
         fetch = {
@@ -275,7 +288,10 @@ let
 
     skills.install.nodeManager = "npm";
 
-    skills.load.extraDirs = [ "/home/node/.openclaw/skills" "/home/node/.openclaw/workspace/skills" ];
+    skills.load.extraDirs = [
+      "/home/node/.openclaw/skills"
+      "/home/node/.openclaw/workspace/skills"
+    ];
 
     plugins.entries.telegram.enabled = true;
   };
