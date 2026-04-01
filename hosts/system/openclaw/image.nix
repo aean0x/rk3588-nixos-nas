@@ -86,6 +86,9 @@ let
           uv-aarch64-unknown-linux-gnu/uv uv-aarch64-unknown-linux-gnu/uvx
     RUN chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
+    # Ensure pnpm is available (not in all base images)
+    RUN npm install -g pnpm || true
+
     # Dependency install steps (pip / npm / pnpm / uv / npx)
     ${pipStep}${npmStep}${pnpmStep}${uvStep}${npxStep}
 
