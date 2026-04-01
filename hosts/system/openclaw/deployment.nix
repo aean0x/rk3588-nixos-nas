@@ -17,6 +17,7 @@ let
   };
 
   baseImage = "ghcr.io/phioranex/openclaw-docker:latest";
+  sandboxBaseImage = "node:22-bookworm-slim";
   configDir = "/var/lib/openclaw";
   workspaceDir = "${configDir}/workspace";
   subAgentsDir = "${workspaceDir}/.agents";
@@ -131,7 +132,7 @@ in
       serviceConfig.Type = "oneshot";
       script = ''
         set -euo pipefail
-        mkdir -p ${configDir} ${workspaceDir}/memory ${workspaceDir}/skills ${subAgentsDir}
+        mkdir -p ${configDir} ${workspaceDir}/memory ${workspaceDir}/skills ${workspaceDir}/dropbox ${subAgentsDir}
 
         # Protected+persistent doc assembly
         update_doc_custom() {
@@ -198,6 +199,7 @@ in
       serviceConfig.Type = "oneshot";
       script = ''
         ${pkgs.docker}/bin/docker pull ${baseImage} || true
+        ${pkgs.docker}/bin/docker pull ${sandboxBaseImage} || true
         ${pkgs.docker}/bin/docker image prune -f --filter "until=168h"
         ${pkgs.systemd}/bin/systemctl restart openclaw-builder.service
         ${pkgs.systemd}/bin/systemctl try-restart docker-openclaw-gateway.service
