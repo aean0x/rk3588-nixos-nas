@@ -212,11 +212,11 @@ let
           - For dangerous admin commands (`openclaw doctor`, gateway restart, sandbox config changes, secret rotation), reply exactly "Delegate to main" and stop. Safe read-only commands (status checks, log tailing, file reads) are fine to run locally.
           - Your tool set is defined in openclaw.json and summarized below.
 
-          ## Shared Resources (binds)
-          - /usr/local (host binaries, read-only)
-          - /skills (read-only)
-          - /dev (shared projects, read-write)
+          ## Shared Resources
+          - /skills (read-only, shared skill definitions)
           - /dropbox (inter-agent file exchange, read-write)
+
+          Tools (git, python, node, uv, playwright+chromium, ffmpeg, lobster) are baked into the sandbox image.
 
           ## Debugging Policy
           If you encounter a task that according to the available tools and documentation you should be able to complete without issue, but it fails, always include detailed debug information: tools/methods attempted, exact error messages or bad returns, sandbox/permission limitations observed, and any relevant output.

@@ -16,6 +16,9 @@ let
   gatewayUrl = "ws://172.17.0.1:${toString port}";
   workspace = "/home/node/.openclaw/workspace";
 
+  # Host-side paths — Docker daemon resolves sandbox bind sources against the HOST filesystem
+  hostWorkspace = "/var/lib/openclaw/workspace";
+
   # Produces literal ${VAR} in output JSON - OpenClaw resolves from process env
   env = name: "\${${name}}";
 
@@ -128,29 +131,28 @@ let
           workspaceAccess = "none";
           scope = "agent";
           docker = {
-            image = "openclaw-sandbox:bookworm-slim";
-            readOnlyRoot = false;
+            image = "openclaw-sandbox-custom:latest";
+            readOnlyRoot = true;
             tmpfs = [
               "/tmp"
               "/run"
               "/var/tmp"
+              "/dev/shm"
             ];
             network = "bridge";
             user = "1000:1000";
-            # capDrop = [ "ALL" ];
+            capDrop = [ "ALL" ];
             dangerouslyAllowExternalBindSources = true;
             env = sandboxEnv;
             cpus = 1;
             binds = [
-              "/usr/local:/usr/local:ro"
-              "${workspace}/skills:/skills:ro"
-              # "${workspace}/dev:/dev:rw"
-              "${workspace}/dropbox:/dropbox:rw"
+              "${hostWorkspace}/skills:/skills:ro"
+              "${hostWorkspace}/dropbox:/dropbox:rw"
             ];
           };
           browser = {
             enabled = true;
-            allowHostControl = true;
+            allowHostControl = false;
           };
         };
       };
@@ -230,10 +232,6 @@ let
       tts = {
         auto = "inbound";
         provider = "edge";
-        edge = {
-          enabled = true;
-          voice = "en-GB-RyanNeural";
-        };
       };
     };
 
