@@ -153,6 +153,7 @@ let
           browser = {
             enabled = true;
             allowHostControl = false;
+            image = "openclaw-sandbox-browser:bookworm-slim";
           };
         };
       };
