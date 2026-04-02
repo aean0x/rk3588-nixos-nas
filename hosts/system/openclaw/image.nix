@@ -16,6 +16,7 @@ let
     "ffmpeg"
     "build-essential"
     "ca-certificates"
+    "chromium"
   ];
 
   pipPackages = [
