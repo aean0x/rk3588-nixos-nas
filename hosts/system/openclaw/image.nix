@@ -161,7 +161,7 @@ in
     '';
     serviceConfig = {
       Type = "oneshot";
-      TimeoutStartSec = "600";
+      TimeoutStartSec = "1200";
     };
   };
 }
