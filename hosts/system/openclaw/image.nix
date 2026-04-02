@@ -1,43 +1,16 @@
-{ pkgs, ... }:
+{ pkgs, oc, ... }:
 let
-  gatewayBaseImage = "ghcr.io/phioranex/openclaw-docker:latest";
-  gatewayImage = "openclaw-custom:latest";
-  sandboxBaseImage = "node:22-bookworm-slim";
-  sandboxImage = "openclaw-sandbox-custom:latest";
+  packages = import ./packages.nix;
 
   # ── Editable dependency lists ────────────────────────────────
-  # prettier-ignore
-  aptPackages = [
-    "git"
-    "curl"
-    "jq"
-    "python3-pip"
-    "python3-venv"
-    "ffmpeg"
-    "build-essential"
-    "ca-certificates"
-    "chromium"
-  ];
-
-  pipPackages = [
-    # "some-package"
-  ];
-
-  npmPackages = [
-    "@steipete/bird"
-    "playwright"
-  ];
-
-  pnpmPackages = [
-    "@clawdbot/lobster"
-  ];
-
-  uvPackages = [
-    # "some-package"
-  ];
+  aptPackages = packages.apt;
+  pipPackages = packages.pip;
+  npmPackages = packages.npm;
+  pnpmPackages = packages.pnpm;
+  uvPackages = packages.uv;
 
   npxCommands = [
-    "playwright install --with-deps chromium"
+    "playwright install chromium"
   ];
 
   # ── Dockerfile fragments ────────────────────────────────────
@@ -93,6 +66,11 @@ let
     # Dependency install steps (pip / npm / pnpm / uv / npx)
     ${pipStep}${npmStep}${pnpmStep}${uvStep}${npxStep}
 
+    # goplaces
+    RUN curl -fsSL https://github.com/steipete/goplaces/releases/download/v0.3.0/goplaces_0.3.0_linux_arm64.tar.gz | \
+        tar -xzf - -C /usr/local/bin goplaces && \
+        chmod +x /usr/local/bin/goplaces
+
     # Common directory setup
     RUN mkdir -p /home/node/.cache/uv /home/node/.local/share/uv \
                  /tmp /dev/shm /var/tmp && \
@@ -107,11 +85,9 @@ in
     description = "Build custom OpenClaw gateway and sandbox images";
     before = [
       "docker-openclaw-gateway.service"
-      "docker-openclaw-cli.service"
     ];
     requiredBy = [
       "docker-openclaw-gateway.service"
-      "docker-openclaw-cli.service"
     ];
     path = [
       pkgs.docker
@@ -120,19 +96,15 @@ in
     ];
     script = ''
       # ── Gateway image ──────────────────────────────────────────
-      docker build -t ${gatewayImage} - <<'GATEWAY_EOF'
-      FROM ${gatewayBaseImage}
+      docker build -t ${oc.gatewayImage} - <<'GATEWAY_EOF'
+      FROM ${oc.gatewayBaseImage}
       ${sharedSteps}
 
       # Docker CLI (gateway-only)
       RUN curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz | \
           tar -xzf - --strip-components=1 -C /usr/local/bin docker/docker
 
-      # goplaces (gateway-only)
-      RUN curl -fsSL https://github.com/steipete/goplaces/releases/download/v0.3.0/goplaces_0.3.0_linux_arm64.tar.gz | \
-          tar -xzf - -C /usr/local/bin goplaces
-
-      RUN chmod +x /usr/local/bin/docker /usr/local/bin/goplaces
+      RUN chmod +x /usr/local/bin/docker
 
       # Docker group (gateway-only)
       RUN groupadd -g 131 docker 2>/dev/null || true && \
@@ -152,8 +124,8 @@ in
       GATEWAY_EOF
 
       # ── Sandbox image ──────────────────────────────────────────
-      docker build -t ${sandboxImage} - <<'SANDBOX_EOF'
-      FROM ${sandboxBaseImage}
+      docker build -t ${oc.sandboxImage} - <<'SANDBOX_EOF'
+      FROM ${oc.sandboxBaseImage}
       ${sharedSteps}
 
       USER 1000:1000

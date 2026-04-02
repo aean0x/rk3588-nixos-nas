@@ -37,14 +37,14 @@ Gateway env vars (`OPENCLAW_HOME`, `OPENCLAW_STATE_DIR`, `OPENCLAW_CONFIG_PATH`)
 ## Container Architecture
 
 - **openclaw-builder** (oneshot, `image.nix`) — builds two images before gateway starts:
-  1. `openclaw-custom:latest` (gateway) — upstream base + Docker CLI, goplaces, openclaw wrapper
-  2. `openclaw-sandbox-custom:latest` (sandbox) — `node:22-bookworm-slim` + all dev tools (git, python, uv, node, npm/pnpm packages, playwright+chromium, ffmpeg, lobster). No Docker CLI or gateway-specific tools.
+  1. `openclaw-custom:latest` (gateway) — upstream base + Docker CLI, openclaw wrapper
+  2. `openclaw-sandbox-custom:latest` (sandbox) — `node:22-bookworm-slim` + all dev tools (git, python, uv, node, npm/pnpm packages, playwright+chromium, ffmpeg, lobster, goplaces). No Docker CLI or gateway-specific tools.
 - **openclaw-gateway** — main process, user `1000:1000`, `--network=host`, docker group for socket access.
 - **openclaw** (host CLI) — `docker exec` into running gateway via the `openclaw` wrapper script. No separate container.
 
 All containers run as UID 1000 (maps to `node` inside, `user` on host). No root at runtime.
 
-**Sandbox bind path discipline:** The gateway spawns sandboxes via docker.sock. The Docker daemon runs on the NixOS host and resolves bind-mount source paths against the **host filesystem**. Bind sources must use host paths (`/var/lib/openclaw/workspace/...`), not gateway-internal paths (`/home/node/.openclaw/workspace/...`). In `config.nix`, `hostWorkspace` is used for sandbox binds; `workspace` is used for gateway-internal references.
+**Sandbox workspace discipline:** Sandboxes are granted read-write access to the main workspace (`workspaceAccess: "rw"`). They are no longer cut off into isolated environments.
 
 ## Workspace & Config Deployment
 
@@ -64,8 +64,7 @@ Sandbox defaults in `openclaw.json` apply to ALL sandboxed agents (no per-agent 
 - Security: `readOnlyRoot: true`, `capDrop: ["ALL"]`, `user: "1000:1000"`, 1 cpu
 - tmpfs: `/tmp`, `/run`, `/var/tmp`, `/dev/shm` (Chromium needs writable shm)
 - Network: bridge (connects to gateway via ws://172.17.0.1:18789)
-- Binds (host-side sources): `/var/lib/openclaw/workspace/skills` → `/skills:ro`, `.../dropbox` → `/dropbox:rw`
-- `workspaceAccess: "none"`, `scope: "agent"` — each sub-agent gets an isolated workspace
+- `workspaceAccess: "rw"`, `scope: "agent"` — each sub-agent gets read-write access to the main workspace
 
 **Tool policy is deny-based** — `profile = "full"` gives all tools, `tools.deny` removes what's not needed.
 

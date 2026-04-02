@@ -3,7 +3,6 @@
 {
   lib,
   pkgs,
-  agentDefs ? { },
 }:
 
 let
@@ -20,10 +19,8 @@ let
 
   '';
 
-  templateSrc = agentDefs.templateSrc or null;
-
   # ── Document templates ───────────────────────────────────────
-  soul = import ./soul.nix { inherit lib templateSrc agentDefs; };
+  soul = import ./soul.nix { };
   agents = import ./agents.nix { inherit lib; };
   style = import ./style.nix;
 

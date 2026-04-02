@@ -6,45 +6,61 @@
   pkgs,
   lib,
   settings,
-  inputs,
   ...
 }:
 let
-  openclawConfig = import ./config.nix {
-    inherit pkgs lib settings;
-    openclaw-agents = inputs.openclaw-agents;
-  };
-  openclawPort = openclawConfig.port;
-  customImage = "openclaw-custom:latest";
-  configDir = "/var/lib/openclaw";
+  oc = {
+    env = name: "\${${name}}";
+    port = 18789;
+    configDir = "/var/lib/openclaw";
+    workspaceDir = "/var/lib/openclaw/workspace";
 
-  dockerGid =
-    if (config.users.groups ? docker && config.users.groups.docker.gid != null) then
-      config.users.groups.docker.gid
-    else
-      131;
+    # Docker config
+    gatewayBaseImage = "ghcr.io/phioranex/openclaw-docker:latest";
+    gatewayImage = "openclaw-custom:latest";
+    sandboxBaseImage = "node:22-bookworm-slim";
+    sandboxImage = "openclaw-sandbox-custom:latest";
+    dockerGid =
+      if (config.users.groups ? docker && config.users.groups.docker.gid != null) then
+        config.users.groups.docker.gid
+      else
+        131;
+
+    # Shared container environment
+    containerEnv = {
+      HOME = "/home/node";
+      OPENCLAW_HOME = "/home/node";
+      OPENCLAW_STATE_DIR = "/home/node/.openclaw";
+      OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
+    };
+  };
+
+  openclawConfig = import ./config.nix {
+    inherit
+      pkgs
+      lib
+      settings
+      oc
+      ;
+  };
 
   # ── Shared container config ──────────────────────────────────
   commonContainer = {
-    image = customImage;
+    image = oc.gatewayImage;
     volumes = [
-      "${configDir}:/home/node/.openclaw:rw"
+      "${oc.configDir}:/home/node/.openclaw:rw"
       "/run/openclaw.env:/home/node/.openclaw/.env:ro"
       "/var/run/docker.sock:/var/run/docker.sock"
     ];
     extraOptions = [
       "--init"
       "--network=host"
-      "--group-add=${toString dockerGid}"
+      "--group-add=${toString oc.dockerGid}"
     ];
-    environment = {
-      HOME = "/home/node";
+    environment = oc.containerEnv // {
       TERM = "xterm-256color";
       DOCKER_HOST = "unix:///var/run/docker.sock";
       DOCKER_API_VERSION = "1.44";
-      OPENCLAW_HOME = "/home/node";
-      OPENCLAW_STATE_DIR = "/home/node/.openclaw";
-      OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
       NODE_COMPILE_CACHE = "/var/tmp/openclaw-compile-cache";
       OPENCLAW_NO_RESPAWN = "1";
     };
@@ -60,6 +76,9 @@ in
   options.services.openclaw = { };
 
   config = {
+    # Expose constants and config object for submodules (avoids double evaluation)
+    _module.args.oc = oc;
+    _module.args.openclawConfig = openclawConfig;
 
     environment.systemPackages = [ pkgs.chromium ];
 
@@ -71,23 +90,15 @@ in
           "--bind"
           "lan"
           "--port"
-          (toString openclawPort)
+          (toString oc.port)
         ];
         autoStart = true;
-      };
-
-      openclaw-cli = commonContainer // {
-        environment = commonContainer.environment // {
-          BROWSER = "echo";
-        };
-        cmd = [ "--help" ];
-        autoStart = false;
       };
     };
 
     networking.firewall = {
       allowedTCPPorts = [
-        openclawPort
+        oc.port
       ];
       allowedUDPPorts = [
         5353 # mDNS
@@ -95,8 +106,8 @@ in
     };
 
     services.caddy.proxyServices = {
-      "openclaw.${settings.domain}" = openclawPort;
+      "openclaw.${settings.domain}" = oc.port;
     };
 
-  }; # config
+  };
 }

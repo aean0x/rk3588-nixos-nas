@@ -23,10 +23,6 @@
       url = "github:openclaw/nix-openclaw";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    openclaw-agents = {
-      url = "github:shenhao-stu/openclaw-agents";
-      flake = false;
-    };
   };
 
   outputs =

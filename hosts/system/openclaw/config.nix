@@ -7,33 +7,15 @@
   pkgs,
   lib,
   settings,
-  openclaw-agents,
+  oc,
   ...
 }:
 let
-  agentDefs = import ./agents.nix { inherit pkgs lib openclaw-agents; };
-  port = 18789;
-  gatewayUrl = "ws://172.17.0.1:${toString port}";
-  workspace = "/home/node/.openclaw/workspace";
+  agentDefs = import ./agents.nix { inherit oc; };
+  gatewayUrl = "ws://172.17.0.1:${toString oc.port}";
 
-  # Host-side paths — Docker daemon resolves sandbox bind sources against the HOST filesystem
-  hostWorkspace = "/var/lib/openclaw/workspace";
-
-  # Produces literal ${VAR} in output JSON - OpenClaw resolves from process env
-  env = name: "\${${name}}";
-
-  # Common sandbox env shared by all sub-agents
-  sandboxEnv = {
-    HOME = "/home/node";
-    OPENCLAW_HOME = "/home/node";
-    OPENCLAW_STATE_DIR = "/home/node/.openclaw";
-    OPENCLAW_CONFIG_PATH = "/home/node/.openclaw/openclaw.json";
-    OPENCLAW_GATEWAY_TOKEN = env "OPENCLAW_GATEWAY_TOKEN";
-    OPENCLAW_GATEWAY_URL = gatewayUrl;
-    BRAVE_API_KEY = env "BRAVE_API_KEY";
-    GOOGLE_PLACES_API_KEY = env "GOOGLE_PLACES_API_KEY";
-    BROWSERLESS_API_TOKEN = env "BROWSERLESS_API_TOKEN";
-  };
+  # Default paths mapped to node home sandbox
+  sandboxWorkspace = "/home/node/.openclaw/workspace";
 
   config = {
     logging.redactSensitive = "tools";
@@ -50,7 +32,7 @@ let
           color = "#00AA00";
         };
         remote = {
-          cdpUrl = "https://production-sfo.browserless.io?token=${env "BROWSERLESS_API_TOKEN"}";
+          cdpUrl = "https://production-sfo.browserless.io?token=${oc.env "BROWSERLESS_API_TOKEN"}";
           color = "#FF9900";
         };
       };
@@ -65,7 +47,7 @@ let
       mode = "merge";
       providers.xai = {
         baseUrl = "https://api.x.ai/v1";
-        apiKey = env "XAI_API_KEY";
+        apiKey = oc.env "XAI_API_KEY";
         api = "openai-responses";
         models = [
           {
@@ -84,84 +66,62 @@ let
       };
     };
 
-    agents = {
-      defaults = {
-        model = {
-          primary = "xai/grok-4.20-beta";
-          fallbacks = [
-            "xai/grok-4-1-fast-reasoning"
-            "xai/grok-4-1-fast-non-reasoning"
-          ];
-        };
-        models = {
-          "xai/grok-4.20-beta".alias = "grok-beta";
-          "xai/grok-4-1-fast-reasoning".alias = "grok-reasoning";
-          "xai/grok-4-1-fast-non-reasoning".alias = "grok-non-reasoning";
-        };
-        inherit workspace;
-        memorySearch = {
-          enabled = true;
-          provider = "gemini";
-          remote.apiKey = env "GEMINI_API_KEY";
-          model = "gemini-embedding-001";
-        };
-        contextPruning = {
-          mode = "cache-ttl";
-          ttl = "12h";
-          keepLastAssistants = 3;
-          softTrimRatio = 0.3;
-          hardClearRatio = 0.5;
-        };
-        compaction = {
-          mode = "default";
-          memoryFlush = {
-            enabled = true;
-            softThresholdTokens = 40000;
-            prompt = "Extract key decisions, state changes, lessons, blockers to memory/YYYY-MM-DD.md. Format: ## [HH:MM] Topic. Skip routine work. NO_FLUSH if nothing important.";
-            systemPrompt = "Compacting session context. Extract only what's worth remembering. No fluff.";
+    agents =
+      lib.recursiveUpdate
+        (builtins.removeAttrs (agentDefs.mkAgentsConfig {
+          inherit gatewayUrl;
+        }) [ "tools" ])
+        {
+          defaults = {
+            sandbox.browser = {
+              enabled = true;
+              allowHostControl = false;
+              image = "openclaw-sandbox-browser:bookworm-slim";
+            };
+            model = {
+              primary = "xai/grok-4.20-beta";
+              fallbacks = [
+                "xai/grok-4-1-fast-reasoning"
+                "xai/grok-4-1-fast-non-reasoning"
+              ];
+            };
+            models = {
+              "xai/grok-4.20-beta".alias = "grok-beta";
+              "xai/grok-4-1-fast-reasoning".alias = "grok-reasoning";
+              "xai/grok-4-1-fast-non-reasoning".alias = "grok-non-reasoning";
+            };
+            workspace = sandboxWorkspace;
+            memorySearch = {
+              enabled = true;
+              provider = "gemini";
+              remote.apiKey = oc.env "GEMINI_API_KEY";
+              model = "gemini-embedding-001";
+            };
+            contextPruning = {
+              mode = "cache-ttl";
+              ttl = "12h";
+              keepLastAssistants = 3;
+              softTrimRatio = 0.3;
+              hardClearRatio = 0.5;
+            };
+            compaction = {
+              mode = "default";
+              memoryFlush = {
+                enabled = true;
+                softThresholdTokens = 40000;
+                prompt = "Extract key decisions, state changes, lessons, blockers to memory/YYYY-MM-DD.md. Format: ## [HH:MM] Topic. Skip routine work. NO_FLUSH if nothing important.";
+                systemPrompt = "Compacting session context. Extract only what's worth remembering. No fluff.";
+              };
+            };
+            heartbeat = {
+              model = "xai/grok-4-1-fast-reasoning";
+              every = "30m";
+            };
+            subagents.model = "xai/grok-4-1-fast-reasoning";
           };
         };
-        heartbeat = {
-          model = "xai/grok-4-1-fast-reasoning";
-          every = "30m";
-        };
-        subagents.model = "xai/grok-4-1-fast-reasoning";
-        sandbox = {
-          mode = "non-main";
-          workspaceAccess = "none";
-          scope = "agent";
-          docker = {
-            image = "openclaw-sandbox-custom:latest";
-            readOnlyRoot = true;
-            tmpfs = [
-              "/tmp"
-              "/run"
-              "/var/tmp"
-              "/dev/shm"
-            ];
-            network = "bridge";
-            user = "1000:1000";
-            capDrop = [ "ALL" ];
-            dangerouslyAllowExternalBindSources = true;
-            env = sandboxEnv;
-            cpus = 1;
-            binds = [
-              "${hostWorkspace}/skills:/skills:ro"
-              "${hostWorkspace}/dropbox:/dropbox:rw"
-            ];
-          };
-          browser = {
-            enabled = true;
-            allowHostControl = false;
-            image = "openclaw-sandbox-browser:bookworm-slim";
-          };
-        };
-      };
 
-      list = agentDefs.mkJsonConfig { inherit workspace gatewayUrl; };
-    };
-
-    tools = {
+    tools = lib.recursiveUpdate (agentDefs.mkAgentsConfig { inherit gatewayUrl; }).tools {
       # Global profile — registers base tool set for all agents (subs inherit this)
       profile = "full";
 
@@ -180,7 +140,7 @@ let
         enabled = true;
         allowFrom = {
           main = [ "*" ];
-          telegram = [ (env "TELEGRAM_ADMIN_ID") ];
+          telegram = [ (oc.env "TELEGRAM_ADMIN_ID") ];
         };
       };
       exec = {
@@ -208,24 +168,6 @@ let
       alsoAllow = [
         "lobster"
       ];
-
-      # Sandbox tool filter (layer 7).
-      # Wildcards don't work here — must use explicit group names.
-      # This is a separate gate from tools.profile; both must permit a tool.
-      sandbox.tools = {
-        allow = [
-          "group:fs"
-          "group:runtime"
-          "group:sessions"
-          "group:web"
-          "group:memory"
-          "group:ui"
-          "group:openclaw"
-          "lobster"
-          "image"
-        ];
-        deny = [ ];
-      };
     };
 
     messages = {
@@ -258,12 +200,12 @@ let
       enabled = true;
       dmPolicy = "pairing";
       groupPolicy = "allowlist";
-      groupAllowFrom = [ (env "TELEGRAM_ADMIN_ID") ];
+      groupAllowFrom = [ (oc.env "TELEGRAM_ADMIN_ID") ];
       streaming = true;
     };
 
     gateway = {
-      inherit port;
+      port = oc.port;
       mode = "local";
       bind = "loopback";
       controlUi = {
@@ -272,7 +214,7 @@ let
       };
       auth = {
         mode = "token";
-        token = env "OPENCLAW_GATEWAY_TOKEN";
+        token = oc.env "OPENCLAW_GATEWAY_TOKEN";
         allowTailscale = true;
       };
       trustedProxies = [
@@ -296,6 +238,6 @@ let
   };
 in
 {
-  inherit port agentDefs;
+  inherit agentDefs;
   configFile = pkgs.writeText "openclaw.json" (builtins.toJSON config);
 }
