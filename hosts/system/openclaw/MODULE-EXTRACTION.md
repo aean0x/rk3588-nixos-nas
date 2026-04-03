@@ -24,12 +24,7 @@ services.openclaw = {
 
   # Image customization
   baseImage = "ghcr.io/phioranex/openclaw-docker:latest";
-  extraAptPackages = [];
-  extraNpmPackages = [];
-  extraPipPackages = [];
-  extraPnpmPackages = [];
-  extraUvPackages = [];
-  extraNpxCommands = [];
+  extraDependencies = [];  # Typed dep list (same schema as packages.nix)
 
   # Workspace content (overridable per-document)
   workspace.documents = {
@@ -68,11 +63,12 @@ services.openclaw = {
 - [ ] Replace `inputs.openclaw-agents` with `cfg.agentsInput` option
 - [ ] Move sops template out of module — module only consumes `cfg.secretsFile` path
 
-### Phase 2: Parameterize image.nix
+### Phase 2: Parameterize image build
 
-- [ ] Make package lists into module options with current values as defaults
-- [ ] Detect arch at eval time for binary download URLs (or use multi-arch methods)
-- [ ] Make base image configurable
+- [ ] Expose `packages.nix` typed dependency list as a module option (`extraDependencies`) that merges with defaults
+- [ ] Detect arch at eval time for tarball URLs (or accept aarch64-only for v1)
+- [ ] Make base images configurable (`gatewayBaseImage`, `sandboxBaseImage`)
+- [ ] `image.nix` type handlers and `mkStep` dispatcher stay as-is — already generic
 
 ### Phase 3: Externalize workspace content
 
@@ -108,9 +104,9 @@ Soul, style, agent rules are deeply user-specific. The module ships a minimal sk
 real content lives in the consuming repo. The merge engine (protected + persistent sections)
 is the reusable part.
 
-### image.nix hardcodes aarch64
-Binary URLs for uv, Docker CLI, goplaces are aarch64-specific. Need to either:
-- Detect `pkgs.system` and select URLs
+### Tarball URLs hardcode aarch64
+`packages.nix` tarball entries (uv, Docker CLI, goplaces) use aarch64 URLs. Need to either:
+- Detect `pkgs.system` and select URLs per-arch in `packages.nix`
 - Use package managers that handle arch automatically
 - Accept aarch64-only for now, document the limitation
 
@@ -135,7 +131,8 @@ across rebuilds, which a pure derivation can't do (it would need a separate stat
 | config.nix | module/config.nix | Parameterize settings refs |
 | agents.nix | module/agents.nix | Unchanged (already generic) |
 | deployment.nix | module/deployment.nix | Core merge engine stays |
-| image.nix | module/image.nix | Parameterize packages + arch |
+| packages.nix | module/packages.nix | Typed dep manifest, expose as option for merging |
+| image.nix | module/image.nix | Type-dispatched builder, already generic |
 | workspace/*.nix | module/workspace/ | Engine stays, content becomes defaults |
 | onedrive.nix | module/integrations/onedrive.nix | Optional |
 | AGENTS.md | stays in host repo | Documentation, not module code |

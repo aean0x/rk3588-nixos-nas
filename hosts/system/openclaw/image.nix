@@ -1,84 +1,87 @@
-{ pkgs, oc, ... }:
+{
+  pkgs,
+  oc,
+  lib,
+  ...
+}:
 let
-  packages = import ./packages.nix;
+  packages = import ./packages.nix { inherit lib; };
 
-  # ── Editable dependency lists ────────────────────────────────
-  aptPackages = packages.apt;
-  pipPackages = packages.pip;
-  npmPackages = packages.npm;
-  pnpmPackages = packages.pnpm;
-  uvPackages = packages.uv;
+  # ── Typed step generators (all the meat stays here)
+  mkStep =
+    step:
+    let
+      pkg = step.package or step.name;
+      typeHandlers = {
+        apt = ''
+          # === ${step.name} ===
+          RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+              apt-get update && \
+              apt-get install -y --no-install-recommends ${builtins.concatStringsSep " " step.packages} && \
+              rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+        '';
 
-  npxCommands = [
-    "playwright install chromium"
-  ];
+        tarball =
+          let
+            stripFlag = lib.optionalString (
+              step ? stripComponents && step.stripComponents > 0
+            ) " --strip-components=${toString step.stripComponents}";
+          in
+          ''
+            # === ${step.name} (tarball) ===
+            RUN curl -fsSL ${step.url} | tar -xzf -${stripFlag} -C /usr/local/bin && \
+                find /usr/local/bin -type f -executable -exec chmod +x {} + 2>/dev/null || true
+          '';
 
-  # ── Dockerfile fragments ────────────────────────────────────
-  mkPkgStep =
-    cmd: pkgList:
-    if pkgList == [ ] then
-      ""
-    else
-      ''
-        RUN ${cmd} ${builtins.concatStringsSep " " pkgList}
-      '';
+        npm = ''
+          # === ${step.name} (npm) ===
+          ${
+            if step ? env then
+              "ENV ${lib.concatStringsSep " " (lib.mapAttrsToList (n: v: "${n}=${v}") step.env)}\n"
+            else
+              ""
+          }RUN npm install -g --force ${pkg}
+          ${if step ? post && step.post != "" then "RUN ${step.post}" else ""}
+        '';
 
-  aptLine = builtins.concatStringsSep " " aptPackages;
-  pipStep = mkPkgStep "pip install --no-cache-dir --break-system-packages" pipPackages;
-  npmStep = mkPkgStep "npm install -g" npmPackages;
-  uvStep = mkPkgStep "uv pip install --system" uvPackages;
-  pnpmStep =
-    if pnpmPackages == [ ] then
-      ""
-    else
-      ''
-        RUN PNPM_HOME=/usr/local/bin pnpm add -g ${builtins.concatStringsSep " " pnpmPackages}
-      '';
-  npxStep =
-    if npxCommands == [ ] then
-      ""
-    else
-      builtins.concatStringsSep "" (
-        map (cmd: ''
-          RUN npx ${cmd}
-        '') npxCommands
-      );
+        pnpm = ''
+          # === ${step.name} (pnpm) ===
+          RUN PNPM_HOME=/usr/local/bin pnpm add -g ${pkg}
+        '';
 
-  # ── Shared Dockerfile steps (used by both gateway and sandbox) ──
-  sharedSteps = ''
+        pip = ''
+          # === ${step.name} ===
+          RUN uv pip install --system ${builtins.concatStringsSep " " step.packages}
+        '';
+
+        custom = ''
+          # === ${step.name} (custom) ===
+          ${if step ? pre && step.pre != "" then "${step.pre}\n" else ""}RUN ${step.install}
+          ${if step ? post && step.post != "" then "RUN ${step.post}\n" else ""}
+        '';
+      };
+    in
+    typeHandlers.${step.type or "custom"} or (throw "Unknown dependency type: ${step.type or "none"}");
+
+  # Split by sandbox flag
+  sharedSteps = lib.concatMapStrings mkStep (lib.filter (s: s.sandbox or true) packages.dependencies);
+
+  gatewayOnlySteps = lib.concatMapStrings mkStep (
+    lib.filter (s: !(s.sandbox or true)) packages.dependencies
+  );
+
+  commonSetup = ''
     USER root
 
-    # System packages
-    RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
-        apt-get update && \
-        apt-get install -y --no-install-recommends ${aptLine} && \
-        rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+    ${sharedSteps}
 
-    # uv + uvx
-    RUN curl -fsSL https://github.com/astral-sh/uv/releases/download/0.5.0/uv-aarch64-unknown-linux-gnu.tar.gz | \
-        tar -xzf - --strip-components=1 -C /usr/local/bin \
-          uv-aarch64-unknown-linux-gnu/uv uv-aarch64-unknown-linux-gnu/uvx
-    RUN chmod +x /usr/local/bin/uv /usr/local/bin/uvx
-
-    # Ensure pnpm is available (not in all base images)
-    RUN npm install -g pnpm || true
-
-    # Dependency install steps (pip / npm / pnpm / uv / npx)
-    ${pipStep}${npmStep}${pnpmStep}${uvStep}${npxStep}
-
-    # goplaces
-    RUN curl -fsSL https://github.com/steipete/goplaces/releases/download/v0.3.0/goplaces_0.3.0_linux_arm64.tar.gz | \
-        tar -xzf - -C /usr/local/bin goplaces && \
-        chmod +x /usr/local/bin/goplaces
-
-    # Common directory setup
+    # Common directory setup + git safe.directory
     RUN mkdir -p /home/node/.cache/uv /home/node/.local/share/uv \
                  /tmp /dev/shm /var/tmp && \
         chown -R 1000:1000 /home/node /tmp /var/tmp && \
         chmod -R 1777 /tmp /dev/shm
     RUN git config --global --add safe.directory '*'
   '';
-
 in
 {
   systemd.services.openclaw-builder = {
@@ -98,25 +101,19 @@ in
       # ── Gateway image ──────────────────────────────────────────
       docker build -t ${oc.gatewayImage} - <<'GATEWAY_EOF'
       FROM ${oc.gatewayBaseImage}
-      ${sharedSteps}
+      ${commonSetup}
 
-      # Docker CLI (gateway-only)
-      RUN curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz | \
-          tar -xzf - --strip-components=1 -C /usr/local/bin docker/docker
+      # Gateway-only dependencies
+      ${gatewayOnlySteps}
 
-      RUN chmod +x /usr/local/bin/docker
-
-      # Docker group (gateway-only)
-      RUN groupadd -g 131 docker 2>/dev/null || true && \
-          usermod -aG docker node
-
-      # Gateway-specific dirs
+      # Gateway-specific setup
+      RUN groupadd -g 131 docker 2>/dev/null || true && usermod -aG docker node
       RUN mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial \
                    /var/tmp/openclaw-compile-cache && \
           chown 1000:1000 /var/tmp/openclaw-compile-cache && \
           chown -R _apt:root /var/lib/apt /var/cache/apt 2>/dev/null || true
 
-      # OpenClaw CLI wrapper (gateway-only)
+      # OpenClaw CLI wrapper
       RUN printf '#!/bin/sh\nexec node /app/dist/index.js "$@"\n' > /usr/local/bin/openclaw && \
           chmod +x /usr/local/bin/openclaw
 
@@ -126,7 +123,7 @@ in
       # ── Sandbox image ──────────────────────────────────────────
       docker build -t ${oc.sandboxImage} - <<'SANDBOX_EOF'
       FROM ${oc.sandboxBaseImage}
-      ${sharedSteps}
+      ${commonSetup}
 
       USER 1000:1000
       SANDBOX_EOF

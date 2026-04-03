@@ -1,32 +1,83 @@
+{ lib, ... }:
+
 {
-  apt = [
-    "git"
-    "curl"
-    "jq"
-    "python3-pip"
-    "python3-venv"
-    "ffmpeg"
-    "build-essential"
-    "ca-certificates"
-    "chromium"
-  ];
+  # All dependencies are typed + minimal. Order = Dockerfile execution order.
+  dependencies = [
+    # ── System packages (batched)
+    {
+      name = "apt-base";
+      type = "apt";
+      sandbox = true;
+      packages = [
+        "git"
+        "curl"
+        "jq"
+        "python3-venv"
+        "ffmpeg"
+        "build-essential"
+        "ca-certificates"
+        "chromium"
+      ];
+    }
 
-  pip = [ ];
+    # ── Tarballs (fully abstracted, no extractTo needed)
+    {
+      name = "uv";
+      type = "tarball";
+      sandbox = true;
+      url = "https://github.com/astral-sh/uv/releases/download/0.5.0/uv-aarch64-unknown-linux-gnu.tar.gz";
+      stripComponents = 1;
+    }
+    {
+      name = "goplaces";
+      type = "tarball";
+      sandbox = true;
+      url = "https://github.com/steipete/goplaces/releases/download/v0.3.0/goplaces_0.3.0_linux_arm64.tar.gz";
+    }
+    {
+      name = "docker-cli";
+      type = "tarball";
+      sandbox = false;
+      url = "https://download.docker.com/linux/static/stable/aarch64/docker-26.1.3.tgz";
+      stripComponents = 1;
+    }
 
-  npm = [
-    "@steipete/bird"
-    "playwright"
-  ];
+    # ── npm / pnpm — package field optional (defaults to name)
+    {
+      name = "pnpm";
+      type = "npm";
+      sandbox = true;
+    }
+    {
+      name = "@steipete/bird";
+      type = "npm";
+      sandbox = true;
+    }
+    {
+      name = "playwright";
+      type = "npm";
+      sandbox = true;
+      post = "npx playwright install --with-deps chromium && chown -R 1000:1000 /ms-playwright";
+      env = {
+        PLAYWRIGHT_BROWSERS_PATH = "/ms-playwright";
+      };
+    }
 
-  pnpm = [
-    "@clawdbot/lobster"
-  ];
+    # ── pnpm package
+    {
+      name = "@clawdbot/lobster";
+      type = "pnpm";
+      sandbox = true;
+    }
 
-  uv = [ ];
-
-  custom = [
-    "uv"
-    "uvx"
-    "goplaces"
+    # ── pip packages (batched, installed via uv)
+    {
+      name = "pip-base";
+      type = "pip";
+      sandbox = true;
+      packages = [
+        "openai-whisper"
+      ];
+    }
   ];
 }

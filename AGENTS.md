@@ -33,6 +33,8 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   │   ├── default.nix        # Docker containers, builder, setup, refresh timer
 │   │   │   ├── agents.nix         # Agent definitions (tools, secrets, docs, enable flags)
 │   │   │   ├── config.nix         # Gateway config as Nix attrset (generates openclaw.json)
+│   │   │   ├── packages.nix       # Typed dependency manifest (apt, tarball, npm, pnpm)
+│   │   │   ├── image.nix          # Docker image builder (type-dispatched step generator)
 │   │   │   ├── onedrive.nix       # OneDrive bidirectional sync into workspace
 │   │   │   └── workspace/         # Static shared dotfiles deployed to /var/lib/openclaw/workspace/
 │   │   │       ├── AGENTS.md      # Ops content (session, memory, safety, heartbeats) — roles appended from agents.nix
@@ -125,7 +127,7 @@ Examples: `openclaw-setup` writes `/run/openclaw.env`, `caddy-env` writes `/run/
 
 OpenClaw lives in `hosts/system/openclaw/` as a self-contained module. A Docker container (`openclaw-gateway`) using a custom image built on-device. Runs non-root as UID 1000. State at `/var/lib/openclaw/` mounted to `/home/node/.openclaw` inside containers.
 
-- **`openclaw-builder`** (oneshot) — builds `openclaw-custom:latest` from upstream `ghcr.io/phioranex/openclaw-docker:latest`. Adds: Docker CLI (static aarch64 binary), uv (direct tarball to `/usr/local/bin`), git, curl, jq, nodejs, python3-pip, build-essential. Runs before gateway via `requiredBy`.
+- **`openclaw-builder`** (oneshot) — builds two custom images from `packages.nix` typed dependency list + `image.nix` type-dispatched step generator. Dependencies declare `type` (apt/tarball/npm/pnpm/custom) and `sandbox` flag to control which image they land in. Runs before gateway via `requiredBy`.
 - **`openclaw-setup`** (oneshot) — deploys workspace dotfiles from Nix store, creates sub-agent directories with relative symlinks to shared files (SOUL.md, STYLE.md, USER.md), copies `openclaw.json` with secret substitution, writes `/run/openclaw.env` with all API keys.
 - **Gateway container** — `--network=host`, `--group-add=docker` for docker.sock access. Spawns sandbox containers for sub-agents. Restart policy: always (recovers from SIGUSR1 self-restart).
 

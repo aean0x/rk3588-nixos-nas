@@ -9,13 +9,14 @@ openclaw/
 ├── default.nix        # Module entry point (imports components)
 ├── agents.nix         # Agent definitions & JSON config logic
 ├── config.nix         # Gateway config generation
+├── packages.nix       # Typed dependency manifest (apt, tarball, npm, pnpm)
 ├── workspace/         # Workspace document templates (protected vs persistent sections)
 │   ├── default.nix    # Assembly entry point (documents + tasks map)
 │   ├── soul.nix       # SOUL.md template (personality, voice, continuity)
 │   ├── agents.nix     # AGENTS.md template (server rules, tooling, automation)
 │   ├── style.nix      # STYLE.md template (formatting, language policy)
 │   └── tasks.nix      # Lobster workflow starter templates (.lobster YAML)
-├── image.nix          # Custom Docker image builder service
+├── image.nix          # Docker image builder (type-dispatched step generator)
 ├── deployment.nix     # Setup service (deploy) & refresh timer
 └── onedrive.nix       # Bidirectional rclone sync
 ```
@@ -36,15 +37,29 @@ Gateway env vars (`OPENCLAW_HOME`, `OPENCLAW_STATE_DIR`, `OPENCLAW_CONFIG_PATH`)
 
 ## Container Architecture
 
-- **openclaw-builder** (oneshot, `image.nix`) — builds two images before gateway starts:
-  1. `openclaw-custom:latest` (gateway) — upstream base + Docker CLI, openclaw wrapper
-  2. `openclaw-sandbox-custom:latest` (sandbox) — `node:22-bookworm-slim` + all dev tools (git, python, uv, node, npm/pnpm packages, playwright+chromium, ffmpeg, lobster, goplaces). No Docker CLI or gateway-specific tools.
+- **openclaw-builder** (oneshot, `image.nix` + `packages.nix`) — builds two images before gateway starts:
+  1. `openclaw-custom:latest` (gateway) — upstream base + shared deps + gateway-only deps (Docker CLI, goplaces, openclaw wrapper)
+  2. `openclaw-sandbox-custom:latest` (sandbox) — `node:22-bookworm-slim` + shared deps only (git, python, uv, npm/pnpm packages, playwright+chromium, ffmpeg, lobster). No Docker CLI or gateway-specific tools.
 - **openclaw-gateway** — main process, user `1000:1000`, `--network=host`, docker group for socket access.
 - **openclaw** (host CLI) — `docker exec` into running gateway via the `openclaw` wrapper script. No separate container.
 
 All containers run as UID 1000 (maps to `node` inside, `user` on host). No root at runtime.
 
 **Sandbox workspace discipline:** Sandboxes are granted read-write access to the main workspace (`workspaceAccess: "rw"`). They are no longer cut off into isolated environments.
+
+### Image Build System (`packages.nix` + `image.nix`)
+
+Dependencies are declared in `packages.nix` as a typed list. Each entry has a `type` field that controls how `image.nix` generates the Dockerfile step:
+
+- **`apt`** — batched `apt-get install` with cache cleanup. `packages` list attribute.
+- **`tarball`** — `curl | tar` to `/usr/local/bin`, optional `stripComponents`. Auto `chmod +x`.
+- **`npm`** — `npm install -g`. Optional `env` attrset and `post` command.
+- **`pnpm`** — `PNPM_HOME=/usr/local/bin pnpm add -g`.
+- **`custom`** — raw `pre`/`install`/`post` for anything else.
+
+The `sandbox` boolean on each dep controls which image it lands in — `true` = both images (shared), `false` = gateway only. `package` defaults to `name` (no duplication needed). `name` drives Dockerfile comment labels for debugging.
+
+`image.nix` contains the `mkStep` dispatcher and `typeHandlers` map — adding a new type means adding one branch. `workspace/agents.nix` derives the installed-packages summary for the AGENTS.md template from the same typed list.
 
 ## Workspace & Config Deployment
 

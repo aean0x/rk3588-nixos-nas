@@ -43,6 +43,18 @@ let
     "canvas"
   ];
 
+  # Sandbox writable paths (exported for workspace doc generation)
+  sandboxWritable = {
+    tmpfs = [
+      "/tmp"
+      "/var/tmp"
+      "/dev/shm"
+      "/home/node/.cache"
+      "/home/node/.local"
+    ];
+    persistent = [ "workspace/" ];
+  };
+
   # Secrets every sub-agent gets
   defaultSecrets = {
     BRAVE_API_KEY = oc.env "BRAVE_API_KEY";
@@ -88,6 +100,13 @@ let
             network = "bridge";
             user = "1000:1000";
             capDrop = [ "ALL" ];
+            tmpfs = [
+              "/tmp:size=512m,mode=1777"
+              "/dev/shm:size=256m"
+              "/home/node/.cache"
+              "/home/node/.local"
+              "/var/tmp"
+            ];
             env =
               oc.containerEnv
               // {
@@ -126,6 +145,7 @@ in
     commonTools
     privilegedTools
     adminTools
+    sandboxWritable
     defaultSecrets
     mkAgentsConfig
     ;
