@@ -108,6 +108,7 @@ in
         ${pkgs.docker}/bin/docker pull ${oc.gatewayBaseImage} || true
         ${pkgs.docker}/bin/docker pull ${oc.sandboxBaseImage} || true
         ${pkgs.docker}/bin/docker image prune -f --filter "until=168h"
+        touch /var/tmp/openclaw-force-rebuild
         ${pkgs.systemd}/bin/systemctl restart openclaw-builder.service
         ${pkgs.systemd}/bin/systemctl try-restart docker-openclaw-gateway.service
       '';

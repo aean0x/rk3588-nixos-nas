@@ -30,12 +30,12 @@ in
       chmod 600 "$RCLONE_CONF"
       trap 'rm -f "$RCLONE_CONF"' EXIT
 
-      mkdir -p "${workspaceRoot}/onedrive/Shared" "${workspaceRoot}/onedrive/Documents"
+      mkdir -p "${workspaceRoot}/docs/Shared" "${workspaceRoot}/docs/Documents"
       RCLONE="${pkgs.rclone}/bin/rclone copy --update --config $RCLONE_CONF"
-      $RCLONE "onedrive:Shared" "${workspaceRoot}/onedrive/Shared"
-      $RCLONE "${workspaceRoot}/onedrive/Shared" "onedrive:Shared"
-      $RCLONE "onedrive:Documents" "${workspaceRoot}/onedrive/Documents"
-      $RCLONE "${workspaceRoot}/onedrive/Documents" "onedrive:Documents"
+      $RCLONE "onedrive:Shared" "${workspaceRoot}/docs/Shared"
+      $RCLONE "${workspaceRoot}/docs/Shared" "onedrive:Shared"
+      $RCLONE "onedrive:Documents" "${workspaceRoot}/docs/Documents"
+      $RCLONE "${workspaceRoot}/docs/Documents" "onedrive:Documents"
     '';
   };
 

@@ -19,10 +19,6 @@
       url = "github:rasmus-kirk/nixarr";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nix-openclaw = {
-      url = "github:openclaw/nix-openclaw";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -32,7 +28,6 @@
       nixpkgs-stable,
       sops-nix,
       nixarr,
-      nix-openclaw,
       ...
     }@inputs:
     let
@@ -46,7 +41,6 @@
             config.allowUnfree = true;
           };
         })
-        nix-openclaw.overlays.default
       ];
 
       # Shared modules for installer images (ISO + netboot)
@@ -118,6 +112,5 @@
           '';
       };
 
-      nix-openclaw = nix-openclaw;
     };
 }

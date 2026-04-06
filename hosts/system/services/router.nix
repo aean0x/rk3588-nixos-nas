@@ -176,10 +176,12 @@ in
       radios.${apInterface} = {
         band = "5g";
         inherit channel countryCode;
-        ieee80211d = true;
-        ieee80211h = true;
         wifi4.enable = true;
         wifi5.enable = true;
+        settings = {
+          ieee80211d = true;
+          ieee80211h = true;
+        };
         networks.${apInterface} = {
           inherit ssid;
           authentication = {

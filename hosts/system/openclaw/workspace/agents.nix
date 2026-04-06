@@ -47,6 +47,7 @@ let
   aptPkgs = lib.concatMap (s: s.packages or [ ]) (byType "apt");
   npmPkgs = map (s: s.package or s.name) (byType "npm");
   pnpmPkgs = map (s: s.package or s.name) (byType "pnpm");
+  nodeWorkspacePkgs = lib.concatMap (s: lib.attrNames (s.packages or { })) (byType "node-workspace");
   pipPkgs = lib.concatMap (s: s.packages or [ ]) (byType "pip");
   tarballPkgs = map (s: s.name) (byType "tarball");
   customPkgs = map (s: s.name) (byType "custom");
@@ -58,6 +59,7 @@ let
       (formatPkgList "APT" aptPkgs)
       (formatPkgList "NPM" npmPkgs)
       (formatPkgList "PNPM" pnpmPkgs)
+      (formatPkgList "Node Workspace" nodeWorkspacePkgs)
       (formatPkgList "Pip" pipPkgs)
       (formatPkgList "Tarball" tarballPkgs)
       (formatPkgList "Custom" customPkgs)
@@ -87,12 +89,14 @@ in
 
     ## 2. Orchestrator-Subagent Protocol
 
-    You are running in the standard OpenClaw orchestrator layout:
-    - **Main** = orchestrator (broad tools, no sandbox). You may (and should) spawn sub-agents via `sessions_spawn` whenever it makes sense for parallelism, isolation, or when a task is >2 steps or >5s of work.
-    - **Sub-agents** = workers (sandboxed, restricted tools, ephemeral container, slightly less powerful model).
-    - **Delegation rule (main only):** >2 steps or >5s of work = spawn via `sessions_spawn`.
-    - **Handoff:** Use `sessions_yield` or `sessions_send` when done. Never assume the other side is waiting.
-    - Never spawn from a sub-agent unless the task *explicitly* requires nesting (max depth 2).
+    - **Main** = pure orchestrator and user interface. Its job is to decompose requests, apply safety/policy, delegate work to sub-agents, and validate the workers' output.
+    - **Sub-agents** = the workers that actually execute (sandboxed, restricted tools, ephemeral container, slightly less powerful model).
+
+    **Delegation rule (main only):**
+    **Always delegate** any task that involves tools, web access, external APIs, file operations, code execution, searching, browsing, or anything beyond pure reasoning and orchestration.
+    If the task requires `exec`, `browser`, `web_search`, `goplaces`, playwright, or any skill/tool — spawn a sub-agent immediately.
+
+    Main agent should almost never run tools directly except for reading core config files (SOUL.md, AGENTS.md, USER.md, etc.) and managing delegation.
 
     ### Lobster Workflows
     Lobster workflows live in `tasks/*.lobster`. See `tasks/index.md` for the current living inventory and descriptions.
@@ -142,8 +146,10 @@ in
     **Main Agent Denied Tools (Denied to Main):**
     ${formatList mainDeniedTools}
 
-    ### Browser Tool
-    The sandbox runs a headless browser (CDP instance). Always start with `browser status` or `browser tabs` to attach. Use controlled navigation, snapshots, or fall back to playwright or `web_fetch` for content.
+    ### Headless Browsers
+    If web_fetch proves inadequate or the task requires intraction, two browsers are available:
+    a. (primary) Playwright in headless mode. Refer to Openclaw skill.
+    b. (backup) The sandbox also runs a headless browser CDP instance configured for the Openclaw browser tool. Always start with `browser status` or `browser tabs` to attach.
 
     ## 6. Persistence & Automation
 
@@ -163,12 +169,28 @@ in
     ### Debugging Policy
     If a task that should work fails, always include detailed debug information: tools/methods attempted, exact error messages, sandbox/permission limitations observed, and any relevant output.
 
-    ## 7. Capability Self-Check (run on every new session)
+    ## 7. Workspace
+
+    | File              | Purpose                              | What belongs here                          | What does NOT belong here              |
+    |-------------------|--------------------------------------|--------------------------------------------|----------------------------------------|
+    | **SOUL.md**       | Core personality, voice, values     | Tone, philosophy, boundaries, self-reflection | Environment-specific ops, tool notes   |
+    | **AGENTS.md**     | Multi-agent orchestration rules     | Main vs sub-agent behavior, sandbox rules, delegation protocol | Personal style, tool gotchas           |
+    | **TOOLS.md**      | Environment-specific tool notes     | HA confirmation rules, edit gotchas, paths, preferences | Core identity, agent roles             |
+    | **HEARTBEAT.md**  | Periodic tasks & reminders          | What to check on heartbeat, cadence, quiet hours | Long-term rules, personality           |
+    | **MEMORY.md**     | Durable learned knowledge           | Pruned insights, environment state         | Transient notes, tasks                 |
+    | **USER.md**       | User-specific data                  | Name, preferences, contact info, rules     | Agent behavior                         |
+    | **IDENTITY.md**   | Public persona                      | Name, vibe, emoji                          | Technical rules                        |
+
+    ### Housekeeping rules
+    - New persistent rules must be placed in the correct file per this matrix. If unsure, ask. This prevents the previous disorganization.
+    - Keep workspace root generally clean, including top-level directories. Treat it like your home directory, sorting and saving files in your
+
+    ## 8. Capability Self-Check (run on every new session)
 
     Before starting any task, run internally:
     "I am [main orchestrator OR sandboxed sub-agent]. My role is [orchestrator OR worker]. Writable paths: [list from section 3]. Allowed tools: [common + privileged from section 5]. If this task requires admin tools, host changes, or writes outside allowed paths (as a sub-agent), reply exactly 'Delegate to main' and yield."
 
-    ## 8. Installed Sandbox Packages
+    ## 9. Installed Sandbox Packages
     ${installedPackages}
 
     ## Docs Query
