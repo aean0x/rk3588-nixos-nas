@@ -1,0 +1,2 @@
+sed -i 's/          # === ${step.name} (pnpm) ===/          # === ${step.name} (pnpm) ===\n          ${if step ? env then "ENV " + lib.concatStringsSep " " (lib.mapAttrsToList (n: v: "${n}=${v}") step.env) + "\\n" else ""}/' hosts/system/openclaw/image.nix
+sed -i 's/RUN PNPM_HOME=\/usr\/local\/bin pnpm add -g ${pkg}/RUN PNPM_HOME=\/usr\/local\/bin pnpm add -g ${pkg}\n          ${if step ? post \&\& step.post != "" then "RUN ${step.post}" else ""}/' hosts/system/openclaw/image.nix

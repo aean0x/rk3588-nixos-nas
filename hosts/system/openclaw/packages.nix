@@ -49,25 +49,20 @@
       sandbox = true;
     }
     {
-      name = "@steipete/bird";
-      type = "npm";
+      name = "node-tools";
+      type = "node-workspace";
       sandbox = true;
-    }
-    {
-      name = "playwright";
-      type = "npm";
-      sandbox = true;
-      post = "npx playwright install --with-deps chromium && chown -R 1000:1000 /ms-playwright";
+      packages = {
+        "playwright" = "latest";
+        "@playwright/mcp" = "latest";
+        "@clawdbot/lobster" = "latest";
+        "@steipete/bird" = "latest";
+        "mcporter" = "latest";
+      };
       env = {
         PLAYWRIGHT_BROWSERS_PATH = "/ms-playwright";
       };
-    }
-
-    # ── pnpm package
-    {
-      name = "@clawdbot/lobster";
-      type = "pnpm";
-      sandbox = true;
+      post = "npx playwright install --with-deps chromium && chown -R 1000:1000 /ms-playwright";
     }
 
     # ── pip packages (batched, installed via uv)

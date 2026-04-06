@@ -22,8 +22,6 @@
     hostName = settings.hostName;
     useDHCP = false; # Using static IP below
     enableIPv6 = true;
-    hostId = "8425e349"; # Required for ZFS
-
     interfaces.${settings.network.interface} = {
       ipv4.addresses = [
         {

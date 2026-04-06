@@ -46,12 +46,45 @@ let
 
         pnpm = ''
           # === ${step.name} (pnpm) ===
+          ${
+            if step ? env then
+              "ENV " + lib.concatStringsSep " " (lib.mapAttrsToList (n: v: "${n}=${v}") step.env) + "\n"
+            else
+              ""
+          }
           RUN PNPM_HOME=/usr/local/bin pnpm add -g ${pkg}
+          ${if step ? post && step.post != "" then "RUN ${step.post}" else ""}
         '';
 
         pip = ''
           # === ${step.name} ===
-          RUN uv pip install --system ${builtins.concatStringsSep " " step.packages}
+          RUN uv pip install --system --break-system-packages ${builtins.concatStringsSep " " step.packages}
+        '';
+
+        node-workspace = ''
+          # === ${step.name} (node-workspace) ===
+          ${
+            if step ? env then
+              "ENV " + lib.concatStringsSep " " (lib.mapAttrsToList (n: v: "${n}=${v}") step.env) + "\n"
+            else
+              ""
+          }
+          RUN mkdir -p /opt/${step.name} && \
+              echo '${
+                builtins.toJSON { dependencies = step.packages; }
+              }' > /opt/${step.name}/package.json && \
+              cd /opt/${step.name} && \
+              PNPM_HOME=/usr/local/bin pnpm install
+          ENV NODE_PATH=/opt/${step.name}/node_modules
+          RUN cd /opt/${step.name} && \
+              for bin in node_modules/.bin/*; do \
+                [ -e "$bin" ] || continue; \
+                name=$(basename "$bin"); \
+                target=$(readlink -f "$bin"); \
+                printf '#!/bin/sh\nexec node "%s" "$@"\n' "$target" > "/usr/local/bin/$name"; \
+                chmod +x "/usr/local/bin/$name"; \
+              done
+          ${if step ? post && step.post != "" then "RUN cd /opt/${step.name} && ${step.post}" else ""}
         '';
 
         custom = ''
@@ -98,8 +131,15 @@ in
       pkgs.coreutils
     ];
     script = ''
+      BUILD_ARGS=""
+      if [ -f /var/tmp/openclaw-force-rebuild ]; then
+        echo "Force rebuild flag detected, bypassing Docker cache..."
+        BUILD_ARGS="--no-cache"
+        rm -f /var/tmp/openclaw-force-rebuild
+      fi
+
       # ── Gateway image ──────────────────────────────────────────
-      docker build -t ${oc.gatewayImage} - <<'GATEWAY_EOF'
+      docker build --network=host $BUILD_ARGS -t ${oc.gatewayImage} - <<'GATEWAY_EOF'
       FROM ${oc.gatewayBaseImage}
       ${commonSetup}
 
@@ -121,7 +161,7 @@ in
       GATEWAY_EOF
 
       # ── Sandbox image ──────────────────────────────────────────
-      docker build -t ${oc.sandboxImage} - <<'SANDBOX_EOF'
+      docker build --network=host $BUILD_ARGS -t ${oc.sandboxImage} - <<'SANDBOX_EOF'
       FROM ${oc.sandboxBaseImage}
       ${commonSetup}
 
@@ -130,7 +170,7 @@ in
     '';
     serviceConfig = {
       Type = "oneshot";
-      TimeoutStartSec = "1200";
+      TimeoutStartSec = "3600";
     };
   };
 }

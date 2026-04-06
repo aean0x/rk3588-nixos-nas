@@ -16,38 +16,30 @@
     fsType = "vfat";
   };
 
-  # ZFS pool mount
-  # First boot: create pool, then rebuild:
-  #   sudo zpool create -o ashift=12 -O compression=lz4 -O atime=off -O mountpoint=/media media mirror /dev/disk/by-id/<disk1> /dev/disk/by-id/<disk2>
+  # Btrfs RAID pool mount
+  # First boot: create filesystem, then rebuild:
+  #   sudo mkfs.btrfs -d raid1 -m raid1 -L media \
+  #     /dev/disk/by-id/ata-TOSHIBA_HDWR440UZSVB_52D0A01PF11J \
+  #     /dev/disk/by-id/ata-HUH721212ALE601_8DJYESAH
   fileSystems."/media" = {
-    device = "media";
-    fsType = "zfs";
+    device = "/dev/disk/by-label/media";
+    fsType = "btrfs";
     options = [
       "nofail"
+      "compress=zstd"
+      "noatime"
     ];
   };
 
-  # ZFS configuration
-  boot = {
-    supportedFilesystems = [ "zfs" ];
-    zfs.forceImportRoot = false;
-  };
-
-  services.zfs = {
-    autoScrub.enable = true;
-    autoSnapshot = {
-      enable = true;
-      frequent = 4;
-      hourly = 24;
-      daily = 7;
-      weekly = 4;
-      monthly = 12;
-    };
-    trim.enable = true;
+  # Btrfs maintenance
+  services.btrfs.autoScrub = {
+    enable = true;
+    interval = "weekly";
+    fileSystems = [ "/media" ];
   };
 
   environment.systemPackages = with pkgs; [
-    zfs
-    zfs-prune-snapshots
+    btrfs-progs
+    compsize # show actual compression ratios
   ];
 }
