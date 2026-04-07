@@ -1,8 +1,12 @@
 # OneDrive sync for OpenClaw workspace (rclone copy, no deletions)
 # Runs as UID 1000 to match Docker container user in openclaw-docker.nix
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  oc,
+  ...
+}:
 let
-  workspaceRoot = "/var/lib/openclaw/workspace";
   onedriveConfig = config.sops.secrets.onedrive_rclone_config.path;
 in
 {
@@ -18,7 +22,7 @@ in
       User = "1000";
       Group = "users";
       Environment = [
-        "HOME=/var/lib/openclaw"
+        "HOME=${oc.configDir}"
       ];
     };
 
@@ -30,12 +34,12 @@ in
       chmod 600 "$RCLONE_CONF"
       trap 'rm -f "$RCLONE_CONF"' EXIT
 
-      mkdir -p "${workspaceRoot}/docs/Shared" "${workspaceRoot}/docs/Documents"
+      mkdir -p "${oc.hostWorkspace}/docs/Shared" "${oc.hostWorkspace}/docs/Documents"
       RCLONE="${pkgs.rclone}/bin/rclone copy --update --config $RCLONE_CONF"
-      $RCLONE "onedrive:Shared" "${workspaceRoot}/docs/Shared"
-      $RCLONE "${workspaceRoot}/docs/Shared" "onedrive:Shared"
-      $RCLONE "onedrive:Documents" "${workspaceRoot}/docs/Documents"
-      $RCLONE "${workspaceRoot}/docs/Documents" "onedrive:Documents"
+      $RCLONE "onedrive:Shared" "${oc.hostWorkspace}/docs/Shared"
+      $RCLONE "${oc.hostWorkspace}/docs/Shared" "onedrive:Shared"
+      $RCLONE "onedrive:Documents" "${oc.hostWorkspace}/docs/Documents"
+      $RCLONE "${oc.hostWorkspace}/docs/Documents" "onedrive:Documents"
     '';
   };
 

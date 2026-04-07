@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ ... }:
 
 {
   # All dependencies are typed + minimal. Order = Dockerfile execution order.
@@ -55,6 +55,7 @@
       packages = {
         "playwright" = "latest";
         "@playwright/mcp" = "latest";
+        "@playwright/test" = "latest";
         "@clawdbot/lobster" = "latest";
         "@steipete/bird" = "latest";
         "mcporter" = "latest";

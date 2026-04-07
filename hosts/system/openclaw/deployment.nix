@@ -10,7 +10,7 @@ let
     inherit lib pkgs;
   };
 
-  tasksDir = "${oc.workspaceDir}/tasks";
+  tasksDir = "${oc.hostWorkspace}/tasks";
 
   # ── Main agent workspace files ─────────────────────────────
   persistentIntroFile = pkgs.writeText "persistent-intro" workspaceDefs.persistentIntro;
@@ -42,7 +42,7 @@ in
       serviceConfig.Type = "oneshot";
       script = ''
         set -euo pipefail
-        mkdir -p ${oc.configDir} ${oc.workspaceDir}/memory ${oc.workspaceDir}/skills ${oc.workspaceDir}/dropbox
+        mkdir -p ${oc.configDir} ${oc.hostWorkspace}/memory ${oc.hostWorkspace}/skills ${oc.hostWorkspace}/dropbox
 
         # Protected+persistent doc assembly
         update_doc_custom() {
@@ -70,7 +70,7 @@ in
         }
 
         update_doc() {
-          update_doc_custom "${oc.workspaceDir}/$1" "$2" "$3" "${persistentIntroFile}" "${workspaceDefs.persistentMarker}"
+          update_doc_custom "${oc.hostWorkspace}/$1" "$2" "$3" "${persistentIntroFile}" "${workspaceDefs.persistentMarker}"
         }
 
         update_doc "AGENTS.md" "${workspaceDocs."AGENTS.md"}" "${workspaceDefaults."AGENTS.md"}"

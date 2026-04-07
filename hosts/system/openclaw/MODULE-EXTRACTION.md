@@ -39,7 +39,7 @@ services.openclaw = {
     # scout.grantPrivileged = [ "exec" "process" ];
     # coder.extraDeny = [ "browser" ];
   };
-  agents.defaults.model.primary = "xai/grok-4.20-beta";
+  agents.defaults.model.primary = "xai/grok-4.20";
 
   # Gateway
   gateway.port = 18789;

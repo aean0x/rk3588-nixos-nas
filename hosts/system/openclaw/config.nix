@@ -14,9 +14,6 @@ let
   agentDefs = import ./agents.nix { inherit oc; };
   gatewayUrl = "ws://172.17.0.1:${toString oc.port}";
 
-  # Default paths mapped to node home sandbox
-  sandboxWorkspace = "/home/node/.openclaw/workspace";
-
   config = {
     logging.redactSensitive = "tools";
 
@@ -51,8 +48,8 @@ let
         api = "openai-responses";
         models = [
           {
-            id = "grok-4.20";
-            name = "Grok 4.20";
+            id = "grok-4.20-beta";
+            name = "Grok 4.20 Beta";
           }
           {
             id = "grok-4-1-fast-non-reasoning";
@@ -86,11 +83,12 @@ let
               ];
             };
             models = {
-              "xai/grok-4.20-beta".alias = "grok-beta";
+              "xai/grok-4.20-beta".alias = "grok-4.20-beta";
               "xai/grok-4-1-fast-reasoning".alias = "grok-reasoning";
               "xai/grok-4-1-fast-non-reasoning".alias = "grok-non-reasoning";
             };
-            workspace = sandboxWorkspace;
+            thinkingDefault = "medium";
+            workspace = oc.containerWorkspace;
             memorySearch = {
               enabled = true;
               provider = "gemini";
@@ -201,7 +199,7 @@ let
       dmPolicy = "pairing";
       groupPolicy = "allowlist";
       groupAllowFrom = [ (oc.env "TELEGRAM_ADMIN_ID") ];
-      streaming = true;
+      streaming = "block";
     };
 
     gateway = {
@@ -230,8 +228,8 @@ let
     skills.install.nodeManager = "npm";
 
     skills.load.extraDirs = [
-      "/home/node/.openclaw/skills"
-      "/home/node/.openclaw/workspace/skills"
+      "${oc.containerEnv.OPENCLAW_STATE_DIR}/skills"
+      "${oc.containerWorkspace}/skills"
     ];
 
     plugins.entries.telegram.enabled = true;

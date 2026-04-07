@@ -80,8 +80,7 @@ let
               for bin in node_modules/.bin/*; do \
                 [ -e "$bin" ] || continue; \
                 name=$(basename "$bin"); \
-                target=$(readlink -f "$bin"); \
-                printf '#!/bin/sh\nexec node "%s" "$@"\n' "$target" > "/usr/local/bin/$name"; \
+                printf '#!/bin/sh\ncd /opt/${step.name} && exec npx --no-install "%s" "$@"\n' "$name" > "/usr/local/bin/$name"; \
                 chmod +x "/usr/local/bin/$name"; \
               done
           ${if step ? post && step.post != "" then "RUN cd /opt/${step.name} && ${step.post}" else ""}
@@ -170,6 +169,7 @@ in
     '';
     serviceConfig = {
       Type = "oneshot";
+      RemainAfterExit = true;
       TimeoutStartSec = "3600";
     };
   };

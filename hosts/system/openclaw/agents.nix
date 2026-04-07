@@ -1,65 +1,12 @@
 { oc, ... }:
 
 let
-  # ── Tool Policy ────────────────────────────────────────────
-  # Strategy: profile "full" gives every tool. tools.deny removes what's not needed.
-  # In this flexible layout, all sub-agents share a blanket set of granted tools.
-
-  commonTools = [
-    "read"
-    "write"
-    "edit"
-    "browser"
-    "web_search"
-    "web_fetch"
-    "image"
-    "memory_search"
-    "memory_get"
-    "agents_list"
-    "session_status"
-    "tts"
-    "pdf"
-    "sessions_list"
-    "sessions_history"
-    "sessions_send"
-    "sessions_yield"
-  ];
-
-  # Tools that are powerful but granted to all sub-agents under the flat structure
-  privilegedTools = [
-    "exec"
-    "apply_patch"
-    "process"
-    "sessions_spawn"
-    "subagents"
-  ];
-
-  # Admin tools that are unconditionally denied to all sub-agents
-  adminTools = [
-    "cron"
-    "gateway"
-    "nodes"
-    "message"
-    "canvas"
-  ];
-
-  # Sandbox writable paths (exported for workspace doc generation)
-  sandboxWritable = {
-    tmpfs = [
-      "/tmp"
-      "/var/tmp"
-      "/dev/shm"
-      "/home/node/.cache"
-      "/home/node/.local"
-    ];
-    persistent = [ "workspace/" ];
-  };
-
   # Secrets every sub-agent gets
   defaultSecrets = {
     BRAVE_API_KEY = oc.env "BRAVE_API_KEY";
     GOOGLE_PLACES_API_KEY = oc.env "GOOGLE_PLACES_API_KEY";
     BROWSERLESS_API_TOKEN = oc.env "BROWSERLESS_API_TOKEN";
+    MATON_API_KEY = oc.env "MATON_API_KEY";
   };
 
   # Main and Sub-Agent Configuration (used to generate JSON)
@@ -69,23 +16,42 @@ let
     }:
     {
       tools = {
-        subagents.tools.deny = adminTools;
         # Sandbox tool filter (layer 7).
         # Wildcards don't work here — must use explicit group names.
         # This is a separate gate from tools.profile; both must permit a tool.
         sandbox.tools = {
           allow = [
+            # Core filesystem & runtime (read/write/exec etc.)
             "group:fs"
             "group:runtime"
-            "group:sessions"
+
+            # Web & browser
             "group:web"
+            "browser"
+            "web_search"
+            "web_fetch"
+
+            # Memory
             "group:memory"
+
+            # UI / media / generation (browser, tts, image_generate, etc.)
             "group:ui"
+
+            # Safe session coordination (list/history/send/yield/status — no spawning)
+            "group:sessions"
+
+            # OpenClaw internals + your custom extras
             "group:openclaw"
+            "group:agents"
             "lobster"
             "image"
+
+            # Extra explicit tools that sometimes sit outside groups
+            "pdf"
+            "code_execution"
+            "apply_patch"
           ];
-          deny = [ ];
+          deny = [ ]; # Deny list is implicit from allow list.
         };
       };
 
@@ -105,6 +71,7 @@ let
               "/dev/shm:size=256m"
               "/home/node/.cache"
               "/home/node/.local"
+              "/home/node/.npm"
               "/var/tmp"
             ];
             env =
@@ -122,19 +89,20 @@ let
       list = [
         {
           id = "main";
-          subagents.allowAgents = [ "*" ];
+          subagents.allowAgents = [ "helper" ];
+          subagents.requireAgentId = true;
           sandbox.mode = "off";
           tools = {
             profile = "full";
             deny = [
               "group:web"
-              "group:messaging"
               "group:ui"
             ];
           };
         }
         {
           id = "helper";
+          workspace = oc.hostWorkspace;
         }
       ];
     };
@@ -142,10 +110,6 @@ let
 in
 {
   inherit
-    commonTools
-    privilegedTools
-    adminTools
-    sandboxWritable
     defaultSecrets
     mkAgentsConfig
     ;

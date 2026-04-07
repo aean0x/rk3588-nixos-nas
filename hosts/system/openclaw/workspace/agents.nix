@@ -34,12 +34,14 @@ let
   formatList = list: lib.concatStringsSep ", " (map (x: "`${x}`") list);
   formatPathList = paths: lib.concatMapStringsSep "\n" (p: "- `${p}`") paths;
 
-  mainConfigList = (agentsConfig.mkAgentsConfig { gatewayUrl = ""; }).list;
-  mainAgent = lib.findFirst (a: a.id == "main") {
-    tools = {
-      deny = [ ];
-    };
-  } mainConfigList;
+  config = agentsConfig.mkAgentsConfig { gatewayUrl = ""; };
+  sandboxAllowedTools = config.tools.sandbox.tools.allow;
+  dockerTmpfs = config.defaults.sandbox.docker.tmpfs;
+
+  # Strip size/mode suffixes from tmpfs entries for display (e.g. "/tmp:size=512m,mode=1777" -> "/tmp")
+  tmpfsPaths = map (entry: builtins.head (lib.splitString ":" entry)) dockerTmpfs;
+
+  mainAgent = lib.findFirst (a: a.id == "main") { tools.deny = [ ]; } config.list;
   mainDeniedTools = mainAgent.tools.deny;
 
   deps = (import ../packages.nix { inherit lib; }).dependencies;
@@ -89,28 +91,40 @@ in
 
     ## 2. Orchestrator-Subagent Protocol
 
-    - **Main** = pure orchestrator and user interface. Its job is to decompose requests, apply safety/policy, delegate work to sub-agents, and validate the workers' output.
-    - **Sub-agents** = the workers that actually execute (sandboxed, restricted tools, ephemeral container, slightly less powerful model).
+    **Delegation Procedure (Main only):**
 
-    **Delegation rule (main only):**
-    **Always delegate** any task that involves tools, web access, external APIs, file operations, code execution, searching, browsing, or anything beyond pure reasoning and orchestration.
-    If the task requires `exec`, `browser`, `web_search`, `goplaces`, playwright, or any skill/tool — spawn a sub-agent immediately.
+    The main orchestrator MUST (unless explicitly specified by user) use this standardized narrow delegation protocol for **every** task that involves tools, web access, external APIs, file operations, code execution, research, browsing, or anything beyond pure reasoning and orchestration.
 
-    Main agent should almost never run tools directly except for reading core config files (SOUL.md, AGENTS.md, USER.md, etc.) and managing delegation.
+    1. **Atomic Decomposition** — Break the overall request into the smallest possible self-contained task.
+    2. **Spawn** — Always use:
+       - `agentId = "helper"` ONLY
+       - `runtime = "subagent"`
+       - `mode = "run"` (one-shot atomic)
+    3. **Sub-agent Prompt Discipline** — The prompt given to the helper MUST be explicit, complete, and end with exactly:
+       "Output <4000 characters total. Simple plain text or minimal markdown only. No tables. When complete, send final result to parent and mark DONE."
+    4. **Immediate Yield** — Call `sessions_yield` immediately after spawning.
+    5. **Output & Communication Rules**:
+       - Never stream intermediate sub-agent output to the user.
+       - One optional sanity status allowed only if runtime > 4 minutes ("Still working: X% complete").
+    6. **Post-Completion** — Main validates the result (marked DONE) and either:
+       - Synthesizes the final answer to the user in normal voice, or
+       - Immediately delegates the next narrow atomic step using this exact same procedure.
+
+    Sequential only. No parallel sub-agent spawns unless explicitly approved elsewhere in AGENTS.md.
 
     ### Lobster Workflows
     Lobster workflows live in `tasks/*.lobster`. See `tasks/index.md` for the current living inventory and descriptions.
-    Run with `lobster run tasks/<name>.lobster`. Edit tasks freely below the persistent marker.
+    Run with `npx @clawdbot/lobster run /home/node/.openclaw/workspace/tasks/<name>.lobster` from the workspace root (**ALWAYS** use npx and absolute paths when executing lobster, do not run the global binary from PATH)
 
     ## 3. Sandbox Filesystem Boundaries (readOnlyRoot = true)
 
     The container root filesystem is immutable. Sub-agents can **only** write to the locations below. Anything else will fail with a read-only filesystem error. (Main agent has no such restriction.)
 
     **Writable (tmpfs — in-memory, cleared on sandbox restart):**
-    ${formatPathList agentsConfig.sandboxWritable.tmpfs}
+    ${formatPathList tmpfsPaths}
 
     **Writable (persistent across restarts and redeploys):**
-    ${formatPathList agentsConfig.sandboxWritable.persistent}
+    - `workspace/`
 
     **Everything else is read-only.**
     Use workspace/ for scripts, venvs, node_modules, memory files, etc. Never try to write to /usr, /home/node outside the allowed subdirs, or any other path.
@@ -118,7 +132,8 @@ in
     ## 4. Runtime Package Management Rules
 
     - **Python venvs** — create inside `workspace/venvs/<name>/` (or `/tmp/venv-<pid>/` for one-shot). System Python packages are baked into the image via uv; never run `pip install` at runtime.
-    - **Node / pnpm** — prefer `workspace/node_modules` or `workspace/.pnpm-store`. Global packages are baked into the image (see section 8).
+    - **Node / pnpm** — prefer `workspace/node_modules` or `workspace/.pnpm-store`. Global packages are baked into the image to save time (see section 9).
+    - **Invoking node tools** — Always use `npx <package>` (e.g. `npx @clawdbot/lobster`, `npx playwright`). `NODE_PATH` resolves to the preinstalled `/opt/node-tools/node_modules` so npx runs instantly with no download. Direct `/usr/local/bin` wrappers exist but break `process.cwd()` for path-sensitive CLIs.
     - **Never** run `apt`, `npm install -g`, `pip install --system`, or any package manager that touches the read-only root.
     - Need a package that isn't installed? Delegate to main — it requires a NixOS rebuild.
 
@@ -130,26 +145,23 @@ in
     - The `api-gateway` skill should be referenced for the following: ${serviceList}.
     - For backend/NixOS/OpenClaw changes: always start by reading `dev/rk3588-nixos-nas/hosts/system/openclaw/AGENTS.md` in the repo and use the `openclaw-pr-workflow.lobster` task.
     - Gateway token: use minimal scopes (`operator.read` only). Write/admin scopes not needed for the agent thanks to the PR workflow.
-    - `STYLE.md` is the **default global style layer** for all outbound content. Always apply it as the final pass on any generated text intended for human consumption.
+    - **STYLE.md** is the **default global style layer** for all outbound content. Always apply it as the final pass on any generated text intended for human consumption.
 
     ### Tool Permissions
 
-    **Common Tools (Available to all):**
-    ${formatList agentsConfig.commonTools}
+    **Sandbox Allow List (sub-agents may only use these; everything else is denied):**
+    ${formatList sandboxAllowedTools}
 
-    **Privileged Tools (Available to all but restricted by guidelines):**
-    ${formatList agentsConfig.privilegedTools}
-
-    **Admin Tools (Strictly Denied to Sub-agents):**
-    ${formatList agentsConfig.adminTools}
-
-    **Main Agent Denied Tools (Denied to Main):**
+    **Main Agent Deny List (main may use everything except these):**
     ${formatList mainDeniedTools}
 
+    Sub-agents: If you encounter a tool permission issue, delegate the task back to main.
+
     ### Headless Browsers
-    If web_fetch proves inadequate or the task requires intraction, two browsers are available:
-    a. (primary) Playwright in headless mode. Refer to Openclaw skill.
+    If web_fetch proves inadequate or the task requires interaction, two browsers are available:
+    a. (primary) playwright, with playwright-mcp also available. Refer to your installed Openclaw skills.
     b. (backup) The sandbox also runs a headless browser CDP instance configured for the Openclaw browser tool. Always start with `browser status` or `browser tabs` to attach.
+    When a browser task fails, retry using different tools until all tool options are exhausted.
 
     ## 6. Persistence & Automation
 
@@ -183,12 +195,12 @@ in
 
     ### Housekeeping rules
     - New persistent rules must be placed in the correct file per this matrix. If unsure, ask. This prevents the previous disorganization.
-    - Keep workspace root generally clean, including top-level directories. Treat it like your home directory, sorting and saving files in your
+    - Keep workspace root generally clean, including top-level directories. Treat it like your home directory, sorting and saving files in your folders.
 
     ## 8. Capability Self-Check (run on every new session)
 
     Before starting any task, run internally:
-    "I am [main orchestrator OR sandboxed sub-agent]. My role is [orchestrator OR worker]. Writable paths: [list from section 3]. Allowed tools: [common + privileged from section 5]. If this task requires admin tools, host changes, or writes outside allowed paths (as a sub-agent), reply exactly 'Delegate to main' and yield."
+    "I am [main orchestrator OR sandboxed sub-agent]. My role is [orchestrator OR worker]. Writable paths: [list from section 3]. Allowed tools: [sandbox allow list from section 5, or everything minus deny list if main]. If this task requires tools outside my allow list, host changes, or writes outside allowed paths (as a sub-agent), reply exactly 'Delegate to main' and yield."
 
     ## 9. Installed Sandbox Packages
     ${installedPackages}

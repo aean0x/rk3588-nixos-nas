@@ -13,7 +13,8 @@ let
     env = name: "\${${name}}";
     port = 18789;
     configDir = "/var/lib/openclaw";
-    workspaceDir = "/var/lib/openclaw/workspace";
+    hostWorkspace = "/var/lib/openclaw/workspace";
+    containerWorkspace = "/home/node/.openclaw/workspace";
 
     # Docker config
     gatewayBaseImage = "ghcr.io/phioranex/openclaw-docker:latest";
@@ -51,6 +52,7 @@ let
       "${oc.configDir}:/home/node/.openclaw:rw"
       "/run/openclaw.env:/home/node/.openclaw/.env:ro"
       "/var/run/docker.sock:/var/run/docker.sock"
+      "${oc.hostWorkspace}:${oc.hostWorkspace}:rw"
     ];
     extraOptions = [
       "--init"
