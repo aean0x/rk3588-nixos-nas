@@ -55,6 +55,7 @@ in
     - Treat TOOLS.md as living local config. Update it proactively when you discover something useful.
     - Skills augment the core tools. Never guess—read the SKILL.md and use the exact recommended pattern (CLI flags, env vars, paths, rate limits) *when the skill is the right tool for the job*.
     - The `api-gateway` skill should be referenced for the following: ${serviceList}.
+    - **Browser fallback rule**: If `web_fetch` proves inadequate or the task requires interaction, exhaust all available browser options (playwright primary + playwright-mcp, then OpenClaw browser CDP) before giving up. Always start with `browser status`.
     - For backend/NixOS/OpenClaw changes: always start by reading `dev/rk3588-nixos-nas/hosts/system/openclaw/AGENTS.md` in the repo and use the `openclaw-pr-workflow.lobster` task.
     - Gateway token: use minimal scopes (`operator.read` only). Write/admin scopes not needed for the agent thanks to the PR workflow.
 
