@@ -41,7 +41,7 @@
   wifiSsid = "SKYNET";
 
   # Router mode — configure in services/router.nix
-  enableRouter = false;
+  enableRouter = true;
 
   # Thread radio (uncomment and set if you have a Thread USB adapter)
   threadRadioPath = "/dev/serial/by-id/usb-Nabu_Casa_ZBT-2_DCB4D910EF08-if00";

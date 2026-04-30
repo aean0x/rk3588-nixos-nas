@@ -12,6 +12,22 @@ in
 {
   boot.kernelPackages = kernelPkgs;
 
+  # ath12k (WCN7850) 5GHz AP: self-managed regdom requires these to accept user hints
+  boot.kernelPatches = [
+    {
+      name = "ath12k-5ghz-ap";
+      patch = null;
+      structuredExtraConfig = with lib.kernel; {
+        CFG80211_CERTIFICATION_ONUS = yes;
+        ATH_REG_DYNAMIC_USER_REG_HINTS = yes;
+      };
+    }
+  ];
+
+  boot.extraModprobeConfig = ''
+    options cfg80211 ieee80211_regdom="US"
+  '';
+
   powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
   hardware.enableRedistributableFirmware = true;
   networking.useDHCP = lib.mkDefault true;
