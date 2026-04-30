@@ -1,5 +1,6 @@
 # Home Assistant ecosystem: HA Core, Matter Server, OTBR (Docker)
 {
+  pkgs,
   settings,
   ...
 }:
@@ -131,19 +132,35 @@ in
   };
 
   # ===================
-  # Reverse proxy trust (Caddy on 127.0.0.1)
+  # Pre-start: reverse proxy trust + HACS install/update
   # ===================
   systemd.services.docker-home-assistant.preStart = ''
-        mkdir -p /var/lib/home-assistant
-        cat > /var/lib/home-assistant/http.yaml <<'EOF'
+    mkdir -p /var/lib/home-assistant
+
+    cat > /var/lib/home-assistant/http.yaml <<'EOF'
     use_x_forwarded_for: true
     trusted_proxies:
       - "127.0.0.1"
       - "::1"
     EOF
-        if ! grep -q 'http: !include http.yaml' /var/lib/home-assistant/configuration.yaml 2>/dev/null; then
-          echo 'http: !include http.yaml' >> /var/lib/home-assistant/configuration.yaml
-        fi
+    if ! grep -q 'http: !include http.yaml' /var/lib/home-assistant/configuration.yaml 2>/dev/null; then
+      echo 'http: !include http.yaml' >> /var/lib/home-assistant/configuration.yaml
+    fi
+
+    # Install/update HACS to the host-mounted volume
+    HACS_DIR=/var/lib/home-assistant/custom_components/hacs
+    mkdir -p /var/lib/home-assistant/custom_components
+    LATEST=$(${pkgs.curl}/bin/curl -sf https://api.github.com/repos/hacs/integration/releases/latest | ${pkgs.jq}/bin/jq -r .tag_name) || true
+    if [ -n "$LATEST" ] && [ "$LATEST" != "null" ]; then
+      ${pkgs.wget}/bin/wget -qO /tmp/hacs.zip \
+        "https://github.com/hacs/integration/releases/download/$LATEST/hacs.zip"
+      rm -rf "$HACS_DIR"
+      ${pkgs.unzip}/bin/unzip -qo /tmp/hacs.zip -d "$HACS_DIR"
+      rm -f /tmp/hacs.zip
+      echo "HACS $LATEST installed"
+    else
+      echo "HACS update skipped (GitHub unreachable or no release found)"
+    fi
   '';
 
   # ===================

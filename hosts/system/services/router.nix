@@ -26,7 +26,7 @@ let
 
   # -- WiFi AP --
   ssid = "aean-nas";
-  channel = 36; # 5GHz channel (36, 40, 44, 48 for DFS-free)
+  channel = 36; # 5GHz UNII-1 (requires kernel CFG80211_CERTIFICATION_ONUS + passive scan)
   countryCode = "US";
 
   # -- LAN subnet --
@@ -190,6 +190,25 @@ in
           };
         };
       };
+    };
+
+    # Passive scan triggers firmware 11d regdom transition (country 00 → US)
+    # Required for ath12k self-managed chips to unlock 5GHz AP channels
+    systemd.services.hostapd-regdom = {
+      description = "Trigger ath12k regulatory domain transition via passive scan";
+      before = [ "hostapd.service" ];
+      wantedBy = [ "hostapd.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        ${pkgs.iproute2}/bin/ip link set ${apInterface} up
+        ${pkgs.iw}/bin/iw dev ${apInterface} scan passive 2>/dev/null || true
+        sleep 3
+        ${pkgs.iw}/bin/iw reg set ${countryCode}
+        sleep 1
+      '';
     };
 
     # hostapd manages the interface — join bridge after it's up
