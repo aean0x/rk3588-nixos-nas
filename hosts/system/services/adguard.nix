@@ -5,7 +5,7 @@
 }:
 let
   port = 3000;
-  lanIP = settings.network.address;
+  lanIP = if (settings.enableRouter or false) then "192.168.2.1" else settings.network.address;
 in
 {
   services.caddy.proxyServices = {

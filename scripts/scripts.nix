@@ -13,12 +13,6 @@ let
 
   containerNames = builtins.attrNames config.virtualisation.oci-containers.containers;
 
-  dockerGid =
-    if (config.users.groups ? docker && config.users.groups.docker.gid != null) then
-      config.users.groups.docker.gid
-    else
-      131;
-
   mkContainerExec =
     name:
     pkgs.writeShellScriptBin name ''
