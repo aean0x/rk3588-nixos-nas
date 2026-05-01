@@ -33,11 +33,11 @@ in
         TZ = settings.timeZone;
         PYTHONDONTWRITEBYTECODE = "1";
       };
-      extraOptions = [
-        "--network=host"
-        "--cap-add=NET_ADMIN"
-        "--cap-add=NET_RAW"
-      ];
+      networks = [ "host" ];
+      capabilities = {
+        NET_ADMIN = true;
+        NET_RAW = true;
+      };
       autoStart = true;
     };
 
@@ -53,11 +53,11 @@ in
       environment = {
         LOG_LEVEL = "info";
       };
-      extraOptions = [
-        "--network=host"
-        "--cap-add=NET_ADMIN"
-        "--cap-add=NET_RAW"
-      ];
+      networks = [ "host" ];
+      capabilities = {
+        NET_ADMIN = true;
+        NET_RAW = true;
+      };
       cmd = [
         "--storage-path"
         "/data"
@@ -89,13 +89,15 @@ in
         OT_REST_LISTEN_ADDR = "0.0.0.0";
         OT_REST_LISTEN_PORT = "${toString otbrRestPort}";
       };
-      extraOptions = [
-        "--network=host"
-        "--privileged"
-        "--cap-add=NET_ADMIN"
-        "--cap-add=NET_RAW"
-        "--device=${settings.threadRadioPath}:/dev/ttyACM0"
-        "--device=/dev/net/tun"
+      networks = [ "host" ];
+      privileged = true;
+      capabilities = {
+        NET_ADMIN = true;
+        NET_RAW = true;
+      };
+      devices = [
+        "${settings.threadRadioPath}:/dev/ttyACM0"
+        "/dev/net/tun"
       ];
       autoStart = true;
     };

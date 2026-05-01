@@ -25,14 +25,14 @@ let
   lanInterfaces = [ ]; # Extra ethernet ports to add to LAN bridge
 
   # -- WiFi AP --
-  ssid = "aean-nas";
-  channel = 36; # 5GHz UNII-1 (requires kernel CFG80211_CERTIFICATION_ONUS + passive scan)
+  ssid = "SKYNET";
+  channel = 6; # 2.4GHz — 5GHz works but 14dBm TX power limits range
   countryCode = "US";
 
   # -- LAN subnet --
   lanAddress = "192.168.2.1";
   lanPrefix = 24;
-  dhcpStart = "192.168.2.100";
+  dhcpStart = "192.168.2.10";
   dhcpEnd = "192.168.2.250";
   leaseTime = "12h";
 
@@ -108,6 +108,20 @@ in
     hardware.wirelessRegulatoryDatabase = true;
 
     # ===================
+    # WAN (DHCP from upstream / Starlink bypass)
+    # ===================
+    networking.interfaces.${wanIf} = {
+      useDHCP = true;
+      ipv4.routes = [
+        {
+          # Starlink dish management UI (bypass mode moves dish to 192.168.100.1)
+          address = "192.168.100.0";
+          prefixLength = 24;
+        }
+      ];
+    };
+
+    # ===================
     # Bridge (LAN side)
     # ===================
     networking = {
@@ -174,10 +188,10 @@ in
     services.hostapd = {
       enable = true;
       radios.${apInterface} = {
-        band = "5g";
+        band = "2g";
         inherit channel countryCode;
         wifi4.enable = true;
-        wifi5.enable = true;
+        wifi5.enable = false;
         settings = {
           ieee80211d = true;
           ieee80211h = true;
@@ -211,10 +225,45 @@ in
       '';
     };
 
-    # hostapd manages the interface — join bridge after it's up
-    systemd.services.hostapd.postStart = ''
-      ${pkgs.iproute2}/bin/ip link set ${apInterface} master ${lanBridge} 2>/dev/null || true
-    '';
+    # Keeps the WiFi AP interface joined to the LAN bridge.
+    # Runs as a persistent monitor — re-joins if the interface gets kicked out
+    # (e.g. after network-addresses restart during config activation).
+    systemd.services.hostapd-bridge = {
+      description = "Keep WiFi AP interface joined to LAN bridge";
+      after = [
+        "hostapd.service"
+        "sys-devices-virtual-net-${lanBridge}.device"
+      ];
+      requires = [ "hostapd.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "on-failure";
+        RestartSec = 2;
+      };
+      script = ''
+        ip="${pkgs.iproute2}/bin/ip"
+
+        # Initial join with retries
+        for attempt in $(seq 1 10); do
+          if $ip link set ${apInterface} master ${lanBridge} 2>/dev/null; then
+            echo "Joined ${apInterface} to ${lanBridge} on attempt $attempt"
+            break
+          fi
+          echo "Attempt $attempt failed, retrying in 1s..."
+          sleep 1
+        done
+
+        # Monitor: check every 5s, re-join if dropped
+        while true; do
+          sleep 5
+          if ! $ip link show ${apInterface} 2>/dev/null | grep -q "master ${lanBridge}"; then
+            echo "${apInterface} dropped from ${lanBridge}, rejoining..."
+            $ip link set ${apInterface} master ${lanBridge} || true
+          fi
+        done
+      '';
+    };
 
     # ===================
     # DHCP (dnsmasq, DNS disabled — AdGuard handles port 53)

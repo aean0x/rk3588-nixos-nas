@@ -20,9 +20,9 @@
   # ===================
   networking = {
     hostName = settings.hostName;
-    useDHCP = false; # Using static IP below
+    useDHCP = false;
     enableIPv6 = true;
-    interfaces.${settings.network.interface} = {
+    interfaces.${settings.network.interface} = lib.mkIf (!(settings.enableRouter or false)) {
       ipv4.addresses = [
         {
           address = settings.network.address;
@@ -31,7 +31,7 @@
       ];
     };
 
-    defaultGateway = settings.network.gateway;
+    defaultGateway = lib.mkIf (!(settings.enableRouter or false)) settings.network.gateway;
     nameservers = [
       settings.network.dnsPrimary
       settings.network.dnsSecondary

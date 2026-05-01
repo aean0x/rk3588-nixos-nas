@@ -3,7 +3,7 @@
 # Service-specific configuration (ports, containers, etc.) lives in each module.
 {
   imports = [
-    # ./services/cockpit.nix      # Web-based system management (port 9090)
+    ./services/cockpit.nix # Web-based system management
     ./services/tailscale.nix # Tailscale VPN (native)
     ./services/cloudflare.nix # Cloudflare DDNS + tunnel
     ./services/remote-desktop.nix # XFCE + xrdp

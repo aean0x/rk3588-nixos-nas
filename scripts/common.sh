@@ -55,7 +55,11 @@ check_aarch64_support() {
 }
 
 check_ssh() {
+    # Tailscale IP is the most reliable target in router mode (WAN IP may change via DHCP)
+    local ts_ip
+    ts_ip=$(tailscale ip -4 2>/dev/null || true)
     local candidates=("${ADMIN}@${HOST}.local" "${ADMIN}@${IP}")
+    [[ -n "$ts_ip" ]] && candidates+=("${ADMIN}@${ts_ip}")
 
     # Try each candidate with key auth
     for candidate in "${candidates[@]}"; do
@@ -68,7 +72,7 @@ check_ssh() {
     done
 
     # Prompt for manual IP
-    warn "Could not reach ${HOST}.local or ${IP}"
+    warn "Could not reach any candidate: ${candidates[*]}"
     read -p "Enter device IP (or Ctrl+C to abort): " MANUAL_IP
     candidates+=("${ADMIN}@${MANUAL_IP}")
 

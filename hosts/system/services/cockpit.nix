@@ -1,20 +1,27 @@
 # ./services/cockpit.nix
-{ pkgs, settings, ... }:
+{
+  lib,
+  settings,
+  ...
+}:
 
 {
   services.cockpit = {
     enable = true;
-    openFirewall = true; # Opens 9090/tcp
-    # port = 9090;
+    openFirewall = true;
+    settings = {
+      WebService = {
+        Origins = lib.mkForce "https://cockpit.${settings.domain}";
+        ProtocolHeader = "X-Forwarded-Proto";
+        ForwardedForHeader = "X-Forwarded-For";
+        AllowUnencrypted = true;
+      };
+    };
   };
 
-  environment.systemPackages = with pkgs; [
-    cockpit-podman # Podman containers tab (start/stop/logs/inspect)
-    cockpit-storaged # General storage (disks, mounts, LUKS, etc.)
-    # cockpit-machines              # Optional: VM management
-    # cockpit-sensors               # Hardware sensors (optional)
-  ];
+  services.caddy.proxyServices = {
+    "cockpit.${settings.domain}" = 9090;
+  };
 
-  # Allow your user to manage containers in Cockpit (Podman)
   users.users.${settings.adminUser}.extraGroups = [ "podman" ];
 }
