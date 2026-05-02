@@ -12,6 +12,8 @@ ADMIN=$(grep -oP 'adminUser\s*=\s*"\K[^"]+' "${REPO_ROOT}/settings.nix")
 IP=$(grep -oP 'address\s*=\s*"\K[^"]+' "${REPO_ROOT}/settings.nix")
 DESC=$(grep -oP 'description\s*=\s*"\K[^"]+' "${REPO_ROOT}/settings.nix")
 SETUP_PASS=$(grep -oP 'setupPassword\s*=\s*"\K[^"]+' "${REPO_ROOT}/settings.nix")
+ROUTER_MODE=$(grep -oP 'enableRouter\s*=\s*\K\w+' "${REPO_ROOT}/settings.nix")
+ROUTER_LAN_IP=$(grep -oP 'lanAddress\s*=\s*"\K[^"]+' "${REPO_ROOT}/hosts/system/services/router.nix" 2>/dev/null || true)
 
 TARGET="${ADMIN}@${HOST}.local"
 
@@ -55,10 +57,18 @@ check_aarch64_support() {
 }
 
 check_ssh() {
-    # Tailscale IP is the most reliable target in router mode (WAN IP may change via DHCP)
+    local candidates=("${ADMIN}@${HOST}.local")
+
+    # In router mode the static IP from settings.nix is the WAN side and
+    # unreachable from the LAN — prefer the bridge gateway address.
+    if [[ "$ROUTER_MODE" == "true" && -n "$ROUTER_LAN_IP" ]]; then
+        candidates+=("${ADMIN}@${ROUTER_LAN_IP}")
+    fi
+    candidates+=("${ADMIN}@${IP}")
+
+    # Tailscale IP as fallback
     local ts_ip
     ts_ip=$(tailscale ip -4 2>/dev/null || true)
-    local candidates=("${ADMIN}@${HOST}.local" "${ADMIN}@${IP}")
     [[ -n "$ts_ip" ]] && candidates+=("${ADMIN}@${ts_ip}")
 
     # Try each candidate with key auth

@@ -53,5 +53,5 @@
   stateVersion = "25.11";
 
   # Kernel version (e.g., linuxPackages_6_18, linuxPackages_latest)
-  kernelPackage = "linuxPackages_6_18";
+  kernelPackage = "linuxPackages_7_0";
 }
