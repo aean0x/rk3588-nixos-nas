@@ -15,10 +15,6 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixarr = {
-      url = "github:rasmus-kirk/nixarr";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -27,7 +23,6 @@
       nixpkgs,
       nixpkgs-stable,
       sops-nix,
-      nixarr,
       ...
     }@inputs:
     let
@@ -64,7 +59,6 @@
           ./hosts/system/default.nix
           ./secrets/sops.nix
           ./scripts/scripts.nix
-          nixarr.nixosModules.default
         ];
       };
 
