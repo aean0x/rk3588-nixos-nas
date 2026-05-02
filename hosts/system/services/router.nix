@@ -1,6 +1,7 @@
 # Router: NAT gateway, WiFi AP (hostapd), DHCP (dnsmasq), nftables firewall
 # Turns the NAS into a full router. WAN = primary ethernet, LAN = bridge (AP + optional ports).
 # DNS handled by AdGuard (port 53) — dnsmasq runs DHCP-only.
+# IPv6: DHCPv6-PD requests a /56 from upstream, radvd advertises a /64 on LAN.
 #
 # Enable: set enableRouter = true in settings.nix
 # WiFi AP password: add wifi_ap_password to secrets/secrets.yaml
@@ -54,8 +55,13 @@ let
 
   # -- WAN firewall --
   # Ports open on the WAN side (in addition to port forwards above).
-  wanTcpPorts = [ 22 ]; # SSH
-  wanUdpPorts = [ ];
+  wanTcpPorts = [
+    22 # SSH
+    30033 # TeamSpeak file transfer
+  ];
+  wanUdpPorts = [
+    9987 # TeamSpeak voice
+  ];
 
   # -- Mesh / additional APs --
   # For WiFi mesh nodes (separate devices running hostapd):
@@ -100,6 +106,30 @@ in
 
     boot.kernel.sysctl = {
       "net.ipv4.ip_forward" = lib.mkForce 1;
+      "net.ipv6.conf.all.forwarding" = lib.mkForce 1;
+      "net.ipv6.conf.${lanBridge}.accept_ra" = 0;
+    };
+
+    # accept_ra must be set AFTER forwarding is enabled — the kernel resets
+    # accept_ra=0 on all interfaces when forwarding is toggled.
+    systemd.services.ipv6-accept-ra = {
+      description = "Set accept_ra=2 on WAN after forwarding is enabled";
+      after = [
+        "systemd-sysctl.service"
+        "network-pre.target"
+      ];
+      before = [
+        "network.target"
+        "dhcpcd.service"
+      ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        echo 2 > /proc/sys/net/ipv6/conf/${wanIf}/accept_ra
+      '';
     };
 
     # ===================
@@ -120,6 +150,17 @@ in
         }
       ];
     };
+
+    # ===================
+    # DHCPv6 Prefix Delegation (request /56 from Starlink, assign /64 to LAN)
+    # ===================
+    networking.dhcpcd.extraConfig = ''
+      ipv6rs
+      interface ${wanIf}
+        ipv6rs
+        iaid 1
+        ia_pd 1 ${lanBridge}/0/64
+    '';
 
     # ===================
     # Bridge (LAN side)
@@ -157,12 +198,15 @@ in
                 allWanUdp != [ ]
               ) ''iifname "${wanIf}" udp dport { ${fmtPorts allWanUdp} } accept''}
               udp dport 67 accept
+              udp dport 546 accept
               ip protocol icmp accept
+              ip6 nexthdr icmpv6 accept
             }
             chain forward {
               type filter hook forward priority 0; policy drop;
               ct state established,related accept
               iifname "${lanBridge}" oifname "${wanIf}" accept
+              iifname "${wanIf}" oifname "${lanBridge}" ip6 nexthdr icmpv6 accept
               ${fwdRules}
             }
           }
@@ -262,6 +306,26 @@ in
             $ip link set ${apInterface} master ${lanBridge} || true
           fi
         done
+      '';
+    };
+
+    # ===================
+    # IPv6 Router Advertisements (radvd)
+    # Advertises delegated prefix from DHCPv6-PD to LAN clients via SLAAC.
+    # ::/64 auto-discovers whatever prefix dhcpcd assigned to br0.
+    # ===================
+    services.radvd = {
+      enable = true;
+      config = ''
+        interface ${lanBridge} {
+          AdvSendAdvert on;
+          AdvManagedFlag off;
+          AdvOtherConfigFlag off;
+          prefix ::/64 {
+            AdvOnLink on;
+            AdvAutonomous on;
+          };
+        };
       '';
     };
 

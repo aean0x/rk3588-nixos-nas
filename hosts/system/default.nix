@@ -58,6 +58,9 @@
     nssmdns4 = true;
     publish.enable = true;
     publish.addresses = true;
+    # In router mode only advertise on the LAN bridge — the WAN interface
+    # gets a CGNAT address that LAN clients can't reach.
+    allowInterfaces = lib.mkIf (settings.enableRouter or false) [ "br0" ];
   };
 
   # Enable Bluetooth (required for Matter commissioning)

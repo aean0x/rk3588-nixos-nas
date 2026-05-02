@@ -20,10 +20,7 @@ in
     volumes = [
       "${dataDir}:/data"
     ];
-    ports = [
-      "${toString voicePort}:${toString voicePort}/udp"
-      "${toString fileTransferPort}:${toString fileTransferPort}/tcp"
-    ];
+    networks = [ "host" ];
     autoStart = true;
   };
 
