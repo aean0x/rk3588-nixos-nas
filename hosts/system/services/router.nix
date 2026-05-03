@@ -174,13 +174,7 @@ in
         }
       ];
 
-      nat = {
-        enable = true;
-        externalInterface = wanIf;
-        internalInterfaces = [ lanBridge ];
-      };
-
-      # nftables replaces iptables-based firewall
+      # nftables replaces both iptables NAT and the NixOS firewall
       firewall.enable = lib.mkForce false;
       nftables = {
         enable = true;
@@ -198,7 +192,7 @@ in
                 allWanUdp != [ ]
               ) ''iifname "${wanIf}" udp dport { ${fmtPorts allWanUdp} } accept''}
               udp dport 67 accept
-              udp dport 546 accept
+              iifname "${wanIf}" udp dport 546 accept
               ip protocol icmp accept
               ip6 nexthdr icmpv6 accept
             }
