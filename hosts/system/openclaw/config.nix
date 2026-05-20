@@ -48,8 +48,8 @@ let
         api = "openai-responses";
         models = [
           {
-            id = "grok-4.20-beta";
-            name = "Grok 4.20 Beta";
+            id = "grok-4.3";
+            name = "Grok 4.30";
           }
           {
             id = "grok-4-1-fast-non-reasoning";
@@ -76,16 +76,16 @@ let
               image = "openclaw-sandbox-browser:bookworm-slim";
             };
             model = {
-              primary = "xai/grok-4.20-beta";
+              primary = "xai/grok-4.3";
               fallbacks = [
                 "xai/grok-4-1-fast-reasoning"
                 "xai/grok-4-1-fast-non-reasoning"
               ];
             };
             models = {
-              "xai/grok-4.20-beta".alias = "grok-4.20-beta";
-              "xai/grok-4-1-fast-reasoning".alias = "grok-reasoning";
-              "xai/grok-4-1-fast-non-reasoning".alias = "grok-non-reasoning";
+              "xai/grok-4.3".alias = "grok-4.3";
+              "xai/grok-4-1-fast-reasoning".alias = "grok-4-1-fast-reasoning";
+              "xai/grok-4-1-fast-non-reasoning".alias = "grok-4-1-fast-non-reasoning";
             };
             thinkingDefault = "medium";
             workspace = oc.containerWorkspace;
@@ -115,7 +115,7 @@ let
               model = "xai/grok-4-1-fast-reasoning";
               every = "30m";
             };
-            subagents.model = "xai/grok-4-1-fast-reasoning";
+            subagents.model = "xai/grok-4.3";
           };
         };
 
@@ -199,7 +199,7 @@ let
       dmPolicy = "pairing";
       groupPolicy = "allowlist";
       groupAllowFrom = [ (oc.env "TELEGRAM_ADMIN_ID") ];
-      streaming = "block";
+      streaming.mode = "block";
     };
 
     gateway = {
@@ -233,6 +233,7 @@ let
     ];
 
     plugins.entries.telegram.enabled = true;
+    plugins.entries.bonjour.enabled = false;
   };
 in
 {

@@ -11,38 +11,38 @@ let
   domain = settings.domain;
 
   caddyWithCloudflare = pkgs.caddy.withPlugins {
-    plugins = [ "github.com/caddy-dns/cloudflare@v0.2.1" ];
-    hash = "sha256-B5xXld1+IRUAQHm8zkHFqvRp8cqnervVL6XEos5VNkc=";
+    plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
+    hash = "sha256-VHm9POg2KixGsMsAcfFFDMK9x6niRJ1iJV9kkSwkSjc=";
   };
 
-  # Generates a pair of vhosts (HTTP redirect + HTTPS proxy) for a given domain/port
-  mkProxy = host: port: {
-    "http://${host}" = {
-      extraConfig = "redir https://${host}{uri}";
-    };
-    "https://${host}" = {
-      extraConfig = ''
-        tls {
-          dns cloudflare {env.CF_DNS_API_TOKEN}
-        }
+  # Build handle blocks for each proxy service
+  mkHandle =
+    host: port:
+    let
+      isExt = builtins.elem host cfg.externalHosts;
+      guard = lib.optionalString (!isExt) ''
+        @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} not remote_ip 192.168.2.0/24 127.0.0.1
+        respond @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} 403
+      '';
+    in
+    ''
+      @${builtins.replaceStrings [ "." ] [ "_" ] host} host ${host}
+      handle @${builtins.replaceStrings [ "." ] [ "_" ] host} {
+        ${guard}
         reverse_proxy 127.0.0.1:${toString port} {
           header_up X-Forwarded-For {remote_host}
           header_up X-Forwarded-Proto {scheme}
         }
-      '';
-    };
-  };
+      }
+    '';
 
-  # Flatten the proxyServices map into a single attribute set of Caddy virtualHosts
-  generatedVHosts = lib.foldl' (acc: host: acc // (mkProxy host cfg.proxyServices.${host})) { } (
-    builtins.attrNames cfg.proxyServices
-  );
+  allHandles = lib.concatStringsSep "\n" (lib.mapAttrsToList mkHandle cfg.proxyServices);
 
 in
 {
   options.services.caddy = {
     proxyServices = lib.mkOption {
-      description = "Map of hostnames to backend ports. Configures ACME DNS-01 TLS via Cloudflare and HTTP redirects.";
+      description = "Map of hostnames to backend ports for reverse proxying.";
       type = lib.types.attrsOf (
         lib.types.oneOf [
           lib.types.int
@@ -51,6 +51,12 @@ in
       );
       default = { };
     };
+
+    externalHosts = lib.mkOption {
+      description = "Hostnames accessible from WAN. All others return 403 to non-LAN clients.";
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+    };
   };
 
   config = {
@@ -58,10 +64,28 @@ in
       enable = true;
       package = caddyWithCloudflare;
 
-      # Root domain goes to Home Assistant
-      proxyServices."${domain}" = 8123;
+      # Single wildcard site — one cert issuance, avoids per-host zone detection bugs
+      extraConfig = ''
+        *.${domain}, ${domain} {
+          tls {
+            dns cloudflare {env.CF_DNS_API_TOKEN}
+            resolvers 1.1.1.1 8.8.8.8
+          }
 
-      virtualHosts = generatedVHosts;
+          ${allHandles}
+
+          handle {
+            respond 404
+          }
+        }
+      '';
+
+      # Root domain + HA subdomain are externally accessible
+      proxyServices."${domain}" = 8123;
+      externalHosts = [
+        "${domain}"
+        "homeassistant.${domain}"
+      ];
     };
 
     # Inject Cloudflare API token from SOPS into Caddy's environment

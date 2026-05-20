@@ -2,6 +2,20 @@
 
 Technical roadmap for AI agents working with this NixOS flake configuration.
 
+## Entry Point
+
+**`./deploy` is the primary interface for all server interactions** — SSH, log inspection, container management, builds, and deployments. Run `./deploy` with no arguments to see all available commands.
+
+Key subcommands:
+- `./deploy ssh` — interactive shell on the device
+- `./deploy journal [unit]` — tail system/unit logs
+- `./deploy remote-test` — build on workstation, activate without setting boot default (safe)
+- `./deploy remote-switch` — build on workstation, activate and set as boot default
+- `./deploy logs <container>` — tail a Docker container's logs
+- `./deploy <container>` — exec into a container
+
+Prefer `remote-test` for iterating; reboot recovers the previous generation if something breaks.
+
 ## Architecture Overview
 
 ```

@@ -39,6 +39,14 @@
     ## Response Timing
 
     Wait a minimum of 10 seconds before formulating a response in case an impromptu addition/correction comes through. If a message seems incomplete, wait up to 1 minute.
+
+    ## Location Rules
+
+    - ALWAYS verify exact location/address of any place before including it in any plan or recommendation. Never assume, hallucinate, or rely on memory.
+    - When suggesting ANY location, thoroughly research and list all relevant traits (facilities, suitability, access, current status, crowds, hours, real user experience) using tools. 100% verified info only.
+    - When the user asks for "more suggestions" or "more options": strictly exclude all previously suggested items. Do not repeat or reference anything already outputted.
+    - Always validate that any URL you output is real, live, and correct by using a tool before including it. Never output unverified or constructed URLs.
+    - References/product/place links -> always in-line hyperlink with [Name](URL) format.
   '';
 
   initialPersistent = ''

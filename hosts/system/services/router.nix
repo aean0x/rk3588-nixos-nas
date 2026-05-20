@@ -27,7 +27,7 @@ let
 
   # -- WiFi AP --
   ssid = "SKYNET";
-  channel = 6; # 2.4GHz — 5GHz works but 14dBm TX power limits range
+  channel = 6; # 2.4GHz
   countryCode = "US";
 
   # -- LAN subnet --
@@ -57,6 +57,8 @@ let
   # Ports open on the WAN side (in addition to port forwards above).
   wanTcpPorts = [
     22 # SSH
+    80 # HTTP (Caddy redirect)
+    443 # HTTPS (Caddy reverse proxy)
     30033 # TeamSpeak file transfer
   ];
   wanUdpPorts = [
@@ -103,6 +105,11 @@ in
         message = "Router AP mode conflicts with WiFi client mode. Set enableWifi = false in settings.nix.";
       }
     ];
+
+    # Disable Docker's iptables management — nftables handles forwarding and NAT.
+    # This avoids Docker's chains being flushed on nftables reload during deploys.
+    virtualisation.docker.extraOptions = "--iptables=false";
+    systemd.services.docker.after = [ "nftables.service" ];
 
     boot.kernel.sysctl = {
       "net.ipv4.ip_forward" = lib.mkForce 1;
@@ -185,6 +192,7 @@ in
               iif lo accept
               ct state established,related accept
               iifname "${lanBridge}" accept
+              iifname "docker0" accept
               ${lib.optionalString (
                 allWanTcp != [ ]
               ) ''iifname "${wanIf}" tcp dport { ${fmtPorts allWanTcp} } accept''}
@@ -200,6 +208,7 @@ in
               type filter hook forward priority 0; policy drop;
               ct state established,related accept
               iifname "${lanBridge}" oifname "${wanIf}" accept
+              iifname "docker0" accept
               iifname "${wanIf}" oifname "${lanBridge}" ip6 nexthdr icmpv6 accept
               ${fwdRules}
             }
@@ -208,6 +217,7 @@ in
             chain postrouting {
               type nat hook postrouting priority 100;
               oifname "${wanIf}" masquerade
+              ip saddr 172.16.0.0/12 masquerade
             }
             ${lib.optionalString (portForwards != [ ]) ''
               chain prerouting {
@@ -233,6 +243,7 @@ in
         settings = {
           ieee80211d = true;
           ieee80211h = true;
+          uapsd_advertisement_enabled = 0;
         };
         networks.${apInterface} = {
           inherit ssid;
@@ -298,6 +309,134 @@ in
           if ! $ip link show ${apInterface} 2>/dev/null | grep -q "master ${lanBridge}"; then
             echo "${apInterface} dropped from ${lanBridge}, rejoining..."
             $ip link set ${apInterface} master ${lanBridge} || true
+          fi
+        done
+      '';
+    };
+
+    # ===================
+    # AP Watchdog (multi-signal)
+    # ===================
+    # Silent firmware dead-radio: WCN7850 firmware loses its peer table due to a
+    # TX-path race on client disconnect. hostapd stays running, nl80211 reports
+    # ENABLED (the control plane lies), but the radio can't deliver traffic.
+    # Observed: May 11 2026, ~02:44 — AP silently dead for 5.5 hours.
+    #
+    # Recovery path A — conjunction: ≥2 of sig1/sig2/sig3 on 2 consecutive cycles.
+    # Recovery path B — sig4 alone: fires when all clients are gone for 60 min
+    #   after the radio was previously populated, indicating the dead-radio state
+    #   where sig1/sig2/sig3 are all silent (no TX → no peer errors; no clients →
+    #   sig2 gated off; nl80211 lies → sig3 silent).
+    #
+    #   Signal 1 — kernel error flood: "dp_tx: failed to find the peer" fires at
+    #     40–500/cycle during normal operation (always-on baseline). At threshold=5
+    #     it is effectively constant; its role is to confirm sig2/sig3, not stand
+    #     alone. It drops to 0 when the radio truly dies (no TX attempts).
+    #
+    #   Signal 2 — traffic stall: clients associated but <2 KB flowed over the
+    #     cycle window. Will fire during deep-idle periods but cannot trigger
+    #     recovery without a second signal confirming a fault.
+    #
+    #   Signal 3 — hostapd control state: hostapd_cli not reporting ENABLED.
+    #     Catches actual hostapd crashes; note this WON'T fire for the silent
+    #     firmware hang (nl80211 lies), so signals 1+2 are the primary pair.
+    #
+    #   Signal 4 — persistent zero-client streak: ≥120 consecutive cycles (60 min)
+    #     with 0 associated clients, after at least one client was previously seen.
+    #     Triggers recovery independently — catches dead radio when all clients
+    #     have fallen off and sig1/sig2/sig3 are all silent.
+    #
+    # Recovery: interface bounce resets firmware peer state; hostapd restart
+    # alone is insufficient (firmware state survives across restarts).
+    systemd.services.ap-watchdog = {
+      description = "AP silent dead-radio watchdog (multi-signal)";
+      after = [ "hostapd.service" ];
+      requires = [ "hostapd.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = [ pkgs.iproute2 pkgs.iw pkgs.hostapd pkgs.systemd pkgs.coreutils pkgs.gnugrep ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = 5;
+      };
+      script = ''
+        iface="${apInterface}"
+        cycle=30              # seconds per check cycle
+        peer_err_min=5        # kernel error hits per cycle to flag signal 1
+        stall_bytes=2000      # rx+tx bytes per cycle below which signal 2 fires
+        zero_client_max=120   # consecutive zero-client cycles before sig4 (60 min)
+        cooldown=120          # seconds before re-arming after recovery
+
+        echo "ap-watchdog: monitoring $iface"
+
+        fail_count=0
+        has_had_clients=0
+        zero_client_streak=0
+        rx_prev=$(cat /sys/class/net/$iface/statistics/rx_bytes 2>/dev/null || echo 0)
+        tx_prev=$(cat /sys/class/net/$iface/statistics/tx_bytes 2>/dev/null || echo 0)
+
+        while true; do
+          sleep $cycle
+
+          # --- Signal 1: ath12k peer-table error flood ---
+          since=$(date -d "-''${cycle} seconds" '+%Y-%m-%d %H:%M:%S')
+          peer_errors=$(journalctl -k --since "$since" --no-pager -q 2>/dev/null \
+            | grep -c "dp_tx: failed to find the peer" || true)
+
+          # --- Signal 2: clients associated but traffic stalled ---
+          rx_now=$(cat /sys/class/net/$iface/statistics/rx_bytes 2>/dev/null || echo 0)
+          tx_now=$(cat /sys/class/net/$iface/statistics/tx_bytes 2>/dev/null || echo 0)
+          delta=$(( (rx_now - rx_prev) + (tx_now - tx_prev) ))
+          rx_prev=$rx_now; tx_prev=$tx_now
+          clients=$(iw dev $iface station dump 2>/dev/null | grep -c "^Station" || true)
+
+          # --- Signal 3: hostapd not reporting ENABLED ---
+          hostapd_enabled=$(hostapd_cli -p /run/hostapd status 2>/dev/null \
+            | grep -c "state=ENABLED" || true)
+
+          # --- Signal 4: persistent zero-client streak after previous association ---
+          if [ "$clients" -gt 0 ]; then
+            has_had_clients=1
+            zero_client_streak=0
+          elif [ "$has_had_clients" -eq 1 ]; then
+            zero_client_streak=$((zero_client_streak + 1))
+          fi
+
+          signals=0
+          [ "$peer_errors" -ge "$peer_err_min" ] \
+            && signals=$((signals + 1)) \
+            && echo "ap-watchdog: sig1 kernel errors=$peer_errors"
+          [ "$clients" -gt 0 ] && [ "$delta" -lt "$stall_bytes" ] \
+            && signals=$((signals + 1)) \
+            && echo "ap-watchdog: sig2 traffic stall delta=''${delta}B clients=$clients"
+          [ "$hostapd_enabled" -eq 0 ] \
+            && signals=$((signals + 1)) \
+            && echo "ap-watchdog: sig3 hostapd not ENABLED"
+
+          sig4=0
+          [ "$zero_client_streak" -ge "$zero_client_max" ] \
+            && sig4=1 \
+            && echo "ap-watchdog: sig4 zero-client streak=''${zero_client_streak} cycles (~$((zero_client_streak / 2)) min)"
+
+          if [ "$signals" -ge 2 ] || [ "$sig4" -eq 1 ]; then
+            fail_count=$((fail_count + 1))
+            echo "ap-watchdog: signals=$signals sig4=$sig4 fail_count=$fail_count"
+            if [ "$fail_count" -ge 2 ]; then
+              echo "ap-watchdog: confirmed dead-radio — recovering $iface"
+              ${pkgs.iproute2}/bin/ip link set "$iface" down || true
+              sleep 2
+              ${pkgs.iproute2}/bin/ip link set "$iface" up   || true
+              sleep 2
+              systemctl restart hostapd || true
+              echo "ap-watchdog: recovery done, cooling down ''${cooldown}s"
+              fail_count=0
+              zero_client_streak=0
+              sleep $cooldown
+              rx_prev=$(cat /sys/class/net/$iface/statistics/rx_bytes 2>/dev/null || echo 0)
+              tx_prev=$(cat /sys/class/net/$iface/statistics/tx_bytes 2>/dev/null || echo 0)
+            fi
+          else
+            fail_count=0
           fi
         done
       '';

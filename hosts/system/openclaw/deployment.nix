@@ -90,8 +90,9 @@ in
         chown -R 1000:1000 ${oc.configDir}
         chmod -R 700 ${oc.configDir}
 
-        # openclaw.json
+        # openclaw.json — remove stale .clobbered backups before overwriting
         CONFIG_FILE="${oc.configDir}/openclaw.json"
+        rm -f "${oc.configDir}"/openclaw.json.clobbered.*
         cp ${openclawConfig.configFile} "$CONFIG_FILE"
         chown 1000:${toString oc.dockerGid} "$CONFIG_FILE"
         chmod 0600 "$CONFIG_FILE"
