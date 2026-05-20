@@ -177,42 +177,10 @@ in
         done
       '')
 
-      # OpenClaw CLI — routes through the running gateway container.
-      # All commands go through docker exec so agent/session commands
-      # pass through the gateway's full tool filtering pipeline.
-      (writeShellScriptBin "openclaw" ''
-        set -euo pipefail
-        if [[ $# -eq 0 ]]; then
-          echo "Usage: openclaw <command> [args]"
-          echo "  openclaw agent --agent <id> --message '...'   Prompt a sub-agent"
-          echo "  openclaw agents list --bindings               Show agent routing"
-          echo "  openclaw gateway status                       Check gateway status"
-          echo "  openclaw doctor [--fix]                       Diagnose config issues"
-          echo "  openclaw sandbox explain [--agent <id>]       Show sandbox policy"
-          echo "  openclaw config get tools --json              Dump tool config"
-          echo "  openclaw plugins list                         List active plugins"
-          echo "  openclaw docs <topic>                         Query built-in docs"
-          echo "  openclaw --version                            Show version"
-          exit 0
-        fi
-
-        CONTAINER="openclaw-gateway"
-
-        if ! sudo docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null | grep -q true; then
-          echo "Error: $CONTAINER is not running" >&2
-          exit 1
-        fi
-
-        # Allocate TTY only when stdin is a terminal
-        TTY_FLAG=""
-        if [ -t 0 ]; then
-          TTY_FLAG="-it"
-        else
-          TTY_FLAG="-i"
-        fi
-
-        exec sudo docker exec $TTY_FLAG -u node "$CONTAINER" openclaw "$@"
-      '')
+      # Hermes Agent CLI is provided by the hermes-agent package (addToSystemPackages=true).
+      # In container mode the `hermes` binary automatically routes commands into the
+      # managed hermes-agent container (doctor, chat, gateway status, sessions, skills, etc.).
+      # No custom wrapper needed — the official CLI handles everything.
 
       (writeShellScriptBin "help" ''
         echo "${settings.description} -- Management Commands"
@@ -228,7 +196,8 @@ in
         echo "  system-info      Show system status and disk usage"
         echo ""
         echo "Services:"
-        echo "  openclaw <cmd>   OpenClaw CLI (openclaw doctor, openclaw agent, ...)"
+        echo "  hermes <cmd>     Hermes Agent (hermes doctor, hermes chat, hermes gateway, hermes sessions, ...)"
+        echo "                   (container mode: commands auto-route into the managed Ubuntu container)"
         echo ""
         echo "Troubleshooting:"
         echo "  docker-ps        List containers (docker ps)"
