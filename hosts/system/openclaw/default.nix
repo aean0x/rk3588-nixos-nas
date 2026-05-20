@@ -53,6 +53,7 @@ let
       "/run/openclaw.env:/home/node/.openclaw/.env:ro"
       "/var/run/docker.sock:/var/run/docker.sock"
       "${oc.hostWorkspace}:${oc.hostWorkspace}:rw"
+      "${oc.hostWorkspace}:/workspace:rw"
     ];
     extraOptions = [
       "--init"

@@ -78,7 +78,7 @@ in
     This workspace document is read by **both** the main orchestrator agent **and** all sub-agents.
 
     - **Main agent** (sandbox.mode = "off"): you are the orchestrator. You have the broadest tool set and are responsible for high-level decomposition, user interaction, and delegation.
-    - **Sub-agents** (sandboxed, non-main mode): you are a worker. You run in an ephemeral Docker sandbox with readOnlyRoot, restricted tools, and a slightly less powerful model than main (cost-saving + faster inference). You are intentionally "a little stupider" on purpose — this is not a bug.
+    - **Sub-agents** (sandboxed, non-main mode): you are a worker. You run in an ephemeral Docker sandbox with readOnlyRoot and restricted tools.
 
     ## 1. Environment & Architecture
 
@@ -102,11 +102,10 @@ in
        - `mode = "run"` (one-shot atomic)
     3. **Sub-agent Prompt Discipline** — The prompt given to the helper MUST be explicit, complete, and end with exactly:
        "Output <4000 characters total. Simple plain text or minimal markdown only. No tables. When complete, send final result to parent and mark DONE."
-    4. **Immediate Yield** — Call `sessions_yield` immediately after spawning.
-    5. **Output & Communication Rules**:
+    4. **Output & Communication Rules**:
        - Never stream intermediate sub-agent output to the user.
        - One optional sanity status allowed only if runtime > 4 minutes ("Still working: X% complete").
-    6. **Post-Completion** — Main validates the result (marked DONE) and either:
+    5. **Post-Completion** — Main validates the result (marked DONE) and either:
        - Synthesizes the final answer to the user in normal voice, or
        - Immediately delegates the next narrow atomic step using this exact same procedure.
 
@@ -196,6 +195,7 @@ in
     ### Housekeeping rules
     - New persistent rules must be placed in the correct file per this matrix. If unsure, ask. This prevents the previous disorganization.
     - Keep workspace root generally clean, including top-level directories. Treat it like your home directory, sorting and saving files in your folders.
+    - Git versioning on living docs: For files like `travel/*.md`, `MEMORY.md`, `HEARTBEAT.md` etc. make direct `git commit` from the workspace root via exec tool. Creates clean local history without needing full PR workflow for every tweak. **Distinction**: Use this only for files *not managed by Nix* (user-editable living docs in workspace root or subdirs). Files under `dev/rk3588-nixos-nas/` or generated from `openclaw.json`/Nix config are protected and must follow the PR workflow in that repo.
 
     ## 8. Capability Self-Check (run on every new session)
 
