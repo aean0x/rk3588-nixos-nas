@@ -1,6 +1,6 @@
 # Samba file shares
 # /media — wide-open read-write for LAN (no auth)
-# /var/lib/openclaw — read-only for LAN
+# /var/lib/hermes (and legacy /var/lib/openclaw) — read-only for LAN
 # Tailscale clients reach these via advertised LAN route (192.168.1.0/24)
 {
   settings,
