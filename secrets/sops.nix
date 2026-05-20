@@ -38,6 +38,34 @@ let
     GITHUB_PAT = "github_pat";
     BTC_WALLET_KEY = "btc_wallet_key";
   };
+
+  # Curated secrets for Hermes Agent (replaces OpenClaw-specific tokens).
+  # Hermes reads these from $HERMES_HOME/.env at startup.
+  # prettier-ignore
+  hermesSecrets = {
+    XAI_API_KEY = "xai_api_key";
+    OPENROUTER_API_KEY = "openrouter_api_key";
+    OPENAI_API_KEY = "openrouter_api_key";
+    ANTHROPIC_API_KEY = "anthropic_api_key";
+    BRAVE_API_KEY = "brave_search_api_key";
+    TELEGRAM_BOT_TOKEN = "telegram_bot_token";
+    GOOGLE_PLACES_API_KEY = "google_places_api_key";
+    BROWSERLESS_API_TOKEN = "browserless_api_token";
+    MATON_API_KEY = "maton_api_key";
+    HA_TOKEN = "ha_token";
+    HA_URL = "ha_url";
+    TELEGRAM_ADMIN_ID = "telegram_admin_id";
+    GOOGLE_API_KEY = "google_api_key";
+    GEMINI_API_KEY = "google_api_key";
+    CLAWHUB_TOKEN = "clawhub_token";
+    X_API_KEY = "x_api_key";
+    X_API_SECRET = "x_api_secret";
+    X_ACCESS_TOKEN = "x_access_token";
+    X_ACCESS_SECRET = "x_access_secret";
+    X_BEARER_TOKEN = "x_bearer_token";
+    GITHUB_PAT = "github_pat";
+    BTC_WALLET_KEY = "btc_wallet_key";
+  };
 in
 {
   sops = {
@@ -106,6 +134,17 @@ in
             lib.mapAttrsToList (
               envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
             ) openclawSecrets
+          );
+        };
+        hermesEnv = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0640";
+          path = "/run/hermes.env";
+          content = lib.concatStringsSep "\n" (
+            lib.mapAttrsToList (
+              envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
+            ) hermesSecrets
           );
         };
       }

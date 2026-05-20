@@ -38,22 +38,12 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   ├── partitions.nix   # Filesystem mounts (label-based), ZFS dataset mounts
 │   │   ├── tasks.nix        # Auto-upgrade (Sun 03:00) and garbage collection
 │   │   ├── services.nix     # Service imports (uncomment to enable)
-│   │   ├── containers.nix   # Docker engine, refresh timer, imports containers/* + openclaw
+│   │   ├── containers.nix   # Docker engine, refresh timer, imports containers/*
 │   │   ├── containers/      # Docker container modules
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
 │   │   │   ├── filebrowser.nix    # Web-based file manager (SOPS-managed admin password)
 │   │   │   └── crowdsec.nix       # CrowdSec IDS/IPS engine + native nftables bouncer
-│   │   ├── openclaw/         # OpenClaw gateway, workspace dotfiles, related services
-│   │   │   ├── default.nix        # Docker containers, builder, setup, refresh timer
-│   │   │   ├── agents.nix         # Agent definitions (tools, secrets, docs, enable flags)
-│   │   │   ├── config.nix         # Gateway config as Nix attrset (generates openclaw.json)
-│   │   │   ├── packages.nix       # Typed dependency manifest (apt, tarball, npm, pnpm)
-│   │   │   ├── image.nix          # Docker image builder (type-dispatched step generator)
-│   │   │   ├── onedrive.nix       # OneDrive bidirectional sync into workspace
-│   │   │   └── workspace/         # Static shared dotfiles deployed to /var/lib/openclaw/workspace/
-│   │   │       ├── AGENTS.md      # Ops content (session, memory, safety, heartbeats) — roles appended from agents.nix
-│   │   │       ├── SOUL.md        # Personality directives
-│   │   │       └── STYLE.md       # Message formatting and output rules
+│   │   ├── services/hermes.nix # Hermes Agent (official module, container mode, skills, memory, MCP, OneDrive sync)
 │   │   └── services/        # Native service modules
 │   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
 │   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
@@ -90,7 +80,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `user_hashedPassword` — Login password
 - `tailscale_authKey` — Tailscale auth key
 - `wifi_psk` — WiFi password (conditional on `settings.enableWifi`)
-- `openclaw_gateway_token`, `openclaw_gateway_password` — OpenClaw gateway auth
+- `openclaw_gateway_token`, `openclaw_gateway_password` — (legacy, kept for transition; Hermes uses its own curated set from the same sops keys)
 - `xai_api_key` — xAI/Grok model API key
 - `openrouter_api_key`, `anthropic_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
@@ -111,8 +101,8 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 |---------|------|--------|-------|
 | Docker engine | Native | `containers.nix` | Auto-prune, unified refresh timer |
 | Home Assistant + Matter + OTBR | Docker | `containers/home-assistant.nix` | Host network for mDNS/Thread |
-| FileBrowser | Docker | `containers/filebrowser.nix` | Web file manager for OpenClaw state |
-| OpenClaw gateway + CLI | Docker | `openclaw/default.nix` | Custom image, sandbox spawner |
+| FileBrowser | Docker | `containers/filebrowser.nix` | Web file manager (now points at Hermes workspace or legacy paths; review usage) |
+| Hermes Agent (gateway + CLI + skills) | NixOS module + container | `services/hermes.nix` | Official NousResearch module, Ubuntu container for skills, single-agent + MCP/terminal/memory/cron |
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
@@ -125,8 +115,8 @@ Disabled but available: Cockpit, Cloudflared, arr-suite, Transmission.
 
 ### Docker Network Patterns
 
-- **Host network** (`--network=host`): Used by HA, Matter, OTBR, OpenClaw gateway for mDNS/multicast discovery
-- **Bridge network**: Used by OpenClaw sandbox containers (connects to gateway via `ws://172.17.0.1:18789`)
+- **Host network** (`--network=host`): Used by HA, Matter, OTBR, Hermes container (for local tools, OAuth callbacks, etc.)
+- **Bridge network**: Available for any sandboxed workloads the agent spawns via terminal/docker (Hermes itself does not use the old multi-agent bridge pattern)
 
 ### Env Injection Pattern
 
@@ -135,22 +125,23 @@ Docker containers needing sops secrets use a separate oneshot service (runs befo
 2. Write env files to `/run/<name>.env` (mode 600/640)
 3. Container references via `environmentFiles = [ "/run/<name>.env" ]`
 
-Examples: `openclaw-setup` writes `/run/openclaw.env`, `caddy-env` writes `/run/caddy.env`.
+Examples: `hermes-agent-setup` (via the official module) + our activation writes `/run/hermes.env`, `caddy-env` writes `/run/caddy.env`.
 
-### OpenClaw Docker Architecture
+### Hermes Agent Architecture
 
-OpenClaw lives in `hosts/system/openclaw/` as a self-contained module. A Docker container (`openclaw-gateway`) using a custom image built on-device. Runs non-root as UID 1000. State at `/var/lib/openclaw/` mounted to `/home/node/.openclaw` inside containers.
+Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the official NixOS module in `hosts/system/services/hermes.nix`. It is a **single-agent** system with a closed learning loop (memory + compaction), skills (SKILL.md), MCP servers, terminal execution, and cron. Multi-agent orchestration, custom gateway JSON, and per-subagent sandboxes from the prior OpenClaw setup have been left behind — they do not map to Hermes' model.
 
-- **`openclaw-builder`** (oneshot) — builds two custom images from `packages.nix` typed dependency list + `image.nix` type-dispatched step generator. Dependencies declare `type` (apt/tarball/npm/pnpm/custom) and `sandbox` flag to control which image they land in. Runs before gateway via `requiredBy`.
-- **`openclaw-setup`** (oneshot) — deploys workspace dotfiles from Nix store, creates sub-agent directories with relative symlinks to shared files (SOUL.md, STYLE.md, USER.md), copies `openclaw.json` with secret substitution, writes `/run/openclaw.env` with all API keys.
-- **Gateway container** — `--network=host`, `--group-add=docker` for docker.sock access. Spawns sandbox containers for sub-agents. Restart policy: always (recovers from SIGUSR1 self-restart).
+- **Deployment mode**: `container.enable = true` (Ubuntu 24.04 base with persistent writable layer). The Nix-built hermes binary + `/nix/store` are bind-mounted read-only; the agent can `apt`, `pip`, `uv`, `npm` install tools inside the container for skills. The container is recreated only on structural changes (image, volumes, options); state in `/var/lib/hermes` persists.
+- **CLI routing**: `addToSystemPackages = true` installs the `hermes` wrapper on the host PATH. When `container.enable = true` and `.container-mode` marker exists, every `hermes` invocation (chat, doctor, gateway status, sessions, skills, cron, etc.) transparently `docker exec`s into the `hermes-agent` container under the hermes user. `HERMES_HOME` points to the shared state dir.
+- **Declarative config**: `services.hermes-agent.settings` (deep-merged attrset) renders `config.yaml`. User-added keys survive rebuilds. `environmentFiles` (our `/run/hermes.env` from sops) and `documents` (SOUL.md etc.) are merged at activation.
+- **Secrets**: Curated via sops-nix template (`hermesEnv`) → `/run/hermes.env` (owned hermes:hermes). Hermes loads it on every startup; no container restart required for key rotation.
+- **Workspace & identity**: `workingDirectory = /var/lib/hermes/workspace`. `documents."SOUL.md"` lands there; our activation also seeds the primary identity copy at `$HERMES_HOME/SOUL.md`. Agent owns its memories, sessions, skills, cron jobs, and MCP tokens under `/var/lib/hermes/.hermes/`.
+- **OneDrive sync (retained behavior)**: `onedrive-sync.service` (15m timer) runs as the hermes user and bidirectionally syncs `onedrive:Shared` / `Documents` into `workspace/onedrive/`. rclone config is the same sops secret. Non-destructive (`--update`).
+- **No custom image build**: Hermes ships its own sealed Python env (uv2nix) + runtime tools. The Ubuntu layer is only for agent-driven installs.
+- **Caddy / exposure**: Hermes does not register a TCP port by default (messaging via Telegram/Discord plugins, local chat via `hermes chat` or TUI attach). No `proxyServices` entry unless you add one for a future Hermes HTTP API surface.
+- **Managed mode**: `HERMES_MANAGED=true` + `.managed` marker blocks imperative `hermes setup`, `hermes config set/edit`, `hermes gateway install` — all changes go through `configuration.nix` + `nixos-rebuild`.
 
-- **Config as Nix**: `config.nix` defines the full gateway config as a Nix attrset, generated to JSON via `builtins.toJSON`. Imports agent definitions from `agents.nix`. Nix-evaluable values (domain, port) are inlined at build time. Secret placeholders (`${VAR}`) remain as literal strings — OpenClaw resolves them from process env at runtime. `openclaw-setup` copies the generated JSON to `/var/lib/openclaw/openclaw.json` (mutable — OpenClaw can write runtime changes; overwritten on rebuild).
-- **Agent definitions**: `agents.nix` is the single source of truth for all agents. Each agent definition carries: tools config (allow/deny), sandbox secrets, role description, AGENTS.md content, TOOLS.md content, and an `enable` flag. Disabled agents are excluded from both JSON config and workspace generation. The main AGENTS.md delegation section is generated dynamically from enabled agents.
-- **Workspace generation**: `workspace/` contains static shared files (SOUL.md, STYLE.md, AGENTS.md ops content). Setup assembles the final main AGENTS.md by concatenating static ops content + generated role profiles from `agents.nix`. Sub-agent directories are created dynamically with generated AGENTS.md, TOOLS.md, and relative symlinks to shared files.
-- **Sandbox architecture** — gateway spawns sandbox containers via mounted `docker.sock`. Default sandbox config: bridge network, readOnlyRoot, capDrop ALL, 1 CPU. Per-agent env overrides inject only the API keys each role needs (two-key vault principle). Browser enabled with `allowHostControl` for host Browserless CDP proxy.
-- **OneDrive sync** — `onedrive.nix` (imported by openclaw module) runs bidirectional rclone copy on a 15m timer as UID 1000. Syncs `Shared` and `Documents` into `workspace/onedrive/`.
-- **`openclaw-refresh`** timer (Mon 04:00) — pulls latest base image, rebuilds custom image, restarts gateway.
+The old `hosts/system/openclaw/` (multi-agent gateway, openclaw.json, custom Docker images, sandbox spawning, sub-agent delegation protocol, lobster workflows) is no longer imported or active. The files remain for reference but are not evaluated.
 
 ### Caddy Reverse Proxy
 
@@ -158,7 +149,7 @@ Custom NixOS option `services.caddy.proxyServices` maps hostnames to backend por
 - HTTP vhost with redirect to HTTPS
 - HTTPS vhost with Cloudflare DNS-01 TLS and `reverse_proxy` to localhost
 
-Uses `caddy-dns/cloudflare` plugin built via `pkgs.caddy.withPlugins`. Root domain routes to Home Assistant. Service modules register their own subdomains (e.g., `services.caddy.proxyServices."openclaw.${settings.domain}" = 18789`).
+Uses `caddy-dns/cloudflare` plugin built via `pkgs.caddy.withPlugins`. Root domain routes to Home Assistant. Service modules register their own subdomains (e.g., `services.caddy.proxyServices."files.${settings.domain}" = 8080`). Hermes does not currently register an external port.
 
 ### ZFS Pool
 
@@ -274,6 +265,6 @@ After netboot completes, plug device into router for WAN access before running `
 - `services.resolved.enable = false` in adguard.nix — systemd-resolved conflicts with port 53
 - Cloudflared credentials must be owned by `cloudflared` user/group (set in sops.nix)
 - Docker containers with static tags (`:latest`, `:stable`) are NOT re-pulled on rebuild — the unified `refresh-containers` timer (Sun 02:00) and per-service refresh timers handle image updates
-- OpenClaw sandbox containers connect to gateway via Docker bridge IP (`172.17.0.1`), not localhost — containers on bridge network can't reach host loopback
-- OpenClaw workspace symlinks must be relative (not absolute host paths) for container path portability
+- Hermes container uses host network + bind mounts; agent tools inside see the hermes user env and writable layer. No more `ws://172.17.0.1` gateway for sub-agents (single-agent model).
+- Hermes workspace (`/var/lib/hermes/workspace`) is owned by the hermes system user; OneDrive sync and hostUsers (in hermes group) have group-writable access.
 - Persistent settings go in `/var/lib` — both for native services and Docker container volume mounts
