@@ -20,7 +20,7 @@ in
     filebrowser = {
       image = image;
       environment = {
-        FB_PORT = "80";
+        FB_PORT = toString port;
         FB_ADDRESS = "0.0.0.0";
         FB_DATABASE = "/database/filebrowser.db";
         FB_ROOT = "/srv";
@@ -34,9 +34,7 @@ in
         # Secret mounted from pre-start copy
         "${dataDir}/admin_password:/run/secrets/admin_password:ro"
       ];
-      ports = [
-        "${toString port}:80"
-      ];
+      networks = [ "host" ];
       # Run as same user as OpenClaw (1000) to ensure read/write access
       user = "1000:1000";
 

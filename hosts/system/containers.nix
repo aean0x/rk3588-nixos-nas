@@ -20,7 +20,7 @@ in
     ./containers/filebrowser.nix
     ./containers/teamspeak.nix
     ./containers/crowdsec.nix
-    # OpenClaw has been migrated to Hermes Agent (see services/hermes.nix)
+    ./hermes
   ];
 
   # ===================
