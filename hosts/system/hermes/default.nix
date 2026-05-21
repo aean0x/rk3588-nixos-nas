@@ -125,11 +125,11 @@ in
   security.sudo.extraRules = [
     {
       users = [ settings.adminUser ];
+      runAs = "hermes";
       commands = [
         {
           command = "/run/current-system/sw/bin/hermes";
           options = [ "NOPASSWD" "SETENV" ];
-          runAs = "hermes";
         }
       ];
     }
