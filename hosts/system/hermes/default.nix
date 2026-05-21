@@ -28,6 +28,10 @@ in
 
   _module.args.hermes = hermes;
 
+  # The dashboard service runs as hermes and needs docker exec access.
+  # hermes is a system user; without docker group it cannot run docker exec for CLI routing.
+  users.users.hermes.extraGroups = [ "docker" ];
+
   services.hermes-agent = {
     enable = true;
 
@@ -96,7 +100,8 @@ in
 
     # web: FastAPI + Uvicorn for the dashboard HTTP server.
     # pty: ptyprocess for the in-browser Chat tab (PTY/WebSocket bridge).
-    extraDependencyGroups = [ "web" "pty" ];
+    # telegram: python-telegram-bot gateway adapter.
+    extraDependencyGroups = [ "web" "pty" "telegram" ];
 
     restart = "always";
     restartSec = 5;
