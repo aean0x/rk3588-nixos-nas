@@ -13,6 +13,5 @@
     ./services/adguard.nix # AdGuard Home DNS (port 53, web UI 3000) — enable after deploy
     ./services/filesharing.nix # NFS + Samba shares (/media public, /var/lib/hermes read-only)
     ./services/router.nix # Router: NAT + WiFi AP + DHCP — enable in settings.nix
-    ./hermes # Hermes Agent (NousResearch) — replaces OpenClaw
   ];
 }

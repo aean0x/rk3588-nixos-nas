@@ -1,5 +1,6 @@
 # Home Assistant ecosystem: HA Core, Matter Server, OTBR (Docker)
 {
+  lib,
   pkgs,
   settings,
   ...
@@ -13,6 +14,9 @@ let
   haImage = "ghcr.io/home-assistant/home-assistant:stable";
   matterImage = "ghcr.io/matter-js/matterjs-server:latest";
   otbrImage = "ghcr.io/ownbee/hass-otbr-docker:latest";
+
+  # When router mode is active, the LAN lives on br0, not the physical ethernet
+  lanInterface = if (settings.enableRouter or false) then "br0" else settings.network.interface;
 in
 {
   services.caddy.proxyServices = {
@@ -62,7 +66,7 @@ in
         "--storage-path"
         "/data"
         "--primary-interface"
-        "${settings.network.interface}"
+        lanInterface
       ];
       autoStart = true;
     };
@@ -83,7 +87,7 @@ in
         FIREWALL = "1";
         NAT64 = "1";
         OTBR_MDNS = "avahi";
-        BACKBONE_IF = settings.network.interface;
+        BACKBONE_IF = lanInterface;
         OT_LOG_LEVEL = "info";
         OT_WEB_PORT = "${toString otbrPort}";
         OT_REST_LISTEN_ADDR = "0.0.0.0";
@@ -105,18 +109,21 @@ in
 
   # ===================
   # Kernel Sysctl (HA/OTBR networking)
+  # Router mode manages forwarding and accept_ra itself — only set these standalone.
   # ===================
   boot.kernel.sysctl = {
+    "net.ipv6.conf.docker0.disable_ipv6" = 1;
+  }
+  // (lib.optionalAttrs (!(settings.enableRouter or false)) {
     "net.ipv4.conf.all.forwarding" = 1;
     "net.ipv6.conf.all.forwarding" = 1;
     "net.ipv4.conf.default.forwarding" = 1;
     "net.ipv6.conf.default.forwarding" = 1;
-    "net.ipv6.conf.docker0.disable_ipv6" = 1;
     "net.ipv6.conf.all.accept_ra" = 2;
     "net.ipv6.conf.default.accept_ra" = 2;
     "net.ipv6.conf.${settings.network.interface}.accept_ra" = 2;
     "net.ipv6.conf.all.accept_ra_rt_info_max_plen" = 64;
-  };
+  });
 
   # ===================
   # Firewall
