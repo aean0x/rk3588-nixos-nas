@@ -28,9 +28,11 @@ in
 
   _module.args.hermes = hermes;
 
-  # The dashboard service runs as hermes and needs docker exec access.
-  # hermes is a system user; without docker group it cannot run docker exec for CLI routing.
+  # Dashboard runs as hermes (owns .env); hermes needs docker group for docker exec routing.
   users.users.hermes.extraGroups = [ "docker" ];
+
+  # adminUser needs hermes group membership so os.stat() can traverse .hermes/ (drwxrws---).
+  users.users.${settings.adminUser}.extraGroups = [ "hermes" ];
 
   services.hermes-agent = {
     enable = true;
@@ -118,14 +120,28 @@ in
     "d ${hermes.workspace}/onedrive 2770 hermes hermes - -"
   ];
 
+  # hermes CLI runs as the hermes service user via sudo so it can read .env (0600 hermes:hermes).
+  # The alias is transparent for interactive use; SETENV preserves HERMES_HOME and terminal state.
+  security.sudo.extraRules = [
+    {
+      users = [ settings.adminUser ];
+      commands = [
+        {
+          command = "/run/current-system/sw/bin/hermes";
+          options = [ "NOPASSWD" "SETENV" ];
+          runAs = "hermes";
+        }
+      ];
+    }
+  ];
+
+  environment.shellAliases.hermes = "sudo -u hermes /run/current-system/sw/bin/hermes";
+
   # Install SOUL.md from the Nix store into HERMES_HOME — the primary identity path.
   # Runs after hermes-agent-setup (module activation) so the .hermes dir already exists.
-  # Also sets a default ACL on .hermes/ so adminUser can read .env even after hermes
-  # rewrites it at runtime (0600). Default ACL is inherited by newly created files.
   system.activationScripts.hermes-soul = lib.stringAfter [ "hermes-agent-setup" ] ''
     mkdir -p "${hermes.stateDir}/.hermes"
     install -o hermes -g hermes -m 0640 ${soulMd} "${hermes.stateDir}/.hermes/SOUL.md"
-    ${pkgs.acl}/bin/setfacl -dm u:${settings.adminUser}:r "${hermes.stateDir}/.hermes"
-    ${pkgs.acl}/bin/setfacl -m u:${settings.adminUser}:r "${hermes.stateDir}/.hermes/.env"
   '';
+
 }
