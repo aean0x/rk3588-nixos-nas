@@ -146,10 +146,12 @@ CLI (the user DMs the bot and sends the pairing code they receive).
   optional-dependency group. The correct name is `messaging` (python-telegram-bot,
   discord.py, slack-bolt). Also: `messaging` was removed from `all` on 2026-05-12 and
   must be listed in `extraDependencyGroups` explicitly.
-- **`.env` is 0600 at runtime** — the hermes process rewrites it to 0600 after activation
-  sets 0640. The fix is `setfacl -dm u:<adminUser>:r <stateDir>/.hermes` (default ACL on
-  the directory), which new files inherit even after atomic rename rewrites. Adding
-  adminUser to the hermes group alone is insufficient.
+- **`.env` is 0600 at runtime — use sudo alias, not ACL** — hermes rewrites `.env` and
+  calls `chmod(0600)` which resets the POSIX ACL mask to `---`, killing all named user ACL
+  entries. No passive DAC mechanism survives this (default ACLs, setfacl, group bits all
+  fail). The correct fix: `security.sudo.extraRules` granting adminUser NOPASSWD SETENV on
+  `/run/current-system/sw/bin/hermes` as the `hermes` user, paired with a shell alias. The
+  CLI runs as hermes (file owner) and reads `.env` without any permission issue.
 - **Dashboard must run as `hermes` user, not adminUser** — adminUser cannot read `.env`
   (0600 hermes:hermes). The hermes service user owns the file. Add hermes to docker group
   so the dashboard's CLI routing can `docker exec` into the container.
