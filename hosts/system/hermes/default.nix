@@ -43,7 +43,8 @@ in
       # Port mapping so the dashboard (bound to 0.0.0.0:9119 inside the container)
       # is reachable at host 127.0.0.1:9119 for Caddy to proxy.
       extraOptions = [
-        "-p" "127.0.0.1:9119:9119"
+        "-p"
+        "127.0.0.1:9119:9119"
         "--memory=4g"
         "--cpus=2"
       ];
@@ -100,8 +101,13 @@ in
 
     # web: FastAPI + Uvicorn for the dashboard HTTP server.
     # pty: ptyprocess for the in-browser Chat tab (PTY/WebSocket bridge).
-    # telegram: python-telegram-bot gateway adapter.
-    extraDependencyGroups = [ "web" "pty" "telegram" ];
+    # messaging: python-telegram-bot + discord.py + slack-bolt gateway adapters.
+    #   Removed from "all" on 2026-05-12 to avoid Windows/macOS build failures.
+    extraDependencyGroups = [
+      "web"
+      "pty"
+      "messaging"
+    ];
 
     restart = "always";
     restartSec = 5;
@@ -114,8 +120,12 @@ in
 
   # Install SOUL.md from the Nix store into HERMES_HOME — the primary identity path.
   # Runs after hermes-agent-setup (module activation) so the .hermes dir already exists.
+  # Also sets a default ACL on .hermes/ so adminUser can read .env even after hermes
+  # rewrites it at runtime (0600). Default ACL is inherited by newly created files.
   system.activationScripts.hermes-soul = lib.stringAfter [ "hermes-agent-setup" ] ''
     mkdir -p "${hermes.stateDir}/.hermes"
     install -o hermes -g hermes -m 0640 ${soulMd} "${hermes.stateDir}/.hermes/SOUL.md"
+    ${pkgs.acl}/bin/setfacl -dm u:${settings.adminUser}:r "${hermes.stateDir}/.hermes"
+    ${pkgs.acl}/bin/setfacl -m u:${settings.adminUser}:r "${hermes.stateDir}/.hermes/.env"
   '';
 }
