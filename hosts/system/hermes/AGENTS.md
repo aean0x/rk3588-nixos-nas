@@ -142,6 +142,17 @@ CLI (the user DMs the bot and sends the pairing code they receive).
   `systemctl restart hermes-agent` is needed to pick up a new binary.
 - **`streaming = "block"` is wrong** — must be `streaming.mode = "block"` (nested attr, not a
   bare string). This bit openclaw config and would hit hermes config the same way.
+- **`messaging` not `telegram` for the gateway extra** — `telegram` is not a valid
+  optional-dependency group. The correct name is `messaging` (python-telegram-bot,
+  discord.py, slack-bolt). Also: `messaging` was removed from `all` on 2026-05-12 and
+  must be listed in `extraDependencyGroups` explicitly.
+- **`.env` is 0600 at runtime** — the hermes process rewrites it to 0600 after activation
+  sets 0640. The fix is `setfacl -dm u:<adminUser>:r <stateDir>/.hermes` (default ACL on
+  the directory), which new files inherit even after atomic rename rewrites. Adding
+  adminUser to the hermes group alone is insufficient.
+- **Dashboard must run as `hermes` user, not adminUser** — adminUser cannot read `.env`
+  (0600 hermes:hermes). The hermes service user owns the file. Add hermes to docker group
+  so the dashboard's CLI routing can `docker exec` into the container.
 - **`TELEGRAM_ALLOWED_USERS` not `TELEGRAM_ADMIN_ID`** — hermes uses `TELEGRAM_ALLOWED_USERS`
   for gateway access control; `TELEGRAM_ADMIN_ID` is an OpenClaw artifact. Both are in
   hermesSecrets mapping to the same sops key.
