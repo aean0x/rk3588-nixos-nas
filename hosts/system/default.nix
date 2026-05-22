@@ -2,6 +2,7 @@
 {
   config,
   lib,
+  pkgs,
   settings,
   ...
 }:
@@ -62,6 +63,11 @@
     # gets a CGNAT address that LAN clients can't reach.
     allowInterfaces = lib.mkIf (settings.enableRouter or false) [ "br0" ];
   };
+
+  # avahi-daemon leaves a stale PID file when killed mid-flight during
+  # NixOS generation switches, causing the next start to fail with EXCEPTION.
+  systemd.services.avahi-daemon.serviceConfig.ExecStartPre =
+    "${pkgs.coreutils}/bin/rm -f /run/avahi-daemon/pid";
 
   # Enable Bluetooth (required for Matter commissioning)
   hardware.bluetooth.enable = true;
