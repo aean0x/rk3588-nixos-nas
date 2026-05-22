@@ -349,6 +349,12 @@ in
     # Creates the 5GHz virtual AP interface on phy0 (DBS: dual-band simultaneous).
     # Must run before hostapd — the module bindsTo the device unit for ap5g,
     # so hostapd won't start until this interface exists.
+    #
+    # MAC: a vif on the same phy inherits the parent's MAC by default. Joining two
+    # netdevs with identical MACs into br0 fails ("Name not unique on network")
+    # and hostapd segfaults trying to bring the interface up. Fix: derive a
+    # locally-administered MAC by setting bit 1 of the first byte (00:.. → 02:..).
+    # hostapd then uses this as the BSS BSSID automatically.
     systemd.services.ap5g-vif = {
       description = "Create 5GHz AP virtual interface (ap5g) on phy0";
       after = [ "hostapd-regdom.service" ];
@@ -365,7 +371,13 @@ in
         ${pkgs.iproute2}/bin/ip link del ${ap5gInterface} 2>/dev/null || true
         ${pkgs.iw}/bin/iw dev ${ap5gInterface} del 2>/dev/null || true
         sleep 1.5
-        ${pkgs.iw}/bin/iw phy phy0 interface add ${ap5gInterface} type __ap
+
+        base_mac=$(cat /sys/class/net/${apInterface}/address)
+        uniq_mac=$(echo "$base_mac" \
+          | ${pkgs.gawk}/bin/awk -F: '{printf "02:%s:%s:%s:%s:%s\n",$2,$3,$4,$5,$6}')
+        echo "ap5g-vif: parent=$base_mac vif=$uniq_mac"
+
+        ${pkgs.iw}/bin/iw phy phy0 interface add ${ap5gInterface} type __ap addr "$uniq_mac"
         ${pkgs.iproute2}/bin/ip link set ${ap5gInterface} up
       '';
     };
