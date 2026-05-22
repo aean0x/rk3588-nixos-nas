@@ -255,6 +255,7 @@ in
         };
         wifi5.enable = false;
         settings = {
+          beacon_int = 100;
           uapsd_advertisement_enabled = 0;
           # Drop 802.11b rates (units: 100 kbps; 60=6Mbps). Any 802.11g/n/ax device is fine.
           supported_rates = "60 90 120 180 240 360 480 540";
@@ -307,6 +308,7 @@ in
           ];
         };
         settings = {
+          beacon_int = 100;
           # VHT80 center channel for primary 149 (block: 149 153 157 161 → center 155)
           vht_oper_centr_freq_seg0_idx = 155;
         };
@@ -357,10 +359,12 @@ in
         RemainAfterExit = true;
       };
       script = ''
-        # Delete any stale instance (hostapd may leave it in a dirty state after failure),
-        # then recreate clean. Brief sleep lets nl80211 finish any pending netlink cleanup.
+        # Zombie netdev cleanup: iw del alone leaves the rtnl entry → EEXIST on next add.
+        # Order: down → ip link del → iw del, then wait for firmware vdev teardown.
+        ${pkgs.iproute2}/bin/ip link set ${ap5gInterface} down 2>/dev/null || true
+        ${pkgs.iproute2}/bin/ip link del ${ap5gInterface} 2>/dev/null || true
         ${pkgs.iw}/bin/iw dev ${ap5gInterface} del 2>/dev/null || true
-        sleep 1
+        sleep 1.5
         ${pkgs.iw}/bin/iw phy phy0 interface add ${ap5gInterface} type __ap
         ${pkgs.iproute2}/bin/ip link set ${ap5gInterface} up
       '';
