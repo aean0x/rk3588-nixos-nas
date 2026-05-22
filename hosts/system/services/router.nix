@@ -275,56 +275,12 @@ in
           };
         };
       };
-      radios.${ap5gInterface} = {
-        band = "5g";
-        channel = 149; # UNII-3, 30 dBm, no DFS required
-        inherit countryCode;
-        wifi4 = {
-          enable = true;
-          capabilities = [
-            "LDPC"
-            "HT40+"
-            "SHORT-GI-20"
-            "SHORT-GI-40"
-            "TX-STBC"
-            "RX-STBC1"
-          ];
-        };
-        wifi5 = {
-          enable = true;
-          operatingChannelWidth = "80";
-          capabilities = [
-            "MAX-MPDU-11454"
-            "RXLDPC"
-            "SHORT-GI-80"
-            "SHORT-GI-160"
-            "TX-STBC-2BY1"
-            "SU-BEAMFORMER"
-            "SU-BEAMFORMEE"
-            "MU-BEAMFORMEE"
-            "RX-ANTENNA-PATTERN"
-            "TX-ANTENNA-PATTERN"
-            "MAX-A-MPDU-LEN-EXP7"
-          ];
-        };
-        settings = {
-          beacon_int = 100;
-          # VHT80 center channel for primary 149 (block: 149 153 157 161 → center 155)
-          vht_oper_centr_freq_seg0_idx = 155;
-        };
-        networks.${ap5gInterface} = {
-          inherit ssid;
-          authentication = {
-            mode = "wpa2-sha256";
-            wpaPasswordFile = config.sops.secrets.wifi_ap_password.path;
-          };
-          settings = {
-            bss_transition = 1;
-            disassoc_low_ack = 1;
-            ap_max_inactivity = 180;
-          };
-        };
-      };
+      # NOTE: 5 GHz radio (ap5g) is intentionally NOT declared here.
+      # The NixOS hostapd module runs ONE hostapd process for all radios. That
+      # works when each radio has its own phy, but our 5 GHz vif lives on phy0
+      # alongside wlP2p33s0 — and a single hostapd process can't init nl80211
+      # twice on the same wiphy ("Match already configured" → SEGV).
+      # Instead we run a second hostapd process via hostapd-ap5g.service below.
     };
 
     # Passive scan triggers firmware 11d regdom transition (country 00 → US)
@@ -380,6 +336,60 @@ in
         ${pkgs.iw}/bin/iw phy phy0 interface add ${ap5gInterface} type __ap addr "$uniq_mac"
         ${pkgs.iproute2}/bin/ip link set ${ap5gInterface} up
       '';
+    };
+
+    # Second hostapd process for the 5 GHz vif. Runs separately from the NixOS
+    # module's hostapd.service (which handles 2.4 GHz on wlP2p33s0) because a
+    # single hostapd process can't init nl80211 twice on the same wiphy.
+    # Config is static; password is appended at runtime from the sops secret.
+    systemd.services.hostapd-ap5g = {
+      description = "hostapd 5 GHz AP on ${ap5gInterface}";
+      after = [ "ap5g-vif.service" ];
+      requires = [ "ap5g-vif.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = 5;
+        RuntimeDirectory = "hostapd-ap5g";
+        RuntimeDirectoryMode = "0700";
+        ExecStartPre = pkgs.writeShellScript "hostapd-ap5g-pre" ''
+          set -eu
+          conf=/run/hostapd-ap5g/hostapd.conf
+          cp ${pkgs.writeText "hostapd-ap5g-base.conf" ''
+            interface=${ap5gInterface}
+            driver=nl80211
+            ssid=${ssid}
+            hw_mode=a
+            channel=149
+            country_code=${countryCode}
+            ieee80211d=1
+            ieee80211h=1
+            ieee80211n=1
+            ieee80211ac=1
+            ht_capab=[LDPC][HT40+][SHORT-GI-20][SHORT-GI-40][TX-STBC][RX-STBC1]
+            vht_oper_chwidth=1
+            vht_oper_centr_freq_seg0_idx=155
+            vht_capab=[MAX-MPDU-11454][RXLDPC][SHORT-GI-80][SHORT-GI-160][TX-STBC-2BY1][SU-BEAMFORMER][SU-BEAMFORMEE][MU-BEAMFORMEE][RX-ANTENNA-PATTERN][TX-ANTENNA-PATTERN][MAX-A-MPDU-LEN-EXP7]
+            auth_algs=1
+            wpa=2
+            wpa_key_mgmt=WPA-PSK-SHA256
+            rsn_pairwise=CCMP
+            ignore_broadcast_ssid=0
+            wmm_enabled=1
+            ieee80211w=1
+            beacon_int=100
+            bss_transition=1
+            disassoc_low_ack=1
+            ap_max_inactivity=180
+            ctrl_interface=/run/hostapd-ap5g
+            ctrl_interface_group=wheel
+          ''} "$conf"
+          chmod 600 "$conf"
+          echo "wpa_passphrase=$(cat ${config.sops.secrets.wifi_ap_password.path})" >> "$conf"
+        '';
+        ExecStart = "${pkgs.hostapd}/bin/hostapd /run/hostapd-ap5g/hostapd.conf";
+      };
     };
 
     # Keeps the WiFi AP interface joined to the LAN bridge.
