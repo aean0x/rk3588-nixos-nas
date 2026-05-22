@@ -3,7 +3,7 @@
 # the container transparently, so the server process lives inside the container
 # and the docker port mapping makes it reachable at host 127.0.0.1:9119.
 # Caddy proxies hermes.<domain> → 127.0.0.1:9119 (LAN-only by default).
-{ settings, ... }:
+{ settings, config, ... }:
 {
   systemd.services.hermes-dashboard = {
     description = "Hermes Agent web dashboard";
@@ -22,6 +22,8 @@
       # startup before exec-ing into the container) and needs docker group for docker exec.
       # adminUser cannot read .env — the hermes process rewrites it at 0600 at runtime.
       User = "hermes";
+      # Systemd's default PATH omits /run/current-system/sw/bin; hermes needs docker on PATH.
+      Environment = [ "PATH=${config.virtualisation.docker.package}/bin:/run/current-system/sw/bin:/run/wrappers/bin" ];
       # --host 0.0.0.0 --insecure: container is --network=host so this binds to all
       # host interfaces; port 9119 is reachable at 127.0.0.1:9119 for Caddy.
       # --tui: enables the in-browser Chat tab (requires pty extra).

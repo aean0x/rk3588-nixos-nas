@@ -64,8 +64,7 @@ in
 
     settings = {
       model = {
-        provider = "xai";
-        default = "grok-4.3";
+        provider = "xai-oauth";
       };
 
       toolsets = [ "all" ];
@@ -129,7 +128,10 @@ in
       commands = [
         {
           command = "/run/current-system/sw/bin/hermes";
-          options = [ "NOPASSWD" "SETENV" ];
+          options = [
+            "NOPASSWD"
+            "SETENV"
+          ];
         }
       ];
     }
