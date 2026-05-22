@@ -21,7 +21,8 @@ let
 
   # -- Interfaces --
   wanIf = settings.network.interface; # Uplink to ISP
-  apInterface = "wlP2p33s0"; # WiFi adapter for AP
+  apInterface = "wlP2p33s0"; # WiFi adapter for AP (2.4GHz)
+  ap5gInterface = "ap5g";   # Virtual interface for 5GHz AP (created on same phy0)
   lanBridge = "br0"; # Bridge name (AP + any extra LAN ports)
   lanInterfaces = [ ]; # Extra ethernet ports to add to LAN bridge
 
@@ -238,18 +239,87 @@ in
       radios.${apInterface} = {
         band = "2g";
         inherit channel countryCode;
-        wifi4.enable = true;
+        wifi4 = {
+          enable = true;
+          capabilities = [
+            "LDPC"
+            "HT40-"
+            "HT40+"
+            "SHORT-GI-20"
+            "SHORT-GI-40"
+            "TX-STBC"
+            "RX-STBC1"
+            "DSSS_CCK-40"
+            "MAX-AMSDU-7935"
+          ];
+        };
         wifi5.enable = false;
         settings = {
-          ieee80211d = true;
-          ieee80211h = true;
           uapsd_advertisement_enabled = 0;
+          # Drop 802.11b rates (units: 100 kbps; 60=6Mbps). Any 802.11g/n/ax device is fine.
+          supported_rates = "60 90 120 180 240 360 480 540";
+          basic_rates = "60 120 240";
         };
         networks.${apInterface} = {
           inherit ssid;
           authentication = {
             mode = "wpa2-sha256";
             wpaPasswordFile = config.sops.secrets.wifi_ap_password.path;
+          };
+          settings = {
+            # BSS-level options (hostapd_bss_config) — must not appear in radio settings
+            bss_transition = 1;
+            disassoc_low_ack = 1;
+            ap_max_inactivity = 180;
+          };
+        };
+      };
+      radios.${ap5gInterface} = {
+        band = "5g";
+        channel = 149; # UNII-3, 30 dBm, no DFS required
+        inherit countryCode;
+        wifi4 = {
+          enable = true;
+          capabilities = [
+            "LDPC"
+            "HT40+"
+            "SHORT-GI-20"
+            "SHORT-GI-40"
+            "TX-STBC"
+            "RX-STBC1"
+          ];
+        };
+        wifi5 = {
+          enable = true;
+          operatingChannelWidth = "80";
+          capabilities = [
+            "MAX-MPDU-11454"
+            "RXLDPC"
+            "SHORT-GI-80"
+            "SHORT-GI-160"
+            "TX-STBC-2BY1"
+            "SU-BEAMFORMER"
+            "SU-BEAMFORMEE"
+            "MU-BEAMFORMEE"
+            "RX-ANTENNA-PATTERN"
+            "TX-ANTENNA-PATTERN"
+            "MAX-A-MPDU-LEN-EXP7"
+          ];
+        };
+        settings = {
+          # VHT80 center channel for primary 149 (block: 149 153 157 161 → center 155)
+          vht_oper_centr_freq_seg0_idx = 155;
+        };
+        networks.${ap5gInterface} = {
+          inherit ssid;
+          authentication = {
+            mode = "wpa2-sha256";
+            wpaPasswordFile = config.sops.secrets.wifi_ap_password.path;
+          };
+          settings = {
+            bss_transition = 1;
+            disassoc_low_ack = 1;
+            ap_max_inactivity = 180;
           };
         };
       };
@@ -274,6 +344,28 @@ in
       '';
     };
 
+    # Creates the 5GHz virtual AP interface on phy0 (DBS: dual-band simultaneous).
+    # Must run before hostapd — the module bindsTo the device unit for ap5g,
+    # so hostapd won't start until this interface exists.
+    systemd.services.ap5g-vif = {
+      description = "Create 5GHz AP virtual interface (ap5g) on phy0";
+      after = [ "hostapd-regdom.service" ];
+      before = [ "hostapd.service" ];
+      wantedBy = [ "hostapd.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        # Delete any stale instance (hostapd may leave it in a dirty state after failure),
+        # then recreate clean. Brief sleep lets nl80211 finish any pending netlink cleanup.
+        ${pkgs.iw}/bin/iw dev ${ap5gInterface} del 2>/dev/null || true
+        sleep 1
+        ${pkgs.iw}/bin/iw phy phy0 interface add ${ap5gInterface} type __ap
+        ${pkgs.iproute2}/bin/ip link set ${ap5gInterface} up
+      '';
+    };
+
     # Keeps the WiFi AP interface joined to the LAN bridge.
     # Runs as a persistent monitor — re-joins if the interface gets kicked out
     # (e.g. after network-addresses restart during config activation).
@@ -293,23 +385,31 @@ in
       script = ''
         ip="${pkgs.iproute2}/bin/ip"
 
-        # Initial join with retries
-        for attempt in $(seq 1 10); do
-          if $ip link set ${apInterface} master ${lanBridge} 2>/dev/null; then
-            echo "Joined ${apInterface} to ${lanBridge} on attempt $attempt"
-            break
-          fi
-          echo "Attempt $attempt failed, retrying in 1s..."
-          sleep 1
-        done
+        join_iface() {
+          local iface=$1
+          for attempt in $(seq 1 10); do
+            if $ip link set "$iface" master ${lanBridge} 2>/dev/null; then
+              echo "Joined $iface to ${lanBridge} on attempt $attempt"
+              return 0
+            fi
+            echo "Attempt $attempt: $iface not ready, retrying..."
+            sleep 1
+          done
+          echo "Warning: could not join $iface to ${lanBridge} after 10 attempts"
+        }
 
-        # Monitor: check every 5s, re-join if dropped
+        join_iface ${apInterface}
+        join_iface ${ap5gInterface}
+
+        # Monitor: check every 5s, re-join any interface that drops off
         while true; do
           sleep 5
-          if ! $ip link show ${apInterface} 2>/dev/null | grep -q "master ${lanBridge}"; then
-            echo "${apInterface} dropped from ${lanBridge}, rejoining..."
-            $ip link set ${apInterface} master ${lanBridge} || true
-          fi
+          for iface in ${apInterface} ${ap5gInterface}; do
+            if ! $ip link show "$iface" 2>/dev/null | grep -q "master ${lanBridge}"; then
+              echo "$iface dropped from ${lanBridge}, rejoining..."
+              $ip link set "$iface" master ${lanBridge} || true
+            fi
+          done
         done
       '';
     };
