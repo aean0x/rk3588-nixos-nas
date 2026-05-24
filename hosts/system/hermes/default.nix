@@ -67,6 +67,11 @@ in
         provider = "xai-oauth";
       };
 
+      stt = {
+        provider = "openai";
+        model = "whisper-1";
+      };
+
       toolsets = [ "all" ];
 
       terminal = {
