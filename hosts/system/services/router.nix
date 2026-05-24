@@ -264,7 +264,7 @@ in
         networks.${apInterface} = {
           inherit ssid;
           authentication = {
-            mode = "wpa2-sha256";
+            mode = "wpa2-sha1";
             wpaPasswordFile = config.sops.secrets.wifi_ap_password.path;
           };
           settings = {
@@ -373,7 +373,7 @@ in
             vht_capab=[MAX-MPDU-11454][RXLDPC][SHORT-GI-80][SHORT-GI-160][TX-STBC-2BY1][SU-BEAMFORMER][SU-BEAMFORMEE][MU-BEAMFORMEE][RX-ANTENNA-PATTERN][TX-ANTENNA-PATTERN][MAX-A-MPDU-LEN-EXP7]
             auth_algs=1
             wpa=2
-            wpa_key_mgmt=WPA-PSK-SHA256
+            wpa_key_mgmt=WPA-PSK
             rsn_pairwise=CCMP
             ignore_broadcast_ssid=0
             wmm_enabled=1
