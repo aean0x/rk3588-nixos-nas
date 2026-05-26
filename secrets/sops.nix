@@ -138,6 +138,9 @@ in
             ) openclawSecrets
           );
         };
+      }
+      # hermesEnv is only generated when the hermes user exists (i.e. services/hermes.nix is enabled).
+      (lib.mkIf (config.users.users ? hermes) {
         hermesEnv = {
           owner = "hermes";
           group = "hermes";
@@ -149,7 +152,7 @@ in
             ) hermesSecrets
           );
         };
-      }
+      })
       (lib.mkIf wifiEnabled {
         wifiEnv = {
           owner = "root";

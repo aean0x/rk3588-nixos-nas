@@ -20,7 +20,6 @@ in
     ./containers/filebrowser.nix
     ./containers/teamspeak.nix
     ./containers/crowdsec.nix
-    ./hermes
   ];
 
   # ===================
