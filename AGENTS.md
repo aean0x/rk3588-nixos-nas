@@ -16,16 +16,6 @@ Key subcommands:
 
 Prefer `remote-test` for iterating; reboot recovers the previous generation if something breaks.
 
-## Agent Autonomy Expectations
-
-When working as an agent on this system:
-
-- **Default to tool use before asking.** If context is missing (unknown API keys, services, endpoints, etc.), first exhaust available tools (`web_search`, `terminal` inspection, file searches, etc.) before requesting clarification from the user.
-- The `MATON_API_KEY` incident is the canonical example: local searches found the key in `.env` but no usage docs. The correct next step was an external search, not an immediate question.
-- Only escalate to the user for decisions involving real cost, external visibility, or irreversible changes.
-
-This repo's Hermes integration makes high autonomy especially valuable.
-
 ## Architecture Overview
 
 ```
