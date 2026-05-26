@@ -361,7 +361,7 @@ in
             driver=nl80211
             ssid=${ssid}
             hw_mode=a
-            channel=149
+            channel=36
             country_code=${countryCode}
             ieee80211d=1
             ieee80211h=1
@@ -369,7 +369,7 @@ in
             ieee80211ac=1
             ht_capab=[LDPC][HT40+][SHORT-GI-20][SHORT-GI-40][TX-STBC][RX-STBC1]
             vht_oper_chwidth=1
-            vht_oper_centr_freq_seg0_idx=155
+            vht_oper_centr_freq_seg0_idx=42
             vht_capab=[MAX-MPDU-11454][RXLDPC][SHORT-GI-80][SHORT-GI-160][TX-STBC-2BY1][SU-BEAMFORMER][SU-BEAMFORMEE][MU-BEAMFORMEE][RX-ANTENNA-PATTERN][TX-ANTENNA-PATTERN][MAX-A-MPDU-LEN-EXP7]
             auth_algs=1
             wpa=2

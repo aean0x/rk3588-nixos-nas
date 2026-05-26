@@ -105,6 +105,16 @@ in
       agent.max_turns = 80;
     };
 
+    mcpServers = {
+      maton = {
+        command = "npx";
+        args = [
+          "-y"
+          "@maton/mcp"
+        ];
+      };
+    };
+
     # web: FastAPI + Uvicorn for the dashboard HTTP server.
     # pty: ptyprocess for the in-browser Chat tab (PTY/WebSocket bridge).
     # messaging: python-telegram-bot + discord.py + slack-bolt gateway adapters.
