@@ -7,6 +7,7 @@
     ./services/tailscale.nix # Tailscale VPN (native)
     ./services/cloudflare.nix # Cloudflare DDNS + tunnel
     ./services/remote-desktop.nix # XFCE + xrdp
+    # ./services/comet.nix        # Comet Stremio addon (TorBox replacement)
     # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin, etc.)
     # ./services/transmission.nix # Torrent client with VPN killswitch
     ./services/caddy.nix # Reverse proxy with automatic HTTPS
