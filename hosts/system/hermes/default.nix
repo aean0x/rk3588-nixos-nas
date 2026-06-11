@@ -115,13 +115,10 @@ in
       };
     };
 
-    # web: FastAPI + Uvicorn for the dashboard HTTP server.
-    # pty: ptyprocess for the in-browser Chat tab (PTY/WebSocket bridge).
-    # messaging: python-telegram-bot + discord.py + slack-bolt gateway adapters.
-    #   Removed from "all" on 2026-05-12 to avoid Windows/macOS build failures.
+    # Extra groups: web (dashboard), pty (chat bridge), messaging (gateways).
+    # (messaging was removed from default "all" to avoid build issues on some OSes.)
     extraDependencyGroups = [
       "web"
-      "pty"
       "messaging"
     ];
 

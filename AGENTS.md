@@ -255,6 +255,8 @@ After netboot completes, plug device into router for WAN access before running `
 
 ## Gotchas
 
+- **Always `git add` changed files before any `nix build`, `nixos-rebuild`, or `./deploy` that uses the flake**. Flakes only see the git index — unstaged edits are invisible and cause "no such option" or stale builds.
+- **Tarball cache corruption** during long cross-builds shows as the build process stuck in `unix_stream_read_generic` (check `cat /proc/<pid>/wchan`). Fix: `rm -rf ~/.cache/nix/tarball-cache` (then retry). Do not recreate the dir manually.
 - ISO/netboot build requires aarch64 support (binfmt/qemu or remote builder) since target is aarch64
 - `adminUser` cannot move to SOPS (needed at Nix eval time for attribute name)
 - Static IP is used (no NetworkManager) — `useDHCP = false` in system config, `useDHCP = true` in installer
@@ -268,3 +270,6 @@ After netboot completes, plug device into router for WAN access before running `
 - Hermes container uses host network + bind mounts; agent tools inside see the hermes user env and writable layer. No more `ws://172.17.0.1` gateway for sub-agents (single-agent model).
 - Hermes workspace (`/var/lib/hermes/workspace`) is owned by the hermes system user; OneDrive sync and hostUsers (in hermes group) have group-writable access.
 - Persistent settings go in `/var/lib` — both for native services and Docker container volume mounts
+
+### Network / Router Notes
+- When enabling IP forwarding (`net.ipv6.conf.all.forwarding = 1` or equivalent), the kernel resets `accept_ra = 0` on interfaces. Set `accept_ra = 2` (or the desired value) **after** forwarding via a dedicated systemd service that runs after `systemd-sysctl.service`. See `ipv6-accept-ra` pattern if re-implementing.
