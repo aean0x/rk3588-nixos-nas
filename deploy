@@ -134,6 +134,12 @@ case "$CMD" in
         fi
         ;;
 
+    # hermes CLI: alias only expands in interactive login shells; call sudo directly
+    hermes)
+        check_ssh
+        ssh -tt ${SSH_OPTS} "$TARGET" sudo -u hermes /run/current-system/sw/bin/hermes "$@"
+        ;;
+
     # Catch-all: forward to device (container exec, etc.)
     *)
         check_ssh

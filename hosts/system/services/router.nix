@@ -243,10 +243,10 @@ in
           enable = true;
           capabilities = [
             "LDPC"
-            "HT40-"
-            "HT40+"
+            # HT40 disabled for better compatibility with picky clients (Windows, printers)
+            # that advertise "Forty MHz Intolerant" and trigger ath12k "Could not set STA" errors.
+            # Tradeoff: max 20 MHz on 2.4 GHz (slower peak, much more reliable for marginal clients).
             "SHORT-GI-20"
-            "SHORT-GI-40"
             "TX-STBC"
             "RX-STBC1"
             "DSSS_CCK-40"
@@ -272,6 +272,7 @@ in
             bss_transition = 1;
             disassoc_low_ack = 1;
             ap_max_inactivity = 180;
+            wmm_enabled = 1;
           };
         };
       };
@@ -359,7 +360,7 @@ in
           cp ${pkgs.writeText "hostapd-ap5g-base.conf" ''
             interface=${ap5gInterface}
             driver=nl80211
-            ssid=${ssid}
+            ssid=${ssid}-5G
             hw_mode=a
             channel=36
             country_code=${countryCode}

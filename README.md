@@ -205,7 +205,6 @@ imports = [
   ./services/caddy.nix          # Reverse proxy with Cloudflare HTTPS
   ./services/adguard.nix        # AdGuard Home DNS (port 53, web UI 3000)
   ./services/remote-desktop.nix # XFCE + xrdp
-  # ./services/comet.nix        # Comet Stremio addon (TorBox replacement)
   # ./services/cockpit.nix      # Web-based system management (port 9090)
   # ./services/cloudflared.nix  # Cloudflare tunnel
   # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin, etc.)
@@ -216,7 +215,7 @@ imports = [
 Docker containers are imported separately via `containers.nix`:
 - **Home Assistant** + Matter Server + OpenThread Border Router
 - **FileBrowser** - Web file manager at `files.<domain>`, backed by SOPS-managed admin password
-- **Comet** - Optional Stremio addon (enabled via `services/comet.nix`) at `comet.<domain>`
+- **Comet** - Optional Stremio addon (enabled via `containers/comet.nix`) at `comet.<domain>`
 - **OpenClaw** - AI agent gateway with sandbox containers (see below)
 
 ### Caddy Reverse Proxy
@@ -236,11 +235,11 @@ Bidirectional sync between OneDrive and the OpenClaw workspace via rclone. Runs 
 ### Comet (Stremio Addon)
 
 1. Add `torbox_api_key` to `secrets/secrets.yaml.work` and re-encrypt with `./secrets/encrypt`.
-2. Uncomment `./services/comet.nix` in `hosts/system/services.nix`.
+2. Uncomment `./containers/comet.nix` in `hosts/system/containers.nix`.
 3. Deploy with `./deploy remote-switch` (or `./deploy switch` on-device).
 4. Open `https://comet.<your-domain>/configure` to finish addon setup in the UI.
 
-The module defaults to TorBox-first settings and stores state in `/var/lib/comet`. You can switch to other debrid providers by editing environment defaults in `hosts/system/services/comet.nix` (for example `DEBRIDIO_PROVIDER`).
+The module defaults to TorBox-first settings and stores state in `/var/lib/comet`. You can switch to other debrid providers by editing environment defaults in `hosts/system/containers/comet.nix` (for example `DEBRIDIO_PROVIDER`).
 
 ### OpenClaw
 
