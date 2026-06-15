@@ -12,7 +12,7 @@ let
 
   caddyWithCloudflare = pkgs.caddy.withPlugins {
     plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
-    hash = "sha256-VHm9POg2KixGsMsAcfFFDMK9x6niRJ1iJV9kkSwkSjc=";
+    hash = "sha256-8yZDrejNKsaUnUaTUFYbarWNmxafqp2z2rWo+XRsxV8=";
   };
 
   # Build handle blocks for each proxy service
@@ -21,7 +21,9 @@ let
     let
       isExt = builtins.elem host cfg.externalHosts;
       guard = lib.optionalString (!isExt) ''
-        @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} not remote_ip 192.168.2.0/24 127.0.0.1
+        @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} not remote_ip ${
+          if (settings.enableRouter or false) then "192.168.2.0/24" else "192.168.1.0/24"
+        } 127.0.0.1
         respond @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} 403
       '';
     in
@@ -80,9 +82,10 @@ in
         }
       '';
 
-      # Root domain + HA subdomain are externally accessible
-      proxyServices."${domain}" = 8123;
-      externalHosts = [
+      # Root domain + HA subdomain are externally accessible.
+      # Use mkDefault so other modules can add to the lists without "defined multiple times".
+      proxyServices."${domain}" = lib.mkDefault 8123;
+      externalHosts = lib.mkDefault [
         "${domain}"
         "homeassistant.${domain}"
       ];

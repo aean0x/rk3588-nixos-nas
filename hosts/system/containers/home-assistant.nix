@@ -114,7 +114,7 @@ in
   boot.kernel.sysctl = {
     "net.ipv6.conf.docker0.disable_ipv6" = 1;
   }
-  // (lib.optionalAttrs (!(settings.enableRouter or false)) {
+  // lib.optionalAttrs (!(settings.enableRouter or false)) {
     "net.ipv4.conf.all.forwarding" = 1;
     "net.ipv6.conf.all.forwarding" = 1;
     "net.ipv4.conf.default.forwarding" = 1;
@@ -123,7 +123,7 @@ in
     "net.ipv6.conf.default.accept_ra" = 2;
     "net.ipv6.conf.${settings.network.interface}.accept_ra" = 2;
     "net.ipv6.conf.all.accept_ra_rt_info_max_plen" = 64;
-  });
+  };
 
   # ===================
   # Firewall
