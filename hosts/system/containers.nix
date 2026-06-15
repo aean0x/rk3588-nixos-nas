@@ -18,10 +18,10 @@ in
   imports = [
     ./containers/home-assistant.nix
     ./containers/filebrowser.nix
-    ./containers/comet.nix
     ./containers/teamspeak.nix
     ./containers/crowdsec.nix
     ./hermes
+    ./containers/comet.nix
   ];
 
   # ===================

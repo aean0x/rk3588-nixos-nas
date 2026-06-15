@@ -28,8 +28,8 @@ in
           settings.network.dnsSecondary
         ];
         bootstrap_dns = [
-          "1.1.1.1"
-          "8.8.8.8"
+          "1.1.1.3"
+          "1.0.0.3"
         ];
       };
 
