@@ -1,6 +1,9 @@
 # Hermes Agent (NousResearch/hermes-agent) — container mode
 # Persistent Ubuntu 24.04 container; agent can apt/pip/npm install at runtime.
 # Nix store bind-mounted ro; /var/lib/hermes → /data rw; CLI routes into container transparently.
+#
+# Identity (SOUL.md): intentionally NOT declaratively installed — fresh agent owns its persona.
+# Long-term memory: G-Brain via ./gbrain.nix (see ./memory/AGENTS.md + ./BOOTSTRAP.md).
 {
   lib,
   pkgs,
@@ -13,17 +16,14 @@ let
     stateDir = "/var/lib/hermes";
     workspace = "/var/lib/hermes/workspace";
   };
-
-  # Stable Nix store path — activation script reads from here, not from the workspace copy.
-  # docs: documents option only writes to workingDirectory (workspace); it does NOT set
-  # the primary identity at HERMES_HOME/.hermes/SOUL.md. Must install directly.
-  soulMd = pkgs.writeText "hermes-soul.md" (builtins.readFile ./workspace/soul.md);
 in
 {
   imports = [
     inputs.hermes-agent.nixosModules.default
     ./onedrive.nix
     ./dashboard.nix
+    ./gbrain.nix
+    ./workstation.nix
   ];
 
   _module.args.hermes = hermes;
@@ -42,11 +42,11 @@ in
       backend = "docker";
       image = "ubuntu:24.04";
       hostUsers = [ settings.adminUser ];
-      # Port mapping so the dashboard (bound to 0.0.0.0:9119 inside the container)
-      # is reachable at host 127.0.0.1:9119 for Caddy to proxy.
+      # Module always creates the container with --network=host (official module
+      # hardcodes it). Publish flags (-p) are ignored under host networking;
+      # dashboard binds 0.0.0.0:9119 on the host namespace directly. Only resource
+      # limits belong in extraOptions here.
       extraOptions = [
-        "-p"
-        "127.0.0.1:9119:9119"
         "--memory=4g"
         "--cpus=2"
       ];
@@ -64,7 +64,9 @@ in
 
     settings = {
       model = {
+        # Primary: xAI OAuth (run `hermes auth add xai-oauth` once after deploy).
         provider = "xai-oauth";
+        default = "grok-4.5";
       };
 
       stt = {
@@ -113,12 +115,12 @@ in
           "@maton/mcp"
         ];
       };
+      # gbrain MCP is declared in ./gbrain.nix (mcpServers.gbrain).
     };
 
-    # Extra groups: web (dashboard), pty (chat bridge), messaging (gateways).
-    # (messaging was removed from default "all" to avoid build issues on some OSes.)
+    # Optional pyproject extras beyond the sealed default `[all]` set.
+    # - messaging: Telegram/Discord/Slack — removed from `[all]` (2026-05-12); required for gateway.
     extraDependencyGroups = [
-      "web"
       "messaging"
     ];
 
@@ -151,11 +153,8 @@ in
 
   environment.shellAliases.hermes = "sudo -u hermes /run/current-system/sw/bin/hermes";
 
-  # Install SOUL.md from the Nix store into HERMES_HOME — the primary identity path.
-  # Runs after hermes-agent-setup (module activation) so the .hermes dir already exists.
-  system.activationScripts.hermes-soul = lib.stringAfter [ "hermes-agent-setup" ] ''
-    mkdir -p "${hermes.stateDir}/.hermes"
-    install -o hermes -g hermes -m 0640 ${soulMd} "${hermes.stateDir}/.hermes/SOUL.md"
-  '';
+  # SOUL.md declarative install is intentionally disabled.
+  # Leave identity blank for a fresh agent; optional local draft: workspace/soul.md (not applied).
+  # system.activationScripts.hermes-soul — removed.
 
 }

@@ -31,6 +31,9 @@ usage() {
     echo "Services:"
     echo "  hermes <cmd>         Hermes Agent CLI (hermes doctor, hermes chat, hermes gateway, ...)"
     echo "  onedrive-sync        Trigger OneDrive sync now (feeds /var/lib/hermes/workspace)"
+    echo "  validate-gbrain      Run GBrain integration checks on the device"
+    echo "  gbrain-consolidate   Trigger Hermes → GBrain consolidate now"
+    echo "  clean-hermes-state   Soft-reset Hermes (keeps gbrain CLI + brain)"
     echo ""
     echo "Troubleshooting:"
     echo "  docker-ps            List containers"
@@ -77,6 +80,32 @@ case "$CMD" in
         check_ssh
         info "Triggering OneDrive sync..."
         ssh -t ${SSH_OPTS} "$TARGET" "sudo systemctl start onedrive-sync.service && sudo journalctl -u onedrive-sync.service -n 20 --no-pager"
+        ;;
+
+    validate-gbrain)
+        check_ssh
+        info "Uploading and running GBrain integration validation..."
+        scp ${SSH_OPTS} "${REPO_ROOT}/hosts/system/hermes/scripts/validate-gbrain-integration.sh" \
+            "$TARGET:/tmp/validate-gbrain-integration.sh"
+        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/validate-gbrain-integration.sh"
+        ;;
+
+    gbrain-consolidate)
+        check_ssh
+        info "Running hermes-gbrain-consolidate on device..."
+        ssh -t ${SSH_OPTS} "$TARGET" "sudo hermes-gbrain-consolidate"
+        ;;
+
+    clean-hermes-state)
+        check_ssh
+        info "Soft-reset Hermes state (preserves gbrain ~/.bun + ~/brain)..."
+        scp ${SSH_OPTS} \
+            "${REPO_ROOT}/hosts/system/hermes/scripts/clean-hermes-state.sh" \
+            "${REPO_ROOT}/hosts/system/hermes/memory/AGENTS.md" \
+            "${REPO_ROOT}/hosts/system/hermes/prompts/memory-gbrain.md" \
+            "$TARGET:/tmp/"
+        ssh -t ${SSH_OPTS} "$TARGET" \
+            "sudo AGENTS_MANIFEST=/tmp/AGENTS.md MEMORY_GBRAIN=/tmp/memory-gbrain.md bash /tmp/clean-hermes-state.sh"
         ;;
 
     # On-device commands (forwarded via SSH)

@@ -1,0 +1,12 @@
+You are on rocknas (Hermes container). Bootstrap GBrain now. Do not ask clarifying questions; use defaults below.
+
+1) Fetch and follow https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md for install steps ONLY (bun + gbrain CLI + gbrain init --pglite). Skip soul-audit / identity generation.
+2) Persist under HOME=/home/hermes: ~/.bun, ~/.gbrain, ~/brain (git init if empty).
+3) Install: curl bun if needed; `bun install -g github:garrytan/gbrain`; if broken, clone+bun link recovery per install doc #218.
+4) Keys: ZEROENTROPY_API_KEY may appear after next system switch in /data/.hermes/.env — load it if present (do not print secret). Keyword search is fine without it for now.
+5) Search mode: set `gbrain config set search.mode balanced` (do not use tokenmax without operator OK).
+6) Verify: gbrain --version; gbrain doctor; gbrain list -n 3; mkdir -p ~/brain && (git -C ~/brain status || git -C ~/brain init).
+7) If /data/.hermes/AGENTS.md or /data/memory/registry.json exist, skim them; do not invent SOUL.md.
+8) Reply with short status: version, doctor pass/fail lines, paths for CLI/brain/pglite.
+
+Use terminal tools. Finish install end-to-end.

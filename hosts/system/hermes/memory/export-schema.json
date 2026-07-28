@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rocknas.local/schemas/memory-export-v1.json",
+  "title": "HermesMemoryExportRecord",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "record_id",
+    "created_at",
+    "source_agent",
+    "source_session",
+    "namespace",
+    "kind",
+    "body",
+    "attribution"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "record_id": { "type": "string", "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_agent": { "type": "string" },
+    "source_session": { "type": "string" },
+    "namespace": { "type": "string" },
+    "kind": {
+      "type": "string",
+      "enum": ["fact", "summary", "preference", "entity", "decision", "raw_excerpt"]
+    },
+    "priority": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "raw": { "type": "boolean" },
+    "body": { "type": "string" },
+    "attribution": {
+      "type": "object",
+      "required": ["hermes_home", "exported_from"],
+      "properties": {
+        "hermes_home": { "type": "string" },
+        "exported_from": { "type": "string" },
+        "checksum_sha256": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

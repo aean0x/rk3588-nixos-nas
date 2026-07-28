@@ -1,3 +1,5 @@
+# DRAFT ONLY — not installed by Nix (declarative SOUL disabled).
+
 # SOUL.md
 
 ## Identity

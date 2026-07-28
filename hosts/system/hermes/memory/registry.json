@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "deployment_id": "rocknas",
+  "namespace": "default",
+  "principal_user": "hermes",
+  "look_here_first": {
+    "agents_md": {
+      "host": "/var/lib/hermes/.hermes/AGENTS.md",
+      "container": "/data/.hermes/AGENTS.md"
+    },
+    "registry": {
+      "host": "/var/lib/hermes/memory/registry.json",
+      "container": "/data/memory/registry.json"
+    }
+  },
+  "hermes_memory": {
+    "builtin_profile": {
+      "memory_md": {
+        "host": "/var/lib/hermes/.hermes/memories/MEMORY.md",
+        "container": "/data/.hermes/memories/MEMORY.md"
+      },
+      "user_md": {
+        "host": "/var/lib/hermes/.hermes/memories/USER.md",
+        "container": "/data/.hermes/memories/USER.md"
+      },
+      "memories_dir": {
+        "host": "/var/lib/hermes/.hermes/memories",
+        "container": "/data/.hermes/memories"
+      }
+    },
+    "runtime": {
+      "state_db": {
+        "host": "/var/lib/hermes/.hermes/state.db",
+        "container": "/data/.hermes/state.db"
+      },
+      "sessions_dir": {
+        "host": "/var/lib/hermes/.hermes/sessions",
+        "container": "/data/.hermes/sessions"
+      },
+      "config_yaml": {
+        "host": "/var/lib/hermes/.hermes/config.yaml",
+        "container": "/data/.hermes/config.yaml"
+      }
+    },
+    "export_plane": {
+      "inbox": {
+        "host": "/var/lib/hermes/.hermes/memories/export/inbox",
+        "container": "/data/.hermes/memories/export/inbox"
+      },
+      "snapshots": {
+        "host": "/var/lib/hermes/.hermes/memories/export/snapshots",
+        "container": "/data/.hermes/memories/export/snapshots"
+      },
+      "manifest": {
+        "host": "/var/lib/hermes/.hermes/memories/export/last-manifest.json",
+        "container": "/data/.hermes/memories/export/last-manifest.json"
+      }
+    }
+  },
+  "gbrain_memory": {
+    "home": {
+      "host": "/var/lib/hermes/home/.gbrain",
+      "container": "/home/hermes/.gbrain"
+    },
+    "pglite_data": {
+      "host": "/var/lib/hermes/home/.gbrain/brain.pglite",
+      "container": "/home/hermes/.gbrain/brain.pglite"
+    },
+    "brain_git": {
+      "host": "/var/lib/hermes/home/brain",
+      "container": "/home/hermes/brain"
+    },
+    "audit_dir": {
+      "host": "/var/lib/hermes/home/.gbrain/audit",
+      "container": "/home/hermes/.gbrain/audit"
+    },
+    "autopilot_lock": {
+      "host": "/var/lib/hermes/home/.gbrain/autopilot.lock",
+      "container": "/home/hermes/.gbrain/autopilot.lock"
+    }
+  },
+  "consolidation": {
+    "hermes_curator": {
+      "driver": "hermes-gateway",
+      "config_key": "curator.interval_hours",
+      "cli": "hermes curator run"
+    },
+    "hermes_memory_export": {
+      "driver": "systemd",
+      "unit": "hermes-gbrain-consolidate.service",
+      "timer": "hermes-gbrain-consolidate.timer"
+    },
+    "gbrain_dream": {
+      "driver": "systemd",
+      "unit": "gbrain-dream.service",
+      "timer": "gbrain-dream.timer",
+      "cli": "gbrain dream"
+    },
+    "gbrain_embed": {
+      "driver": "systemd",
+      "unit": "gbrain-embed.service",
+      "timer": "gbrain-embed.timer",
+      "cli": "gbrain embed --stale"
+    }
+  },
+  "anti_clobber": {
+    "hermes_memory_write_lock": {
+      "host": "/var/lib/hermes/.hermes/memories/.hermes-write.lock",
+      "container": "/data/.hermes/memories/.hermes-write.lock"
+    },
+    "consolidation_lock": {
+      "host": "/var/lib/hermes/.hermes/memories/export/.consolidation.lock",
+      "container": "/data/.hermes/memories/export/.consolidation.lock"
+    },
+    "rules": [
+      "G-Brain consolidation reads only export/snapshots and inbox; never writes under memories/ except inbox ack files.",
+      "Hermes agents write MEMORY.md and USER.md only via Hermes memory tools; take .hermes-write.lock before multi-line writes.",
+      "Snapshot directories are immutable after creation (mode 0555); new runs create new timestamp subdirs.",
+      "Concurrent consolidation: single holder of .consolidation.lock; second runner exits 0 with skipped=true in JSON log."
+    ]
+  },
+  "namespace_isolation": {
+    "mode": "single_principal",
+    "principal": "hermes",
+    "cross_user_forbidden": true
+  },
+  "refresh_policy": {
+    "default": {
+      "consolidation": "daily_export_inbox",
+      "embed": "weekly_checksum_delta",
+      "session_memory": "delta_on_write"
+    },
+    "archival": {
+      "snapshots": "immutable_timestamp_dirs",
+      "embed_hygiene": "force_full_on_model_change"
+    }
+  },
+  "manifest_validation": {
+    "canonical_agents_md": {
+      "host": "/var/lib/hermes/memory/AGENTS.md",
+      "container": "/data/memory/AGENTS.md"
+    },
+    "live_agents_md": {
+      "host": "/var/lib/hermes/.hermes/AGENTS.md",
+      "container": "/data/.hermes/AGENTS.md"
+    },
+    "fail_fast_on_drift": true
+  }
+}
