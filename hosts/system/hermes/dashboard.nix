@@ -1,8 +1,7 @@
-# Hermes web dashboard — FastAPI/Uvicorn server running inside the container.
-# The host-side hermes CLI (addToSystemPackages = true) routes the command into
-# the container transparently, so the server process lives inside the container
-# and the docker port mapping makes it reachable at host 127.0.0.1:9119.
-# Caddy proxies hermes.<domain> → 127.0.0.1:9119 (LAN-only by default).
+# Hermes web dashboard — FastAPI/Uvicorn via host CLI routing into the container.
+# The official hermes-agent module hardcodes --network=host for the container, so
+# the dashboard process binds on the host network namespace (no docker -p publish).
+# Caddy proxies hermes.<domain> → :9119 on the host (LAN-only by default).
 { settings, config, ... }:
 {
   systemd.services.hermes-dashboard = {
@@ -24,9 +23,9 @@
       User = "hermes";
       # Systemd's default PATH omits /run/current-system/sw/bin; hermes needs docker on PATH.
       Environment = [ "PATH=${config.virtualisation.docker.package}/bin:/run/current-system/sw/bin:/run/wrappers/bin" ];
-      # --host 0.0.0.0 --insecure: container is --network=host so this binds to all
-      # host interfaces; port 9119 is reachable at 127.0.0.1:9119 for Caddy.
-      # --tui: enables the in-browser Chat tab (requires pty extra).
+      # --host 0.0.0.0 --insecure: hermes-agent container uses --network=host, so
+      # this binds on the host namespace; Caddy proxies hermes.<domain> → :9119.
+      # --tui: in-browser Chat tab (ptyprocess is core; no separate pty extra).
       ExecStart = "/run/current-system/sw/bin/hermes dashboard --no-open --host 0.0.0.0 --insecure --port 9119 --tui";
       Restart = "on-failure";
       RestartSec = 15;

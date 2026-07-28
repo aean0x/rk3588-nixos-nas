@@ -1,6 +1,6 @@
 # OpenClaw Module - Agent Guide (LEGACY / MIGRATED)
 
-**This subtree has been replaced by Hermes Agent (`services/hermes.nix`).**  
+**This subtree has been replaced by Hermes Agent (`hosts/system/hermes/`).**  
 The official `github:NousResearch/hermes-agent` NixOS module is now the AI agent component.  
 OpenClaw-specific multi-agent, sandbox, openclaw.json, and custom image logic is no longer loaded.  
 Files here are retained for reference only and are not imported or evaluated.

@@ -55,8 +55,9 @@ let
     GOOGLE_PLACES_API_KEY = "google_places_api_key";
     BROWSERLESS_API_TOKEN = "browserless_api_token";
     MATON_API_KEY = "maton_api_key";
-    HA_TOKEN = "ha_token";
-    HA_URL = "ha_url";
+    # Hermes Home Assistant toolset/platform expect HASS_* (not HA_*).
+    HASS_TOKEN = "ha_token";
+    HASS_URL = "ha_url";
     GOOGLE_API_KEY = "google_api_key";
     GEMINI_API_KEY = "google_api_key";
     CLAWHUB_TOKEN = "clawhub_token";
@@ -67,6 +68,8 @@ let
     X_BEARER_TOKEN = "x_bearer_token";
     GITHUB_PAT = "github_pat";
     BTC_WALLET_KEY = "btc_wallet_key";
+    # GBrain embeddings (gbrain embed --stale / dream).
+    ZEROENTROPY_API_KEY = "zeroentropy_api_key";
   };
 in
 {
@@ -100,6 +103,7 @@ in
         telegram_admin_id = { };
         cloudflare_dns_api_token = { };
         xai_api_key = { };
+        zeroentropy_api_key = { };
         filebrowser_password = { };
         crowdsec_bouncer_api_key = { };
         clawhub_token = { };
@@ -110,6 +114,14 @@ in
         x_bearer_token = { };
         github_pat = { };
         btc_wallet_key = { };
+        # Hermes → workstation agent SSH private key (/run/secrets/…).
+        # Used only by ssh-workstation wrappers (IdentityFile). Do not copy into
+        # hermes HOME — keep out of the model’s normal workspace tree.
+        nix_pc_agent_ssh_key = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0600";
+        };
       }
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };

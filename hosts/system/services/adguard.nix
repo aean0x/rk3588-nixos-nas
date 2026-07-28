@@ -1,4 +1,13 @@
-# AdGuard Home DNS (native NixOS, fully declarative)
+# AdGuard Home DNS (native NixOS)
+#
+# Hybrid declarative + UI model:
+# - Core settings (upstreams, rewrites, base filters) stay in Nix.
+# - mutableSettings = true allows UI changes to undeclared parts to persist
+#   across restarts (Nix values still take precedence on merge).
+# - "Kid profile" is a persistent client entry below + choice of global filters
+#   + per-client toggles (parental, safe search, etc.).
+# - For additive per-PC blocks without touching Nix: use Custom filtering rules
+#   in the UI with the $client modifier (see bottom of file).
 {
   settings,
   ...
@@ -14,7 +23,7 @@ in
 
   services.adguardhome = {
     enable = true;
-    mutableSettings = false;
+    mutableSettings = true;
     settings = {
       schema_version = 32;
 
@@ -30,6 +39,33 @@ in
         bootstrap_dns = [
           "1.1.1.3"
           "1.0.0.3"
+        ];
+      };
+
+      # Kid lockdown profile: persistent client REQUIRES non-empty ids
+      # (AdGuard fatals: "adding client: id required"). With mutableSettings,
+      # omitting clients leaves any bad entry in /var/lib/AdGuardHome forever —
+      # always declare persistent explicitly. Empty list clears poison on merge.
+      # When ready: replace [] with a client that has real IP/MAC/hostname ids.
+      clients = {
+        persistent = [
+          # {
+          #   name = "toddler-pc";
+          #   ids = [ "192.168.1.50" ]; # required
+          #   tags = [ "kids" ];
+          #   use_global_settings = false;
+          #   filtering_enabled = true;
+          #   parental_enabled = true;
+          #   safebrowsing_enabled = true;
+          #   safe_search = {
+          #     enabled = true;
+          #     bing = true;
+          #     duckduckgo = true;
+          #     google = true;
+          #     youtube = true;
+          #     yandex = true;
+          #   };
+          # };
         ];
       };
 
@@ -90,6 +126,14 @@ in
           name = "Phishing URL Blocklist";
           id = 4;
         }
+        # Kid-oriented safety list (bypass/VPNs, self-harm, predators, adult AI, gore, radicalization).
+        # Use together with the per-client parental_enabled + custom $client rules.
+        {
+          enabled = true;
+          url = "https://raw.githubusercontent.com/0xDarkMatter/aegis-blocklist/master/grades/standard.txt";
+          name = "Aegis Child Safety (standard)";
+          id = 5;
+        }
       ];
     };
   };
@@ -105,3 +149,57 @@ in
     allowedUDPPorts = [ 53 ];
   };
 }
+
+# How to use the hybrid kid profile without it feeling clunky
+#
+# 1. Identify the PC
+#    - Boot the PC, have it do some DNS queries (open a browser, etc.).
+#    - In AdGuard UI look at Query log or the (runtime) Clients list.
+#    - Note the IP (and hostname if it resolved).
+#    - Give it a static DHCP lease (in router.nix staticLeases or your router)
+#      so the IP is stable, then put the IP in ids above and rebuild.
+#
+# 2. The declarative profile is now active for that client:
+#    - parental + safe search + filtering on
+#    - uses the global filters you have in this file
+#
+# 3. Make the UI additive for extra blocks (the key to not being clunky)
+#    - Go to Filters → Custom filtering rules
+#    - Add rules scoped only to the toddler PC, e.g.:
+#
+#        ||tiktok.com^$client='toddler-pc'
+#        ||instagram.com^$client='toddler-pc'
+#        ||roblox.com^$client='toddler-pc'
+#        ||^$client='toddler-pc'   # nuclear: block *everything* for it
+#        @@||sesamestreet.org^$client='toddler-pc'   # then allow-list exceptions
+#        @@||pbskids.org^$client='toddler-pc'
+#
+#    - Because we do not declare `user_rules` in Nix, these additions survive
+#      `nixos-rebuild` / restarts.
+#    - Use single quotes around the name if it has spaces or special chars:
+#      $client='toddler-pc'
+#
+# 4. Per-client Blocked services (easiest for many categories)
+#    - Settings → Client settings → edit "toddler-pc"
+#    - Turn on "Use custom settings" / "Blocked services"
+#    - Check the services you want blocked for just this device.
+#    - This is stored outside the parts we declare, so UI wins here.
+#
+# 5. Optional: stricter allow-list mode for a 3-year-old
+#    - One powerful pattern people use:
+#        ||*^$client='toddler-pc'
+#      then only @@ allow the sites/apps you explicitly want.
+#    - Test thoroughly — some sites pull resources from CDNs that also need allows.
+#
+# 6. Tips
+#    - The name "toddler-pc" (or whatever you choose) is what you use in $client=.
+#    - Tags (we set "kids") let you do rules like $ctag=kids if you prefer groups.
+#    - Global filters above still apply to the PC unless overridden.
+#    - To add new kid-oriented subscription lists declaratively, just add
+#      entries to the filters list (with a new unique id).
+#      Example kid-focused list:
+#        https://raw.githubusercontent.com/0xDarkMatter/aegis-blocklist/master/grades/standard.txt
+#
+# When you change the client definition in Nix it will be re-applied on next
+# activation (Nix side wins for the fields we specify). Everything else in the
+# UI stays yours.
