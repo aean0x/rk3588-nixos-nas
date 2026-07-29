@@ -41,6 +41,13 @@ Activation links a Nix `buildEnv` at `/var/lib/hermes/toolbox/bin` → container
 Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 `REMOTE_CHECK=1 ./hosts/system/hermes/check-tools.sh` after deploy.
 
+## Config vs agent (memory)
+
+| Nix / timers own | Agent owns (see `workspace/GBRAIN.md`) |
+|------------------|----------------------------------------|
+| MCP `gbrain serve`, consolidate/embed/dream | MCP `query` / `put_page` / links |
+| Exclusive CLI wrapper (PGLite single-writer) | Keep MEMORY.md thin; durable → GBrain |
+| Registry + `memory/AGENTS.md` install | `volunteer_context` on recall |
 
 ## GBrain (summary)
 

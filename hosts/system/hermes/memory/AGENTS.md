@@ -60,8 +60,35 @@ Manual: `/run/current-system/sw/bin/hermes-gbrain-consolidate` on the host (runs
 
 All inbox JSON must validate against `export-schema.json` (required: `record_id`, `created_at`, `source_agent`, `source_session`, `namespace`, `kind`, `body`, `attribution`, `schema_version`).
 
-## 7. G-Brain trigger rules
+## 7. G-Brain trigger rules (agent discipline)
 
-- User shares durable knowledge → evaluate gbrain import (MCP + inbox export).
-- Recall / background / history questions → gbrain `query` / MCP first.
-- MCP: `gbrain serve` (declarative). CLI: `~/.bun/bin/gbrain`. Brain git: `~/brain`.
+**MEMORY.md is working memory, not the long-term brain.** Durable knowledge lives in GBrain pages.
+
+| Situation | Do this |
+|-----------|---------|
+| Recall / history / “what do we know” | MCP `query` / `volunteer_context` **before** MEMORY.md |
+| User shares durable knowledge | MCP `put_page` (and optional inbox export); not MEMORY-only |
+| Ops maps, preferences, project SoT | GBrain pages under stable slugs (`ops/…`, `projects/…`) |
+| Batch import / dream / embed | **Host timers only** — never ad-hoc CLI put while MCP serve is up |
+
+### PGLite single-writer (infra)
+
+- MCP `gbrain serve` holds `~/.gbrain/brain.pglite` exclusively.
+- Concurrent CLI `gbrain put|list|dream` **fails** with “database already open”.
+- Host scripts use `/data/bin/gbrain-exclusive-cli` (freeze `mcp_stdio_watchdog` → kill serve → CLI → CONT watchdog) so consolidate/embed/dream work without restarting the gateway.
+- Operator manual: `sudo hermes-gbrain-consolidate` / `sudo hermes-gbrain-embed`.
+
+### Surfaces
+
+- MCP: `gbrain serve` (declarative `mcpServers.gbrain`) — **preferred for agent turns**
+- CLI: `~/.bun/bin/gbrain` — **maintenance only** (via exclusive wrapper)
+- Brain git: `~/brain` — `gbrain sync --repo ~/brain` during consolidate when present
+- Agent protocol doc: `/data/workspace/GBRAIN.md` (installed from repo)
+
+### Config vs agent
+
+| Config / Nix owns | Agent owns |
+|-------------------|------------|
+| MCP serve, timers, exclusive CLI, registry, AGENTS.md install | put_page / query / links / timelines |
+| Inbox snapshot from MEMORY.md | Deciding what is durable vs ephemeral |
+| Embed/dream schedules | Not filling MEMORY with SoT that belongs in GBrain |

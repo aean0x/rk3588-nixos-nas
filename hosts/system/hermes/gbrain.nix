@@ -34,12 +34,34 @@ let
     builtins.readFile ./scripts/hermes-gbrain-embed-inner.sh
   );
 
-  # Host wrappers: pause MCP, chown, docker exec inners with tool env.
+  exclusiveCli = pkgs.writeText "gbrain-exclusive-cli" (
+    builtins.readFile ./scripts/gbrain-exclusive-cli.sh
+  );
+
+  # After exclusive CLI, MCP serve may be gone (watchdog does not always revive).
+  # Soft-restart the gateway only when bun gbrain serve is missing.
+  ensureGbrainMcp = ''
+    CONTAINER="''${HERMES_CONTAINER:-hermes-agent}"
+    if ! ${pkgs.docker}/bin/docker exec "$CONTAINER" sh -c 'ps -o args= -C bun 2>/dev/null | grep -q gbrain' 2>/dev/null; then
+      echo "{\"event\":\"gbrain_mcp_recover\",\"action\":\"restart_hermes-agent\"}"
+      ${pkgs.systemd}/bin/systemctl restart hermes-agent.service || true
+      # give MCP serve a moment to come back
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        if ${pkgs.docker}/bin/docker exec "$CONTAINER" sh -c 'ps -o args= -C bun 2>/dev/null | grep -q gbrain' 2>/dev/null; then
+          break
+        fi
+        sleep 1
+      done
+    fi
+  '';
+
+  # Host wrappers: exclusive PGLite (freeze MCP watchdog → CLI → resume), chown, docker exec.
   consolidateScript = pkgs.writeShellScriptBin "hermes-gbrain-consolidate" ''
     set -euo pipefail
     LOG_TAG="hermes-gbrain-consolidate"
     CONTAINER="''${HERMES_CONTAINER:-hermes-agent}"
     INNER="''${HERMES_GBRAIN_CONSOLIDATE_INNER:-/data/bin/hermes-gbrain-consolidate-inner}"
+    EXCL="''${HERMES_GBRAIN_EXCLUSIVE_CLI:-/data/bin/gbrain-exclusive-cli}"
     log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
     if ! ${pkgs.docker}/bin/docker inspect "$CONTAINER" >/dev/null 2>&1; then
       log '"error":"container not found"'
@@ -49,15 +71,14 @@ let
       log '"error":"container not running"'
       exit 1
     fi
-    ${pkgs.docker}/bin/docker exec "$CONTAINER" pkill -f 'gbrain serve' 2>/dev/null || true
-    sleep 2
     ${pkgs.docker}/bin/docker exec "$CONTAINER" chown -R hermes:hermes /home/hermes/.gbrain /home/hermes/brain 2>/dev/null || true
-    ${pkgs.docker}/bin/docker exec -u hermes \
+    ${pkgs.docker}/bin/docker exec \
       -e HERMES_JQ=${jqBin} \
       -e HERMES_PYTHON3=${python3Bin} \
       -e HERMES_NIX_BIN=${nixBinPath} \
       -e HERMES_MEMORY_REGISTRY=/data/memory/registry.json \
-      "$CONTAINER" /usr/bin/bash "$INNER"
+      "$CONTAINER" /usr/bin/bash "$EXCL" -- /usr/bin/bash "$INNER"
+    ${ensureGbrainMcp}
     log '"status":"complete"'
   '';
 
@@ -66,6 +87,7 @@ let
     LOG_TAG="hermes-gbrain-embed"
     CONTAINER="''${HERMES_CONTAINER:-hermes-agent}"
     INNER="''${HERMES_GBRAIN_EMBED_INNER:-/data/bin/hermes-gbrain-embed-inner}"
+    EXCL="''${HERMES_GBRAIN_EXCLUSIVE_CLI:-/data/bin/gbrain-exclusive-cli}"
     log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
     if ! ${pkgs.docker}/bin/docker inspect "$CONTAINER" >/dev/null 2>&1; then
       log '"error":"container not found"'
@@ -75,53 +97,46 @@ let
       log '"error":"container not running"'
       exit 1
     fi
-    ${pkgs.docker}/bin/docker exec "$CONTAINER" pkill -f 'gbrain serve' 2>/dev/null || true
-    sleep 2
     ${pkgs.docker}/bin/docker exec "$CONTAINER" chown -R hermes:hermes /home/hermes/.gbrain /home/hermes/brain 2>/dev/null || true
-    ${pkgs.docker}/bin/docker exec -u hermes \
+    ${pkgs.docker}/bin/docker exec \
       -e HERMES_JQ=${jqBin} \
       -e HERMES_NIX_BIN=${nixBinPath} \
       -e HERMES_MEMORY_REGISTRY=/data/memory/registry.json \
-      "$CONTAINER" /usr/bin/bash "$INNER"
+      -e FORCE_GBRAIN_EMBED="''${FORCE_GBRAIN_EMBED:-}" \
+      "$CONTAINER" /usr/bin/bash "$EXCL" -- /usr/bin/bash "$INNER"
+    ${ensureGbrainMcp}
     log '"status":"complete"'
   '';
 
-  containerEnv = ''
-    export PATH="/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:${nixBinPath}:/usr/bin:/bin"
-    export HERMES_JQ=${jqBin}
-    export HERMES_PYTHON3=${python3Bin}
-    export HERMES_MEMORY_REGISTRY=/data/memory/registry.json
-    if [ -f "$HERMES_MEMORY_REGISTRY" ]; then
-      CANON=/data/memory/AGENTS.md
-      LIVE=/data/.hermes/AGENTS.md
-      if [ -f "$CANON" ] && [ -f "$LIVE" ] && ! cmp -s "$CANON" "$LIVE"; then
-        echo "{\"error\":\"agents_md_drift\",\"canonical\":\"$CANON\",\"live\":\"$LIVE\"}" >&2
-        exit 5
-      fi
-      echo "{\"event\":\"gbrain_startup\",\"registry\":\"$HERMES_MEMORY_REGISTRY\",\"memory_md\":\"$(${jqBin} -r .hermes_memory.builtin_profile.memory_md.container "$HERMES_MEMORY_REGISTRY")\",\"pglite\":\"$(${jqBin} -r .gbrain_memory.pglite_data.container "$HERMES_MEMORY_REGISTRY")\"}"
-    fi
-    if [ -f /data/.hermes/.env ]; then
-      for _gk in ZEROENTROPY_API_KEY OPENAI_API_KEY; do
-        _gl=$(grep -m1 "^''${_gk}=" /data/.hermes/.env 2>/dev/null || true)
-        [ -n "$_gl" ] && export "$_gl"
-      done
-    fi
-  '';
-
-  pauseGbrainMcp = ''
-    ${pkgs.docker}/bin/docker exec hermes-agent pkill -f 'gbrain serve' 2>/dev/null || true
-    sleep 2
-    ${pkgs.docker}/bin/docker exec hermes-agent chown -R hermes:hermes /home/hermes/.gbrain /home/hermes/brain 2>/dev/null || true
-  '';
-
   dreamWrapper = pkgs.writeShellScript "gbrain-dream-host" ''
-    ${pauseGbrainMcp}
-    ${pkgs.docker}/bin/docker exec -u hermes hermes-agent bash -lc '${containerEnv}; mkdir -p /data/.hermes/memories/export; flock -n /data/.hermes/memories/export/.consolidation.lock -c "gbrain dream" || { echo "{\"skipped\":true,\"reason\":\"consolidation_lock_held\"}"; exit 0; }'
+    set -euo pipefail
+    CONTAINER="''${HERMES_CONTAINER:-hermes-agent}"
+    EXCL="''${HERMES_GBRAIN_EXCLUSIVE_CLI:-/data/bin/gbrain-exclusive-cli}"
+    ${pkgs.docker}/bin/docker exec hermes-agent chown -R hermes:hermes /home/hermes/.gbrain /home/hermes/brain 2>/dev/null || true
+    ${pkgs.docker}/bin/docker exec \
+      -e HERMES_JQ=${jqBin} \
+      -e HERMES_PYTHON3=${python3Bin} \
+      -e HERMES_NIX_BIN=${nixBinPath} \
+      -e HERMES_MEMORY_REGISTRY=/data/memory/registry.json \
+      "$CONTAINER" /usr/bin/bash "$EXCL" -- \
+      /usr/bin/bash -lc 'mkdir -p /data/.hermes/memories/export; flock -n /data/.hermes/memories/export/.consolidation.lock -c "gbrain dream" || { echo "{\"skipped\":true,\"reason\":\"consolidation_lock_held\"}"; exit 0; }'
+    ${ensureGbrainMcp}
   '';
 
+  # Only on hermes-agent stop — do not fight live MCP during normal runtime.
   gbrainMcpCleanup = pkgs.writeShellScript "hermes-gbrain-mcp-cleanup" ''
     if ${pkgs.docker}/bin/docker inspect hermes-agent >/dev/null 2>&1; then
-      ${pkgs.docker}/bin/docker exec hermes-agent pkill -f 'gbrain serve' 2>/dev/null || true
+      ${pkgs.docker}/bin/docker exec hermes-agent bash -c '
+        for proc in /proc/[0-9]*; do
+          [ -r "$proc/cmdline" ] || continue
+          cmd=$(tr "\0" " " <"$proc/cmdline" 2>/dev/null || true)
+          case "$cmd" in
+            *mcp_stdio_watchdog*|*"/gbrain serve"*|*"gbrain serve"*|*bun*"/.bun/bin/gbrain"*)
+              kill -TERM "''${proc#/proc/}" 2>/dev/null || true
+              ;;
+          esac
+        done
+      ' 2>/dev/null || true
       sleep 1
     fi
   '';
@@ -215,10 +230,7 @@ in
     embedScript
   ];
 
-  # Avoid orphaned gbrain MCP children after restarts (PGLite lock fights with timers).
-  systemd.services.hermes-agent.preStart = lib.mkAfter ''
-    ${gbrainMcpCleanup}
-  '';
+  # Orphan cleanup only when the gateway is going down (not preStart — MCP owns serve while up).
   systemd.services.hermes-agent.postStop = lib.mkAfter ''
     ${gbrainMcpCleanup}
   '';
@@ -241,23 +253,24 @@ in
 
     if [ ! -f /var/lib/hermes/.hermes/memories/MEMORY.md ]; then
       {
-        echo '# MEMORY.md'
+        echo '# MEMORY.md — working / short-horizon only'
         echo
-        echo 'Long-term facts: use Hermes memory tools and G-Brain (see AGENTS.md memory manifest).'
-        echo 'Registry: `/var/lib/hermes/memory/registry.json`.'
+        echo 'Durable knowledge belongs in **GBrain** (MCP put_page / query), not here.'
+        echo 'See AGENTS.md §7 and workspace/GBRAIN.md.'
+        echo 'Registry: `/data/memory/registry.json`.'
       } > /var/lib/hermes/.hermes/memories/MEMORY.md
       chown hermes:hermes /var/lib/hermes/.hermes/memories/MEMORY.md
       chmod 0640 /var/lib/hermes/.hermes/memories/MEMORY.md
-    fi
-    PROBE_MARKER="integration-probe:"
-    if ! grep -qF "$PROBE_MARKER" /var/lib/hermes/.hermes/memories/MEMORY.md 2>/dev/null; then
-      printf '\n- %s rocknas gbrain inbox import validation fact (deploy-seeded).\n' "$PROBE_MARKER" >> /var/lib/hermes/.hermes/memories/MEMORY.md
-      chown hermes:hermes /var/lib/hermes/.hermes/memories/MEMORY.md
     fi
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
     install -m 0755 ${consolidateInner} /var/lib/hermes/bin/hermes-gbrain-consolidate-inner
     install -m 0755 ${embedInner} /var/lib/hermes/bin/hermes-gbrain-embed-inner
+    install -m 0755 ${exclusiveCli} /var/lib/hermes/bin/gbrain-exclusive-cli
+
+    # Agent-facing protocol (workingDirectory bind → /data/workspace).
+    install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
+    install -m 0640 -o hermes -g hermes ${./workspace/GBRAIN.md} /var/lib/hermes/workspace/GBRAIN.md
 
     # Persist dirs for bun globals + brain git (gbrain install lives here).
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home
