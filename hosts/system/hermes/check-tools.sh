@@ -12,14 +12,16 @@ grep -q './toolbox.nix' "$H/default.nix" && pass "default.nix imports toolbox" |
 grep -q 'hermes-toolbox\|buildEnv' "$H/toolbox.nix" && pass "buildEnv toolbox defined" || fail "no buildEnv"
 grep -q '/data/toolbox/bin' "$H/toolbox.nix" && pass "container toolbox path in PATH" || fail "no /data/toolbox/bin"
 grep -q 'ln -sfn.*toolbox' "$H/toolbox.nix" && pass "activation links toolbox bin" || fail "no toolbox symlink activation"
-for pkg in git ripgrep jq bun nodejs ffmpeg curl unzip openssh; do
+for pkg in git ripgrep jq bun nodejs ffmpeg curl unzip openssh strace nmap chromium; do
   grep -q "$pkg" "$H/toolbox.nix" && pass "toolbox includes $pkg" || fail "toolbox missing $pkg"
 done
-# PATH should not be only in gbrain after split
-if grep -q 'PATH = "/home/hermes/.npm-global' "$H/gbrain.nix" 2>/dev/null; then
-  fail "gbrain.nix still owns full PATH (should be toolbox.nix)"
+grep -q 'AGENT_BROWSER_EXECUTABLE_PATH' "$H/toolbox.nix" && pass "AGENT_BROWSER_EXECUTABLE_PATH set" || fail "no AGENT_BROWSER path"
+grep -q 'command = "gbrain"' "$H/gbrain.nix" && pass "MCP gbrain bare command" || fail "MCP gbrain not bare"
+# Full agent PATH must live in toolbox.nix (gbrain may only set MCP child PATH).
+if grep -q 'agentPath\|PATH = agentPath' "$H/toolbox.nix" 2>/dev/null; then
+  pass "agent PATH owned by toolbox.nix"
 else
-  pass "PATH owned by toolbox.nix not gbrain.nix"
+  fail "toolbox.nix missing agent PATH"
 fi
 
 if [[ "${REMOTE_CHECK:-}" == 1 ]]; then
@@ -32,12 +34,14 @@ if [[ "${REMOTE_CHECK:-}" == 1 ]]; then
     echo PATH=\$PATH
     test -d /data/toolbox/bin && echo TOOLBOX_DIR=yes || echo TOOLBOX_DIR=no
     missing=0
-    for c in git rg jq bun node gbrain python3 ffmpeg curl wget unzip yq file which rsync ssh pandoc; do
+    for c in git rg jq bun node gbrain python3 ffmpeg curl wget unzip yq file which rsync ssh pandoc nmap strace chromium chrome; do
       p=\$(command -v \$c 2>/dev/null || true)
       if [ -n \"\$p\" ]; then echo OK \$c=\$p; else echo MISSING \$c; missing=1; fi
     done
+    echo AGENT_BROWSER_EXECUTABLE_PATH=\${AGENT_BROWSER_EXECUTABLE_PATH:-unset}
+    echo BROWSER_CDP_URL=\${BROWSER_CDP_URL:-unset}
     # critical set must all be present
-    for c in git rg jq bun gbrain python3 curl; do
+    for c in git rg jq bun gbrain python3 curl chromium; do
       command -v \$c >/dev/null || exit 2
     done
     exit 0

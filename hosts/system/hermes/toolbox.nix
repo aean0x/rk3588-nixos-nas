@@ -56,8 +56,20 @@ let
       pkgs.htop
       pkgs.ncdu
       pkgs.lsof
+      pkgs.strace
+      pkgs.tcpdump
+      pkgs.nmap
       pkgs.netcat-gnu
       pkgs.socat
+      # Chromium aliases for agent-browser / local tools (Hetzner parity).
+      # Host sticky CDP is separate (browser.nix → BROWSER_CDP_URL); this is the
+      # toolbox binary path agent-browser expects when not on remote CDP.
+      (pkgs.runCommand "chromium-browser" { buildInputs = [ pkgs.chromium ]; } ''
+        mkdir -p $out/bin
+        ln -s ${pkgs.chromium}/bin/chromium $out/bin/chromium
+        ln -s ${pkgs.chromium}/bin/chromium $out/bin/chrome
+        ln -s ${pkgs.chromium}/bin/chromium $out/bin/google-chrome
+      '')
     ];
   };
 
@@ -80,24 +92,16 @@ let
   # Host login / sudo -u hermes: toolbox FIRST so `bun` is pkgs.bun (not curl stub-ld).
   hermesHostCliPath = "/var/lib/hermes/toolbox/bin:/var/lib/hermes/home/.bun/bin:/var/lib/hermes/home/.npm-global/bin:/var/lib/hermes/home/.local/bin:/etc/profiles/per-user/hermes/bin";
 
-  # Keep PATH in .env for load_hermes_dotenv (container). Host CLI uses docker-exec
-  # routing in container mode, so container paths in dotenv are acceptable when
-  # the binary routes into the container before tool use.
+  # Hetzner model: never persist container-only PATH/HERMES_PY/AGENT_BROWSER into
+  # .env. Host `hermes chat` (terminal.backend=local) loads dotenv and would
+  # inherit /data/toolbox paths that do not exist on the host. Container gets
+  # those via services.hermes-agent.environment + container.extraOptions --env.
   dotenvSanitize = pkgs.writeShellScript "hermes-toolbox-dotenv-sanitize" ''
     env_file=/var/lib/hermes/.hermes/.env
     if [ -f "$env_file" ]; then
-      # Drop host-breaking / obsolete keys only.
-      sed -i '/^MESSAGING_CWD=/d;/^TERMINAL_CWD=/d;/^AGENT_BROWSER_EXECUTABLE_PATH=/d' \
+      sed -i \
+        '/^MESSAGING_CWD=/d;/^TERMINAL_CWD=/d;/^PATH=/d;/^HERMES_PY=/d;/^HERMES_PYTHON=/d;/^AGENT_BROWSER_EXECUTABLE_PATH=/d' \
         "$env_file" 2>/dev/null || true
-      # Ensure toolbox PATH is present (module rewrite can race activation order).
-      if ! grep -q '^PATH=.*/data/toolbox/bin' "$env_file" 2>/dev/null; then
-        sed -i '/^PATH=/d' "$env_file" 2>/dev/null || true
-        echo 'PATH=${agentPath}' >> "$env_file"
-      fi
-      if ! grep -q '^HERMES_PY=' "$env_file" 2>/dev/null; then
-        echo 'HERMES_PY=/data/toolbox/bin/python3' >> "$env_file"
-        echo 'HERMES_PYTHON=/data/toolbox/bin/python3' >> "$env_file"
-      fi
       chown hermes:hermes "$env_file" 2>/dev/null || true
       chmod 640 "$env_file" 2>/dev/null || true
     fi
@@ -112,6 +116,52 @@ let
   containerBashrc = pkgs.writeText "hermes-home-bashrc" ''
     [ -f "$HOME/.profile" ] && . "$HOME/.profile"
   '';
+  # Host CLI wrapper (Hetzner hermes-cli-wrapper + forced container route).
+  # Installed under /var/lib/hermes/bin — not named `hermes` in systemPackages.
+  #
+  # Upstream hermes routes via HERMES_HOME/.container-mode, but is_container()
+  # false-positives on Docker *hosts* (mountinfo contains /var/lib/docker and
+  # "containerd"), so get_container_exec_info() returns None and chat runs on
+  # the host with container PATH (/data/toolbox missing). Force docker exec
+  # when the marker is present (same fields as the NixOS activation marker).
+  hermesCliWrapper = pkgs.writeShellScript "hermes-cli-wrapper" ''
+    export PATH="${hermesHostCliPath}:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:$PATH"
+    export HOME="''${HOME:-/var/lib/hermes/home}"
+    export HERMES_HOME="''${HERMES_HOME:-/var/lib/hermes/.hermes}"
+
+    if [ -z "''${HERMES_DEV:-}" ] && [ -f "''${HERMES_HOME}/.container-mode" ]; then
+      backend=docker
+      container_name=hermes-agent
+      exec_user=hermes
+      hermes_bin=/data/current-package/bin/hermes
+      while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+          \#*|"") continue ;;
+          backend=*) backend="''${line#backend=}" ;;
+          container_name=*) container_name="''${line#container_name=}" ;;
+          exec_user=*) exec_user="''${line#exec_user=}" ;;
+          hermes_bin=*) hermes_bin="''${line#hermes_bin=}" ;;
+        esac
+      done < "''${HERMES_HOME}/.container-mode"
+
+      runtime="$(command -v "$backend" 2>/dev/null || true)"
+      if [ -n "$runtime" ] && "$runtime" inspect "$container_name" >/dev/null 2>&1; then
+        tty_flags=(-i)
+        if [ -t 0 ] && [ -t 1 ]; then
+          tty_flags=(-it)
+        fi
+        env_flags=()
+        [ -n "''${TERM:-}" ] && env_flags+=(-e "TERM=$TERM")
+        [ -n "''${COLORTERM:-}" ] && env_flags+=(-e "COLORTERM=$COLORTERM")
+        [ -n "''${LANG:-}" ] && env_flags+=(-e "LANG=$LANG")
+        [ -n "''${LC_ALL:-}" ] && env_flags+=(-e "LC_ALL=$LC_ALL")
+        exec "$runtime" exec "''${tty_flags[@]}" -u "$exec_user" "''${env_flags[@]}" \
+          "$container_name" "$hermes_bin" "$@"
+      fi
+    fi
+
+    exec /run/current-system/sw/bin/hermes "$@"
+  '';
 in
 {
   # Host login shells for `sudo -u hermes` / doctor.
@@ -125,14 +175,11 @@ in
   };
 
   services.hermes-agent = {
-    # Written to $HERMES_HOME/.env by the module (load_hermes_dotenv).
-    # Hermes wrapper may still rewrite PATH; docker --env below is the reliable
-    # source for the gateway process + terminal children in container mode.
-    environment = {
-      PATH = agentPath;
-      HERMES_PY = "/data/toolbox/bin/python3";
-      HERMES_PYTHON = "/data/toolbox/bin/python3";
-    };
+    # Do NOT put PATH / HERMES_PY / AGENT_BROWSER in `environment` — the module
+    # merges that into $HERMES_HOME/.env, which host `hermes chat` loads and
+    # which breaks host terminal (container /data/toolbox paths). Hetzner keeps
+    # these out of dotenv; container gets them only via docker --env below.
+    environment = { };
 
     # Identity-hash-sensitive: recreates container when these change (expected once).
     container.extraOptions = [
@@ -142,6 +189,8 @@ in
       "HERMES_PY=/data/toolbox/bin/python3"
       "--env"
       "HERMES_PYTHON=/data/toolbox/bin/python3"
+      "--env"
+      "AGENT_BROWSER_EXECUTABLE_PATH=/data/toolbox/bin/chromium"
     ];
 
     # Host hermes user profile (extraPackages); also helps doctor/CLI on host.
@@ -171,9 +220,13 @@ in
       htop
       ncdu
       lsof
+      strace
+      tcpdump
+      nmap
       netcat-gnu
       socat
       python3
+      chromium
     ];
   };
 
@@ -191,6 +244,9 @@ in
 
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/skills
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/plugins
+
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
+    install -m 0755 ${hermesCliWrapper} /var/lib/hermes/bin/hermes-cli
   '';
 
   # Run after setup merges environmentFiles into .env so we can strip PATH again.

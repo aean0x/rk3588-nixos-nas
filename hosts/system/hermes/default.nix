@@ -227,12 +227,19 @@ in
   ];
 
   # hermes CLI runs as the hermes service user via sudo so it can read .env (0600 hermes:hermes).
-  # The alias is transparent for interactive use; SETENV preserves HERMES_HOME and terminal state.
+  # Alias uses hermes-cli (toolbox PATH) like Hetzner; keep stock hermes for direct calls.
   security.sudo.extraRules = [
     {
       users = [ settings.adminUser ];
       runAs = "hermes";
       commands = [
+        {
+          command = "/var/lib/hermes/bin/hermes-cli";
+          options = [
+            "NOPASSWD"
+            "SETENV"
+          ];
+        }
         {
           command = "/run/current-system/sw/bin/hermes";
           options = [
@@ -244,7 +251,8 @@ in
     }
   ];
 
-  environment.shellAliases.hermes = "sudo -u hermes /run/current-system/sw/bin/hermes";
+  # Toolbox PATH for host hermes chat/doctor (see toolbox.nix hermes-cli wrapper).
+  environment.shellAliases.hermes = "sudo -u hermes /var/lib/hermes/bin/hermes-cli";
 
   # SOUL.md declarative install is intentionally disabled.
   # Leave identity blank for a fresh agent; optional local draft: workspace/soul.md (not applied).

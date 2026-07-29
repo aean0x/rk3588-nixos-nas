@@ -192,5 +192,37 @@ in
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain/audit
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/brain
+
+    # Re-assert mcpServers.gbrain after hermes-agent-setup / agent edits.
+    # Managed mode blocks agent writes, but deep-merge races can drop the block.
+    cfg=/var/lib/hermes/.hermes/config.yaml
+    if [ -f "$cfg" ]; then
+      ${pkgs.python3}/bin/python3 - "$cfg" <<'PY'
+import sys
+from pathlib import Path
+try:
+    import yaml
+except ImportError:
+    sys.exit(0)
+path = Path(sys.argv[1])
+data = yaml.safe_load(path.read_text()) or {}
+mcp = data.setdefault("mcp_servers", {})
+desired = {
+    "command": "gbrain",
+    "args": ["serve"],
+    "connect_timeout": 120,
+    "timeout": 120,
+    "enabled": True,
+    "env": {
+        "HOME": "/home/hermes",
+        "PATH": "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin",
+    },
+}
+if mcp.get("gbrain") != desired:
+    mcp["gbrain"] = desired
+    path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
+PY
+      chown hermes:hermes "$cfg" 2>/dev/null || true
+    fi
   '';
 }
