@@ -63,10 +63,16 @@ in
     # so secret rotation only needs `systemctl restart hermes-agent`.
     environmentFiles = [
       "/run/hermes.env"
-      "/run/hermes-browser.env" # BU_CDP_URL + noVNC URL (no password)
+      "/run/hermes-browser.env" # BROWSER_CDP_URL + noVNC URL (no password)
     ];
 
     settings = {
+      # Attach browser_* tools to host Chromium CDP (see browser.nix).
+      # browser_tool.py reads browser.cdp_url or env BROWSER_CDP_URL.
+      browser = {
+        cdp_url = "http://127.0.0.1:9222";
+      };
+
       model = {
         # Primary: xAI OAuth (run `hermes auth add xai-oauth` once after deploy).
         provider = "xai-oauth";

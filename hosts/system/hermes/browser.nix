@@ -110,20 +110,20 @@ in
     "f ${vncEnvFile} 0640 hermes hermes - "
   ];
 
-  # Hermes browser_tool precedence (browser_tool.py):
-  #   1. BROWSER_CDP_URL env  2. browser.cdp_url in config.yaml
-  # BU_CDP_URL / HERMES_BROWSER_* are informal aliases only — not read by Hermes.
+  # Static CDP targets (always known at eval time). environmentFiles alone is
+  # not enough: module merges those only at *activation*, while
+  # hermes-browser-env fills /run/hermes-browser.env at *service start*.
+  # browser_tool.py: BROWSER_CDP_URL env or browser.cdp_url in config.yaml.
   services.hermes-agent = {
     environment = {
       BROWSER_CDP_URL = "http://${cdpAddr}:${toString cdpPort}";
-      # aliases kept for agent skills / harness that still look for these names
       BU_CDP_URL = "http://${cdpAddr}:${toString cdpPort}";
       HERMES_BROWSER_CDP_URL = "http://${cdpAddr}:${toString cdpPort}";
       HERMES_BROWSER_PROFILE = profileDir;
       HERMES_BROWSER_NOVNC_PORT = toString novncPort;
       HERMES_BROWSER_ENGINE = "brave";
     };
-    # Docker process env (dotenv alone is not always visible to children / bash -lc probes).
+    # Docker process env (dotenv alone is not always visible to children).
     container.extraOptions = [
       "--env"
       "BROWSER_CDP_URL=http://${cdpAddr}:${toString cdpPort}"
@@ -200,7 +200,11 @@ EOF
       # Upsert into Hermes dotenv (activation may merge empty env files first).
       hermes_env=/var/lib/hermes/.hermes/.env
       if [[ -f "$hermes_env" ]]; then
+<<<<<<< HEAD
         for key in BROWSER_CDP_URL BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT HERMES_BROWSER_ENGINE; do
+=======
+        for key in BROWSER_CDP_URL BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT; do
+>>>>>>> origin/main
           val="$(${pkgs.gnugrep}/bin/grep -E "^''${key}=" ${cdpEnvFile} | ${pkgs.coreutils}/bin/head -1 || true)"
           if [[ -n "$val" ]]; then
             ${pkgs.gnused}/bin/sed -i "/^''${key}=/d" "$hermes_env" 2>/dev/null || true
