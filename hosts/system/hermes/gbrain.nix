@@ -77,13 +77,16 @@ let
 in
 {
   services.hermes-agent = {
+    # Absolute path: hermes MCP filters PATH and bare `gbrain` often FileNotFoundError.
+    # Agent install lands CLI at ~/.local/bin and/or ~/.bun/bin under hermes HOME.
     mcpServers.gbrain = {
-      command = "gbrain";
+      command = "/home/hermes/.local/bin/gbrain";
       args = [ "serve" ];
       connect_timeout = 120;
       timeout = 120;
       env = {
         HOME = "/home/hermes";
+        PATH = "/home/hermes/.local/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin";
       };
     };
 
