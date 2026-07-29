@@ -163,10 +163,12 @@ case "$CMD" in
         fi
         ;;
 
-    # hermes CLI: alias only expands in interactive login shells; call sudo directly
+    # hermes CLI: alias only expands in interactive login shells; use hermes-cli
+    # (toolbox PATH) like Hetzner; run from hermes workspace to avoid host cwd PermissionError.
     hermes)
         check_ssh
-        ssh -tt ${SSH_OPTS} "$TARGET" sudo -u hermes /run/current-system/sw/bin/hermes "$@"
+        ssh -tt ${SSH_OPTS} "$TARGET" \
+          "cd /var/lib/hermes/workspace && sudo -u hermes env HOME=/var/lib/hermes/home HERMES_HOME=/var/lib/hermes/.hermes /var/lib/hermes/bin/hermes-cli $(printf '%q ' "$@")"
         ;;
 
     # Catch-all: forward to device (container exec, etc.)
