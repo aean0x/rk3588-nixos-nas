@@ -20,12 +20,13 @@ in
 {
   imports = [
     inputs.hermes-agent.nixosModules.default
+    ./package-fix.nix # hermes_state_* modules missing from 0.19.0 wheel
     ./toolbox.nix # everyday CLI toolkit → /data/toolbox/bin + agent PATH
     ./onedrive.nix
     ./dashboard.nix
     ./gbrain.nix
     ./workstation.nix
-    ./browser.nix # persistent Chromium + loopback CDP for agent automation
+    ./browser.nix # persistent Brave + loopback CDP for agent automation
   ];
 
   _module.args.hermes = hermes;
