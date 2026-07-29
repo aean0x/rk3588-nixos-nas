@@ -200,11 +200,7 @@ EOF
       # Upsert into Hermes dotenv (activation may merge empty env files first).
       hermes_env=/var/lib/hermes/.hermes/.env
       if [[ -f "$hermes_env" ]]; then
-<<<<<<< HEAD
         for key in BROWSER_CDP_URL BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT HERMES_BROWSER_ENGINE; do
-=======
-        for key in BROWSER_CDP_URL BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT; do
->>>>>>> origin/main
           val="$(${pkgs.gnugrep}/bin/grep -E "^''${key}=" ${cdpEnvFile} | ${pkgs.coreutils}/bin/head -1 || true)"
           if [[ -n "$val" ]]; then
             ${pkgs.gnused}/bin/sed -i "/^''${key}=/d" "$hermes_env" 2>/dev/null || true
