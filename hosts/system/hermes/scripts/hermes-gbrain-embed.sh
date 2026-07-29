@@ -7,6 +7,10 @@ STATE="${HERMES_STATE_DIR:-/var/lib/hermes/.hermes}"
 HOME_DIR="${HERMES_USER_HOME:-/var/lib/hermes/home}"
 export HOME="$HOME_DIR"
 export PATH="${HOME_DIR}/.bun/bin:${HOME_DIR}/.npm-global/bin:/var/lib/hermes/toolbox/bin:/run/current-system/sw/bin:/usr/bin:/bin"
+# Container absolute paths in gbrain config need this host symlink.
+if [[ ! -e /home/hermes ]]; then
+  ln -sfn "$HOME_DIR" /home/hermes 2>/dev/null || true
+fi
 
 log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
 

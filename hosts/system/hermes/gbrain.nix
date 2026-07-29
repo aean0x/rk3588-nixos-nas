@@ -60,6 +60,10 @@ let
       HOME_DIR=/var/lib/hermes/home
       export HOME="$HOME_DIR"
       export PATH="$HOME_DIR/.bun/bin:$HOME_DIR/.npm-global/bin:/var/lib/hermes/toolbox/bin:$PATH"
+      # gbrain config uses absolute /home/hermes paths (container); host needs symlink.
+      if [ ! -e /home/hermes ]; then
+        ln -sfn "$HOME_DIR" /home/hermes
+      fi
       started=0
       cleanup() {
         if [ "$started" -eq 1 ]; then
@@ -70,6 +74,7 @@ let
       systemctl stop hermes-agent.service
       started=1
       sleep 2
+      pkill -f 'gbrain serve' 2>/dev/null || true
       rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
       runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" gbrain dream
     '';
@@ -108,6 +113,10 @@ in
     };
   };
 
+  # Daily consolidate (MEMORY snapshot → gbrain put + dream + brain sync).
+  # Also: gbrain-dream @ 04:30, gbrain-embed @ Sun 05:00. Manual:
+  #   sudo hermes-gbrain-consolidate
+  #   systemctl start hermes-gbrain-consolidate.service
   systemd.timers.hermes-gbrain-consolidate = {
     description = "Daily Hermes → G-Brain consolidation";
     wantedBy = [ "timers.target" ];
@@ -115,6 +124,7 @@ in
       OnCalendar = "daily";
       RandomizedDelaySec = "45min";
       Persistent = true;
+      Unit = "hermes-gbrain-consolidate.service";
     };
   };
 
@@ -192,6 +202,14 @@ in
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain/audit
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/brain
+
+    # Host CLI / timers: gbrain config stores database_path=/home/hermes/.gbrain/...
+    # (set inside the container). Symlink so host paths resolve the same way.
+    if [ ! -e /home/hermes ]; then
+      ln -sfn /var/lib/hermes/home /home/hermes
+    elif [ ! -L /home/hermes ] && [ ! -d /home/hermes ]; then
+      ln -sfn /var/lib/hermes/home /home/hermes
+    fi
 
     # Re-assert mcpServers.gbrain after hermes-agent-setup / agent edits.
     # Managed mode blocks agent writes, but deep-merge races can drop the block.
