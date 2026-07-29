@@ -96,7 +96,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `openrouter_api_key`, `anthropic_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
 - `browserless_api_token` — Remote browser CDP service (Browserless cloud; good for soft CF, weak alone on AXS-class ticketing)
-- Local browser: `hosts/system/hermes/browser.nix` — host Chromium + Xvfb, persistent profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, env `/run/hermes-browser.env` (`BU_CDP_URL`). Status: `hermes-browser-status`. Not a captcha panacea; pair with hybrid human handoff or xrdp warm-up for hard vendors.
+- Local browser: `hosts/system/hermes/browser.nix` — host Chromium + Xvfb, sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **noVNC on :6080** for phone captcha handoff (`hermes-browser-status`). Primary for checkout; Browserless is secondary scraping only.
 - `telegram_bot_token`, `telegram_admin_id` — Telegram bot + admin allowlist
 - `maton_api_key` — Email/messaging integration
 - `ha_token`, `ha_url` — Home Assistant API

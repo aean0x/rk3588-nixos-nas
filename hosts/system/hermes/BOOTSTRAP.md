@@ -195,23 +195,30 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 
 ---
 
-## 6. Local browser (CDP) + hybrid captcha
+## 6. Local browser (CDP) + phone noVNC handoff
 
-After deploy, host runs `hermes-browser.service` (Xvfb + Chromium, profile `/var/lib/hermes/browser-profile`, CDP `http://127.0.0.1:9222` loopback only). Hermes gets `BU_CDP_URL` via `/run/hermes-browser.env`.
+Primary automation browser is **local** (household/Starlink egress + sticky profile), not Browserless. Browserless remains for disposable scraping only.
+
+After deploy:
+
+- `hermes-browser.service` — Xvfb + Chromium, profile `/var/lib/hermes/browser-profile`, CDP `http://127.0.0.1:9222` (loopback)
+- `hermes-browser-vnc.service` — x11vnc on the same display (password file)
+- `hermes-browser-novnc.service` — noVNC web UI on **port 6080** (phone browser)
 
 ```bash
 hermes-browser-status
-systemctl status hermes-browser
+systemctl status hermes-browser hermes-browser-vnc hermes-browser-novnc
 curl -sS http://127.0.0.1:9222/json/version
+# password (agent can read and Telegram you):
+grep NOVNC /run/hermes-browser-vnc.env
 ```
 
-**Cold profile still fails hard bot gates** (AXS/Cloudflare). Useful path:
+**Phone hybrid (when agent hits CF/AXS):**
 
-1. Agent attaches CDP, navigates, hits challenge.
-2. Agent screenshots → Telegram (“solve this in the shared browser”).
-3. You either:
-   - **xrdp** into the NAS desktop and open the same profile (if wired to that display — Xvfb is headless-virtual; for click-solvable UI prefer future noVNC on the same Chromium, or solve on your phone while agent holds a Browserless session with captcha solve), or
-   - reply **done** after solving if the session is interactive-shared.
-4. Agent continues checkout with the **same cookies**.
+1. Agent keeps the CDP session open and sends you `HERMES_BROWSER_NOVNC_URL` + password.
+2. On phone (Tailscale or LAN): open the noVNC link, enter password, tap the captcha in that live view.
+3. Reply `done` — agent continues checkout with the **same cookies**.
 
-Browserless (`BROWSERLESS_API_TOKEN`) remains available for soft-CF / general scraping; prefer **local CDP** for household-identity checkout after warm-up.
+Cellular without Tailscale will not reach LAN-only NAS; use Tailscale.
+
+**Cold profile still fails hard gates** until warmed once via noVNC or cookie import.

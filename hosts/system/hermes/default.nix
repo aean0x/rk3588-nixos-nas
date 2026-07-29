@@ -61,7 +61,7 @@ in
     # so secret rotation only needs `systemctl restart hermes-agent`.
     environmentFiles = [
       "/run/hermes.env"
-      "/run/hermes-browser.env" # BU_CDP_URL from ./browser.nix (loopback Chromium)
+      "/run/hermes-browser.env" # BU_CDP_URL + noVNC URL (no password)
     ];
 
     settings = {
