@@ -2,18 +2,37 @@
 # Host-only Hermes → GBrain maintenance.
 # Stops hermes-agent so MCP releases PGLite, then runs CLI as hermes, then restarts.
 # No docker exec race, no exclusive-cli helper stack.
+#
+# Scheduled: hermes-gbrain-consolidate.timer (daily + up to 45m random delay).
+# Manual: sudo hermes-gbrain-consolidate  (or: systemctl start hermes-gbrain-consolidate.service)
 set -euo pipefail
 
 LOG_TAG="hermes-gbrain-consolidate"
 STATE="${HERMES_STATE_DIR:-/var/lib/hermes/.hermes}"
 MEM_REG="${HERMES_MEMORY_REGISTRY:-/var/lib/hermes/memory/registry.json}"
 CANON="${HERMES_MEMORY_CANON:-/var/lib/hermes/memory/AGENTS.md}"
+# Container hermes HOME is /home/hermes (bind of this dir). Host passwd home is
+# /var/lib/hermes — always force the container-aligned path for gbrain CLI.
 HOME_DIR="${HERMES_USER_HOME:-/var/lib/hermes/home}"
 export HOME="$HOME_DIR"
 export PATH="${HOME_DIR}/.bun/bin:${HOME_DIR}/.npm-global/bin:/var/lib/hermes/toolbox/bin:/run/current-system/sw/bin:/usr/bin:/bin"
 export HERMES_MEMORY_REGISTRY="$MEM_REG"
 
+# gbrain config (from container init) stores absolute /home/hermes/... paths.
+# Host activation creates /home/hermes → home/; ensure it exists before CLI.
+if [[ ! -e /home/hermes ]]; then
+  ln -sfn "$HOME_DIR" /home/hermes 2>/dev/null || true
+fi
+
 log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
+
+# runuser as hermes with container-aligned HOME (passwd home is /var/lib/hermes).
+gbrain_as_hermes() {
+  runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
+    ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" \
+    OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+    gbrain "$@"
+}
 
 started=0
 cleanup() {
@@ -35,6 +54,10 @@ if ! cmp -s "$CANON" "$STATE/AGENTS.md"; then
   log '"error":"agents_md_drift"'
   exit 4
 fi
+if [[ ! -d "$HOME_DIR/.gbrain" ]]; then
+  log '"error":"gbrain_not_initialized","hint":"run agent bootstrap / gbrain init --pglite under hermes home"'
+  exit 5
+fi
 
 # Load embedding keys for dream (optional).
 if [[ -f "$STATE/.env" ]]; then
@@ -48,13 +71,16 @@ log '"event":"stopping_hermes_for_pglite"'
 systemctl stop hermes-agent.service
 started=1
 # Wait for lock release
-for _ in $(seq 1 30); do
-  if [[ ! -e "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" ]]; then
+for _ in $(seq 1 60); do
+  if [[ ! -e "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" ]] \
+    && ! pgrep -f 'gbrain serve' >/dev/null 2>&1; then
     break
   fi
   sleep 0.5
 done
 rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
+pkill -f 'gbrain serve' 2>/dev/null || true
+sleep 1
 chown -R hermes:hermes "$HOME_DIR/.gbrain" "$HOME_DIR/brain" 2>/dev/null || true
 
 # Snapshot MEMORY/USER
@@ -106,7 +132,7 @@ for j in "$STATE/memories/export/inbox"/*.json; do
   [[ -n "$rid" ]] || rid=$(basename "$j" .json)
   slug="hermes/inbox/${rid}"
   set +e
-  jq -r '.body' "$j" | runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" gbrain put "$slug" >>"$PUT_ERR" 2>&1
+  jq -r '.body' "$j" | gbrain_as_hermes put "$slug" >>"$PUT_ERR" 2>&1
   put_ec=$?
   set -e
   if [[ "$put_ec" -eq 0 ]]; then
@@ -114,17 +140,18 @@ for j in "$STATE/memories/export/inbox"/*.json; do
     mv "$j" "$STATE/memories/export/inbox/.processed/$(basename "$j")"
   else
     FAILED=$((FAILED + 1))
+    echo "{\"event\":\"put_failed\",\"file\":\"$(basename "$j")\",\"slug\":\"$slug\",\"exit\":$put_ec}" >>"$PUT_ERR"
   fi
 done
 
 DREAM_OK=false
-if runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" gbrain dream >>"$PUT_ERR" 2>&1; then
+if gbrain_as_hermes dream >>"$PUT_ERR" 2>&1; then
   DREAM_OK=true
 fi
 
 SYNC_OK=null
 if [[ -d "$HOME_DIR/brain/.git" ]]; then
-  if runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" gbrain sync --repo "$HOME_DIR/brain" --no-embed >>"$PUT_ERR" 2>&1; then
+  if gbrain_as_hermes sync --repo "$HOME_DIR/brain" --no-embed >>"$PUT_ERR" 2>&1; then
     SYNC_OK=true
   else
     SYNC_OK=false
@@ -133,6 +160,15 @@ fi
 
 echo "{\"snapshot\":\"$SNAP\",\"inbox_pending\":$PENDING,\"inbox_imported\":$IMPORTED,\"inbox_failed\":$FAILED,\"dream\":$DREAM_OK,\"brain_sync\":$SYNC_OK}"
 log '"status":"complete"'
+
+if [[ "$FAILED" -gt 0 || ( "$PENDING" -gt 0 && "$IMPORTED" -eq 0 ) ]]; then
+  log '"error":"put_or_dream_failed","see":"'"$PUT_ERR"'"'
+  # Surface gbrain CLI stderr in journal for the operator
+  if [[ -s "$PUT_ERR" ]]; then
+    echo "--- last-put.err ---" >&2
+    cat "$PUT_ERR" >&2 || true
+  fi
+fi
 
 if [[ "$PENDING" -gt 0 && "$IMPORTED" -eq 0 ]]; then
   exit 8
