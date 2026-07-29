@@ -15,18 +15,27 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 ```
 hosts/system/hermes/
 ├── default.nix          # module import, model, maton MCP, no SOUL activation
+├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
 ├── gbrain.nix           # MCP gbrain, timers, activation, host CLIs
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
+├── workstation.nix      # SSH helpers to workstation Grok agent
 ├── memory/              # declarative memory plane (→ /var/lib/hermes/memory + live AGENTS.md)
-│   ├── AGENTS.md
-│   ├── registry.json
-│   └── export-schema.json
-├── prompts/             # optional stubs (agents-gbrain, memory-gbrain)
-├── scripts/             # consolidate/embed/validate/clean-hermes-state
-├── BOOTSTRAP.md         # how to talk to the agent + install gbrain
+├── prompts/
+├── scripts/             # consolidate/embed/validate/clean-hermes-state + check-tools
+├── BOOTSTRAP.md
 └── workspace/soul.md    # DRAFT ONLY — not installed
 ```
+
+## Everyday tools (toolbox)
+
+Activation links a Nix `buildEnv` at `/var/lib/hermes/toolbox/bin` → container
+`/data/toolbox/bin`. Gateway `environment.PATH` includes that dir plus
+`~/.bun/bin` (gbrain) and `~/.local/bin` (nix-pc wrappers).
+
+Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
+`REMOTE_CHECK=1 ./hosts/system/hermes/check-tools.sh` after deploy.
+
 
 ## GBrain (summary)
 

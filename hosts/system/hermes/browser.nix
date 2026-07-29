@@ -39,7 +39,7 @@ in
 {
   environment.systemPackages = [
     pkgs.chromium
-    pkgs.xorg.xvfb
+    pkgs.xvfb
     pkgs.x11vnc
     pkgs.novnc
     pkgs.python3Packages.websockify
@@ -82,12 +82,23 @@ in
     "f ${vncEnvFile} 0640 hermes hermes - "
   ];
 
+  # Static CDP targets (always known at eval time). environmentFiles alone is
+  # not enough: module merges those only at *activation*, while
+  # hermes-browser-env fills /run/hermes-browser.env at *service start*.
+  services.hermes-agent.environment = {
+    BU_CDP_URL = "http://${cdpAddr}:${toString cdpPort}";
+    HERMES_BROWSER_CDP_URL = "http://${cdpAddr}:${toString cdpPort}";
+    HERMES_BROWSER_PROFILE = profileDir;
+    HERMES_BROWSER_NOVNC_PORT = toString novncPort;
+  };
+
   # CDP + path env for Hermes container (host network → loopback works).
   systemd.services.hermes-browser-env = {
     description = "Write Hermes browser CDP/noVNC env";
     wantedBy = [ "multi-user.target" ];
     before = [ "hermes-agent.service" ];
     after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -99,7 +110,7 @@ in
       # Stable VNC password (create once).
       if [[ ! -s ${vncPassFile} ]]; then
         # 12 chars alnum — phone-typable
-        pw="$(${pkgs.openssl}/bin/openssl rand -base64 18 | ${pkgs.tr}/bin/tr -dc 'A-Za-z0-9' | ${pkgs.coreutils}/bin/head -c 12)"
+        pw="$(${pkgs.openssl}/bin/openssl rand -base64 18 | ${pkgs.coreutils}/bin/tr -dc 'A-Za-z0-9' | ${pkgs.coreutils}/bin/head -c 12)"
         echo -n "$pw" > ${vncPassFile}
         chown hermes:hermes ${vncPassFile}
         chmod 0600 ${vncPassFile}
@@ -134,6 +145,21 @@ HERMES_BROWSER_VNC_PASSWORD=$pw
 EOF
       chown hermes:hermes ${vncEnvFile}
       chmod 0640 ${vncEnvFile}
+
+      # Upsert non-secret browser keys into Hermes dotenv. Activation may have
+      # cat'd an empty /run/hermes-browser.env before this oneshot ran.
+      hermes_env=/var/lib/hermes/.hermes/.env
+      if [[ -f "$hermes_env" ]]; then
+        for key in BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT; do
+          val="$(${pkgs.gnugrep}/bin/grep -E "^''${key}=" ${cdpEnvFile} | ${pkgs.coreutils}/bin/head -1 || true)"
+          if [[ -n "$val" ]]; then
+            ${pkgs.gnused}/bin/sed -i "/^''${key}=/d" "$hermes_env" 2>/dev/null || true
+            echo "$val" >> "$hermes_env"
+          fi
+        done
+        chown hermes:hermes "$hermes_env"
+        chmod 0640 "$hermes_env"
+      fi
     '';
   };
 
@@ -183,17 +209,20 @@ EOF
 
       rm -f /tmp/.X${displayNum}-lock /tmp/.X11-unix/X${displayNum} || true
 
-      ${pkgs.xorg.xvfb}/bin/Xvfb ${display} -screen 0 1400x900x24 -ac +extension GLX +render -noreset &
+      ${pkgs.xvfb}/bin/Xvfb ${display} -screen 0 1400x900x24 -ac +extension GLX +render -noreset &
       xvfb_pid=$!
       trap 'kill $xvfb_pid 2>/dev/null || true' EXIT
       sleep 1
 
+      # --no-sandbox: hermes is an unprivileged service user without chrome-sandbox SUID.
       exec ${pkgs.chromium}/bin/chromium \
         --user-data-dir=${profileDir} \
         --remote-debugging-address=${cdpAddr} \
         --remote-debugging-port=${toString cdpPort} \
         --no-first-run \
         --no-default-browser-check \
+        --no-sandbox \
+        --disable-setuid-sandbox \
         --disable-dev-shm-usage \
         --disable-gpu \
         --window-size=1400,900 \

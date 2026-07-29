@@ -20,6 +20,7 @@ in
 {
   imports = [
     inputs.hermes-agent.nixosModules.default
+    ./toolbox.nix # everyday CLI toolkit → /data/toolbox/bin + agent PATH
     ./onedrive.nix
     ./dashboard.nix
     ./gbrain.nix
@@ -132,7 +133,18 @@ in
         redact_secrets = true;
       };
 
-      approvals.timeout = 120;
+      approvals = {
+        mode = "smart";
+        timeout = 120;
+        cron_mode = "deny";
+      };
+
+      # Skills / plugins dirs on the hermes volume (see toolbox activation).
+      skills.external_dirs = [
+        "/data/skills"
+        "/var/lib/hermes/skills"
+      ];
+      plugins.external_dirs = [ "/var/lib/hermes/plugins" ];
 
       # Match host timezone so cron schedules and session timestamps are correct.
       timezone = "Europe/Berlin";

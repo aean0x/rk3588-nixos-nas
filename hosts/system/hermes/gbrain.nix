@@ -139,20 +139,11 @@ in
       };
     };
 
-    # Non-secret env merged into $HERMES_HOME/.env (visible in store — no secrets).
+    # Non-secret env (PATH / HERMES_PY live in toolbox.nix so one source of truth).
     environment = {
       HERMES_MEMORY_REGISTRY = "/data/memory/registry.json";
       GBRAIN_AUDIT_DIR = "/home/hermes/.gbrain/audit";
-      # bun globals (gbrain) + common bins for agent children / MCP.
-      PATH = "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     };
-
-    extraPackages = [
-      pkgs.jq
-      pkgs.python3
-      pkgs.git
-      pkgs.bun
-    ];
   };
 
   systemd.services.hermes-gbrain-consolidate = {
