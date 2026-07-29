@@ -98,13 +98,23 @@ in
         protect_last_n = 15;
       };
 
-      # Sub-agent / delegation traffic on cheap OpenRouter model (OPENROUTER_API_KEY in hermes env).
+      # ── Model routing (explicit axes — Hermes has no smart task classifier) ──
+      # Primary chat/orchestration stays on grok-4.5 (model.* above).
+      # Routine / uncreative work is pinned to OpenRouter DeepSeek Flash:
+      #   - delegation.*  → child agents from the `delegate` tool only
+      #   - auxiliary.*   → side LLM (compress, titles, approvals, monitors…)
+      #   - cron.model*   → unpinned scheduled jobs (fleet default; beats chat model)
+      # Per-job pins (jobs.json model/provider) still win over cron.model.
+      # Interactive Telegram/chat never uses cron/delegation models unless
+      # the parent deliberately delegates.
+
+      # Sub-agent traffic (parent still orchestrates on main model).
       delegation = {
         model = "deepseek/deepseek-v4-flash";
         provider = "openrouter";
       };
 
-      # Aux LLM tasks (compress, titles, approvals) — not session_search in 0.19.0.
+      # Aux LLM tasks — "auto" would fall back to main grok spend.
       auxiliary = {
         compression = {
           model = "deepseek/deepseek-v4-flash";
@@ -118,6 +128,33 @@ in
           model = "deepseek/deepseek-v4-flash";
           provider = "openrouter";
         };
+        # High-volume / mechanical side work that would otherwise inherit main.
+        skills_hub = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+        monitor = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+        background_review = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+        memory_query_rewrite = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+      };
+
+      # Cron fleet default: unpinned jobs (project-heartbeat, daylight-checks, …)
+      # must NOT inherit model.default=grok-4.5. Resolution at fire:
+      #   job.model > cron.model > HERMES_MODEL > model.default
+      # Setting these also skips the model_drift_guard for that axis.
+      cron = {
+        model = "deepseek/deepseek-v4-flash";
+        model_provider = "openrouter";
+        model_drift_guard = true;
       };
 
       # Lazy tool schema loading to cut MCP/tool definition tax; keep toolsets = [ "all" ].

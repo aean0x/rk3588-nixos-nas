@@ -3,7 +3,12 @@
 ## Scope
 
 - **Runtime:** official `hermes-agent` NixOS module, container mode (`ubuntu:24.04`, `--network=host`).
-- **Model:** `xai-oauth` + default `grok-4.5` (OAuth seed is interactive — see `BOOTSTRAP.md`).
+- **Model routing:** explicit config axes (no automatic task classifier):
+  - **Main / orchestration:** `model.provider=xai-oauth`, `model.default=grok-4.5` (Telegram chat, interactive).
+  - **Delegation:** `delegation` → OpenRouter `deepseek/deepseek-v4-flash` (child agents only).
+  - **Auxiliary:** compression, titles, approvals, monitor, background_review, … → DeepSeek Flash.
+  - **Cron fleet:** `cron.model` + `cron.model_provider` → DeepSeek Flash (unpinned jobs; beats chat model).
+  - Per-job `jobs.json` `model`/`provider` still wins for a single schedule.
 - **Identity:** declarative **SOUL.md is disabled**. Fresh agent; no forced persona from Nix.
 - **Long-term memory:** **GBrain** — this is the primary integration focus.
 
