@@ -73,17 +73,17 @@ All inbox JSON must validate against `export-schema.json` (required: `record_id`
 
 ### PGLite single-writer (infra)
 
-- MCP `gbrain serve` holds `~/.gbrain/brain.pglite` exclusively.
-- Concurrent CLI `gbrain put|list|dream` **fails** with “database already open”.
-- Host scripts use `/data/bin/gbrain-exclusive-cli` (freeze `mcp_stdio_watchdog` → kill serve → CLI → CONT watchdog) so consolidate/embed/dream work without restarting the gateway.
-- Operator manual: `sudo hermes-gbrain-consolidate` / `sudo hermes-gbrain-embed`.
+- MCP `gbrain serve` holds PGLite exclusively while the gateway is up.
+- Concurrent CLI fails with “database already open”.
+- Host timers (`hermes-gbrain-consolidate`, `gbrain-dream`, `gbrain-embed`) **stop hermes-agent**, run host CLI as `hermes`, then **start** hermes again. No docker-exec race.
+- Operator: `sudo hermes-gbrain-consolidate`
 
 ### Surfaces
 
-- MCP: `gbrain serve` (declarative `mcpServers.gbrain`) — **preferred for agent turns**
-- CLI: `~/.bun/bin/gbrain` — **maintenance only** (via exclusive wrapper)
-- Brain git: `~/brain` — `gbrain sync --repo ~/brain` during consolidate when present
-- Agent protocol doc: `/data/workspace/GBRAIN.md` (installed from repo)
+- MCP: `gbrain serve` — **preferred for agent turns** (put_page / query)
+- CLI: host maintenance only (timers above)
+- Brain git: `~/brain` — agent commits; consolidate may `gbrain sync`
+- Protocol: `/data/workspace/GBRAIN.md`
 
 ### Config vs agent
 
