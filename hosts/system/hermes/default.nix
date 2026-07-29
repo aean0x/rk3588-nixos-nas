@@ -89,9 +89,41 @@ in
         user_profile_enabled = true;
       };
 
+      # Tighter context compression; aux model routes below (not main xai-oauth).
       compression = {
         enabled = true;
-        threshold = 0.8;
+        threshold = 0.55;
+        target_ratio = 0.18;
+        protect_last_n = 15;
+      };
+
+      # Sub-agent / delegation traffic on cheap OpenRouter model (OPENROUTER_API_KEY in hermes env).
+      delegation = {
+        model = "deepseek/deepseek-v4-flash";
+        provider = "openrouter";
+      };
+
+      # Aux LLM tasks (compress, titles, approvals) — not session_search in 0.19.0.
+      auxiliary = {
+        compression = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+        title_generation = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+        approval = {
+          model = "deepseek/deepseek-v4-flash";
+          provider = "openrouter";
+        };
+      };
+
+      # Lazy tool schema loading to cut MCP/tool definition tax; keep toolsets = [ "all" ].
+      tools = {
+        tool_search = {
+          enabled = "auto";
+        };
       };
 
       security = {
@@ -106,7 +138,17 @@ in
       timezone = "Europe/Berlin";
 
       max_turns = 120;
-      agent.max_turns = 80;
+      agent = {
+        max_turns = 80;
+        # Safe platform toolset prune only (HA/cron/web/browser/etc. stay enabled).
+        disabled_toolsets = [
+          "video"
+          "video_gen"
+          "spotify"
+          "yuanbao"
+          "computer_use"
+        ];
+      };
     };
 
     mcpServers = {
