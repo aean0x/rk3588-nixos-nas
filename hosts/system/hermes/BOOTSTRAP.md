@@ -191,3 +191,34 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | SOUL.md / persona docs | **No** (disabled) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
+| Local Chromium + CDP (`browser.nix`) | Yes (service + profile dir); **warm cookies** still need a human once |
+
+---
+
+## 6. Local browser (CDP) + phone noVNC handoff
+
+Primary automation browser is **local** (household/Starlink egress + sticky profile), not Browserless. Browserless remains for disposable scraping only.
+
+After deploy:
+
+- `hermes-browser.service` — Xvfb + Chromium, profile `/var/lib/hermes/browser-profile`, CDP `http://127.0.0.1:9222` (loopback)
+- `hermes-browser-vnc.service` — x11vnc on the same display (password file)
+- `hermes-browser-novnc.service` — noVNC web UI on **port 6080** (phone browser)
+
+```bash
+hermes-browser-status
+systemctl status hermes-browser hermes-browser-vnc hermes-browser-novnc
+curl -sS http://127.0.0.1:9222/json/version
+# password (agent can read and Telegram you):
+grep NOVNC /run/hermes-browser-vnc.env
+```
+
+**Phone hybrid (when agent hits CF/AXS):**
+
+1. Agent keeps the CDP session open and sends you `HERMES_BROWSER_NOVNC_URL` + password.
+2. On phone (Tailscale or LAN): open the noVNC link, enter password, tap the captcha in that live view.
+3. Reply `done` — agent continues checkout with the **same cookies**.
+
+Cellular without Tailscale will not reach LAN-only NAS; use Tailscale.
+
+**Cold profile still fails hard gates** until warmed once via noVNC or cookie import.
