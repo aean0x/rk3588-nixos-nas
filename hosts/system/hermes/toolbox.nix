@@ -61,12 +61,13 @@ let
     ];
   };
 
-  # Container gateway / MCP / terminal children.
+  # Container gateway / MCP / terminal children — match Hetzner hermes-agent.nix.
+  # Order matters: bun globals (gbrain) then toolbox (Nix bun works on host+container).
+  # Do not put ~/.local/bin first; agent dual-wrappers there break the Hetzner model.
   agentPath = lib.concatStringsSep ":" [
-    "/home/hermes/.local/bin" # nix-pc helpers, ad-hoc wrappers
     "/home/hermes/.npm-global/bin"
-    "/home/hermes/.bun/bin" # gbrain etc.
-    "/data/toolbox/bin" # this toolbox
+    "/home/hermes/.bun/bin" # gbrain from `bun install -g` (container)
+    "/data/toolbox/bin" # Nix bun + everyday tools (host-safe via /nix/store mount)
     "/run/current-system/sw/bin"
     "/usr/local/sbin"
     "/usr/local/bin"
@@ -76,6 +77,7 @@ let
     "/bin"
   ];
 
+  # Host login / sudo -u hermes: toolbox FIRST so `bun` is pkgs.bun (not curl stub-ld).
   hermesHostCliPath = "/var/lib/hermes/toolbox/bin:/var/lib/hermes/home/.bun/bin:/var/lib/hermes/home/.npm-global/bin:/var/lib/hermes/home/.local/bin:/etc/profiles/per-user/hermes/bin";
 
   # Keep PATH in .env for load_hermes_dotenv (container). Host CLI uses docker-exec
@@ -103,7 +105,8 @@ let
 
   containerProfile = pkgs.writeText "hermes-home-profile" ''
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.bun/bin:/data/toolbox/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    # Same order as Hetzner: npm-global, bun globals, toolbox.
+    export PATH="$HOME/.npm-global/bin:$HOME/.bun/bin:/data/toolbox/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   '';
 
   containerBashrc = pkgs.writeText "hermes-home-bashrc" ''
