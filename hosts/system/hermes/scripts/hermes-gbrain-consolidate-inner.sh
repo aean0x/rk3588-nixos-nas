@@ -102,29 +102,63 @@ if [ -s /data/.hermes/memories/MEMORY.md ]; then
 fi
 
 IMPORTED=0
+FAILED=0
+PENDING=0
 PUT_ERR=/data/.hermes/memories/export/last-put.err
 : > "$PUT_ERR"
 for j in /data/.hermes/memories/export/inbox/*.json; do
   [ -f "$j" ] || continue
   case "$j" in */.processed/*) continue ;; esac
+  PENDING=$((PENDING + 1))
   rid=$($JQ -r '.record_id // empty' "$j")
   if [ -z "$rid" ]; then
     rid=$(basename "$j" .json)
   fi
   slug="hermes/inbox/${rid}"
   set +e
-  $JQ -r '.body' "$j" | gbrain put "$slug" 2>>"$PUT_ERR"
+  $JQ -r '.body' "$j" | gbrain put "$slug" >>"$PUT_ERR" 2>&1
   put_ec=$?
   set -e
   if [ "$put_ec" -eq 0 ]; then
     IMPORTED=$((IMPORTED + 1))
     mv "$j" "/data/.hermes/memories/export/inbox/.processed/$(basename "$j")"
+  else
+    FAILED=$((FAILED + 1))
+    echo "{\"event\":\"put_failed\",\"file\":\"$(basename "$j")\",\"slug\":\"$slug\",\"exit\":$put_ec}" >>"$PUT_ERR"
   fi
 done
 
 DREAM_OK=false
-if gbrain dream 2>>"$PUT_ERR"; then
+set +e
+gbrain dream >>"$PUT_ERR" 2>&1
+dream_ec=$?
+set -e
+if [ "$dream_ec" -eq 0 ]; then
   DREAM_OK=true
 fi
 
-echo "{\"snapshot\":\"$SNAP\",\"inbox_imported\":$IMPORTED,\"dream\":$DREAM_OK,\"embed\":\"delegated_to_gbrain_embed_timer\"}"
+# Optional: register ~/brain as a git source if present (idempotent).
+SYNC_OK=null
+if [ -d /home/hermes/brain/.git ] || [ -d /home/hermes/brain ]; then
+  set +e
+  gbrain sync --repo /home/hermes/brain --no-embed >>"$PUT_ERR" 2>&1
+  sync_ec=$?
+  set -e
+  if [ "$sync_ec" -eq 0 ]; then
+    SYNC_OK=true
+  else
+    SYNC_OK=false
+  fi
+fi
+
+echo "{\"snapshot\":\"$SNAP\",\"inbox_pending\":$PENDING,\"inbox_imported\":$IMPORTED,\"inbox_failed\":$FAILED,\"dream\":$DREAM_OK,\"brain_sync\":$SYNC_OK,\"embed\":\"delegated_to_gbrain_embed_timer\"}"
+
+# Non-zero if we had inbox work but imported nothing (PGLite lock / serve race).
+if [ "$PENDING" -gt 0 ] && [ "$IMPORTED" -eq 0 ]; then
+  echo "{\"error\":\"inbox_import_failed\",\"pending\":$PENDING,\"see\":\"$PUT_ERR\"}" >&2
+  exit 8
+fi
+if [ "$FAILED" -gt 0 ]; then
+  echo "{\"error\":\"partial_inbox_import\",\"imported\":$IMPORTED,\"failed\":$FAILED,\"see\":\"$PUT_ERR\"}" >&2
+  exit 9
+fi
