@@ -54,4 +54,11 @@
 
   # Kernel version (e.g., linuxPackages_6_18, linuxPackages_latest)
   kernelPackage = "linuxPackages_7_1";
+
+  # Hermes Robinhood Crypto MCP secrets (read-only data server).
+  # After adding robinhood_crypto_api_key + robinhood_crypto_private_key to
+  # secrets.yaml (see secrets.yaml.example + hosts/system/hermes/BOOTSTRAP.md),
+  # set true so sops materializes /run/hermes-robinhood.env. MCP itself is
+  # always declared; without secrets it only exposes get_setup_status.
+  enableRobinhoodCryptoSecrets = false;
 }

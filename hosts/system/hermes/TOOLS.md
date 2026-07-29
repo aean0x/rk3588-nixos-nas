@@ -52,6 +52,7 @@ netcat-gnu, socat, chromium→chrome/google-chrome aliases.
 |--------|---------|--------|
 | gbrain | `gbrain serve` | Bare name; PATH must include `~/.bun/bin` |
 | maton | `npx -y @maton/mcp` | Needs npm + network |
+| robinhood-crypto | `robinhood-mcp-readonly` → `npx -y robinhood-mcp` | **Read-only** crypto data server; secrets via `/run/hermes-robinhood.env`; trading binary NOT enabled |
 
 ## Gaps vs Hetzner (closed)
 

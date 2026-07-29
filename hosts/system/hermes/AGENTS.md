@@ -76,6 +76,7 @@ gbrain-dream (04:30)              → gbrain dream
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
 | `XAI_API_KEY` | `xai_api_key` | Fallback / tooling (OAuth is primary for chat) |
 | `TELEGRAM_*` | telegram secrets | Gateway |
+| `ROBINHOOD_CRYPTO_API_KEY` / `_PRIVATE_KEY` | `robinhood_crypto_*` | Read-only crypto MCP (`enableRobinhoodCryptoSecrets` → `/run/hermes-robinhood.env`) |
 | (file) | `nix_pc_agent_ssh_key` | `/run/secrets/…` only; `ssh-workstation` injects via IdentityFile (not in hermes HOME) |
 
 ```bash
@@ -84,6 +85,7 @@ cd secrets && ./decrypt   # → secrets.yaml.work
 ./encrypt                 # → secrets.yaml
 ```
 
+**Robinhood Crypto MCP** (optional): crypto API only, **read-only** (`robinhood-mcp` data server). Never set `ROBINHOOD_CRYPTO_ENABLE_TRADING`. Keys from `npx robinhood-keygen` + classic web crypto settings. After adding sops keys + `settings.enableRobinhoodCryptoSecrets = true`, `systemctl restart hermes-agent`. See **BOOTSTRAP.md §3**.
 ## Coding workstation
 
 Module: `workstation.nix` — PATH helpers + skill **`workstation`**

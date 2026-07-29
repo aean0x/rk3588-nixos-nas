@@ -16,6 +16,29 @@ let
     stateDir = "/var/lib/hermes";
     workspace = "/var/lib/hermes/workspace";
   };
+
+  # Read-only Robinhood Crypto MCP (data server only — never trading).
+  # PATH matches gbrain/maton MCP children: npm/npx from toolbox + hermes globals.
+  robinhoodMcpPath = lib.concatStringsSep ":" [
+    "/home/hermes/.npm-global/bin"
+    "/home/hermes/.bun/bin"
+    "/data/toolbox/bin"
+    "/usr/local/bin"
+    "/usr/bin"
+    "/bin"
+  ];
+
+  robinhoodMcpWrapper = pkgs.writeShellApplication {
+    name = "robinhood-mcp-readonly";
+    runtimeInputs = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.nodejs # provides npx (Node ≥22 for robinhood-mcp)
+    ];
+    # SC1090: dynamic source of sops env files
+    excludeShellChecks = [ "SC1090" "SC1091" ];
+    text = builtins.readFile ./scripts/robinhood-mcp-readonly.sh;
+  };
 in
 {
   imports = [
@@ -64,6 +87,10 @@ in
     environmentFiles = [
       "/run/hermes.env"
       "/run/hermes-browser.env" # BROWSER_CDP_URL + noVNC URL (no password)
+      # Optional: materializes when sops template hermesRobinhoodEnv is enabled
+      # (settings.enableRobinhoodCryptoSecrets). Missing file is fine — setup
+      # creates empty placeholder via tmpfiles; real keys come from sops.
+      "/run/hermes-robinhood.env"
     ];
 
     settings = {
@@ -216,6 +243,20 @@ in
         ];
       };
       # gbrain MCP is declared in ./gbrain.nix (mcpServers.gbrain).
+      # Read-only Robinhood Crypto (data server). Trading binary is NOT wired.
+      robinhood-crypto = {
+        command = lib.getExe robinhoodMcpWrapper;
+        args = [ ];
+        enabled = true;
+        connect_timeout = 90;
+        timeout = 120;
+        env = {
+          HOME = "/home/hermes";
+          PATH = robinhoodMcpPath;
+          # Defense in depth — wrapper also unsets/forces 0.
+          ROBINHOOD_CRYPTO_ENABLE_TRADING = "0";
+        };
+      };
     };
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
@@ -229,8 +270,11 @@ in
   };
 
   # Module creates ${stateDir}/workspace; only the onedrive subdir needs explicit setup.
+  # Empty robinhood env placeholder so environmentFiles merge never fails before sops
+  # materializes real credentials (sops overwrites /run/hermes-robinhood.env when enabled).
   systemd.tmpfiles.rules = [
     "d ${hermes.workspace}/onedrive 2770 hermes hermes - -"
+    "f /run/hermes-robinhood.env 0640 hermes hermes - "
   ];
 
   # hermes CLI runs as the hermes service user via sudo so it can read .env (0600 hermes:hermes).

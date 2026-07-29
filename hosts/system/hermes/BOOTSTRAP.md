@@ -150,7 +150,66 @@ Workstation helper (once wired in deploy):
 
 ---
 
-## 3. Day-2 operations
+## 3. Robinhood Crypto MCP (read-only)
+
+**Scope:** official **crypto** Trading API only (`trading.robinhood.com`). Not equities, not options, not Robinhood Chain.
+
+**MCP:** declarative `mcpServers.robinhood-crypto` → wrapper `robinhood-mcp-readonly` → `npx -y robinhood-mcp` (data server).  
+**Trading server is NOT enabled** (`robinhood-mcp-trading` / `ROBINHOOD_CRYPTO_ENABLE_TRADING=1` are never wired).
+
+### 3a. Create credentials
+
+```bash
+# On any machine with Node ≥22.5:
+npx robinhood-keygen
+# → base64 Ed25519 seed (private) + public key on stdout
+```
+
+1. Open **classic** web UI: [robinhood.com/account/crypto](https://robinhood.com/account/crypto) (not mobile / not new UI).
+2. Register the **public** key; Robinhood returns `ROBINHOOD_CRYPTO_API_KEY`.
+3. Keep the seed as `ROBINHOOD_CRYPTO_PRIVATE_KEY` (32-byte base64 seed only).
+4. Prefer **read-only** API key permissions in Robinhood if offered.
+
+### 3b. Add sops secrets
+
+```bash
+cd secrets && ./decrypt   # → secrets.yaml.work
+# Add:
+#   robinhood_crypto_api_key: "rh-api-..."
+#   robinhood_crypto_private_key: "base64-seed..."
+./encrypt
+```
+
+In `settings.nix`:
+
+```nix
+enableRobinhoodCryptoSecrets = true;
+```
+
+Deploy, then restart Hermes so MCP children re-read env:
+
+```bash
+# from workstation (after secrets + settings change):
+git add secrets settings.nix && # commit as needed
+./deploy remote-switch   # or remote-test first
+# on device / via deploy:
+sudo systemctl restart hermes-agent
+./deploy hermes mcp list   # expect robinhood-crypto
+```
+
+Sops template → `/run/hermes-robinhood.env` (merged into Hermes `.env` via `environmentFiles`). Wrapper also sources that path and **forces** `ROBINHOOD_CRYPTO_ENABLE_TRADING=0`.
+
+Without secrets (`enableRobinhoodCryptoSecrets = false`), the MCP still starts and only exposes `get_setup_status` until keys exist.
+
+### 3c. Smoke
+
+```
+What is my Robinhood crypto buying power, and what is BTC-USD bid/ask?
+```
+
+---
+
+## 4. Day-2 operations
 
 | Action | Command |
 |--------|---------|
@@ -164,7 +223,7 @@ Workstation helper (once wired in deploy):
 
 ---
 
-## 4. Path map (host ↔ container)
+## 5. Path map (host ↔ container)
 
 See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 
@@ -179,23 +238,26 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 
 ---
 
-## 5. What is declarative vs not
+## 6. What is declarative vs not
 
 | Piece | Declarative? |
 |-------|----------------|
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
+| `mcpServers.robinhood-crypto` | Yes (`default.nix` + activation re-assert); **read-only** data server only |
 | Registry + export schema + memory AGENTS.md | Yes (activation) |
 | Timers consolidate / dream / embed | Yes |
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
+| Robinhood crypto API keys | Optional sops (`enableRobinhoodCryptoSecrets` → `/run/hermes-robinhood.env`) |
 | Model provider `xai-oauth` + default `grok-4.5` | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
 | Local Brave + CDP (`browser.nix`) | Yes (service + profile dir); warm via `hermes-browser-import-cookies` |
+| Robinhood trading MCP | **No** — never enabled on this host |
 
 ---
 
-## 6. Local browser (CDP) + phone noVNC handoff
+## 7. Local browser (CDP) + phone noVNC handoff
 
 Primary automation browser is **local** (household/Starlink egress + sticky profile), not Browserless. Browserless remains for disposable scraping only.
 

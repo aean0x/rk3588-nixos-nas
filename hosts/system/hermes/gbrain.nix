@@ -16,6 +16,21 @@ let
   schemaFile = "${memoryDir}/export-schema.json";
   agentsManifest = "${memoryDir}/AGENTS.md";
 
+  # Same wrapper as default.nix mcpServers.robinhood-crypto (re-assert path must match).
+  robinhoodMcpWrapper = pkgs.writeShellApplication {
+    name = "robinhood-mcp-readonly";
+    runtimeInputs = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.nodejs
+    ];
+    excludeShellChecks = [
+      "SC1090"
+      "SC1091"
+    ];
+    text = builtins.readFile ./scripts/robinhood-mcp-readonly.sh;
+  };
+
   runtime = with pkgs; [
     bash
     coreutils
@@ -197,6 +212,7 @@ in
 
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
     install -m 0640 -o hermes -g hermes ${./workspace/GBRAIN.md} /var/lib/hermes/workspace/GBRAIN.md
+    install -m 0640 -o hermes -g hermes ${./workspace/ROBINHOOD.md} /var/lib/hermes/workspace/ROBINHOOD.md
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain
@@ -211,11 +227,12 @@ in
       ln -sfn /var/lib/hermes/home /home/hermes
     fi
 
-    # Re-assert mcpServers.gbrain after hermes-agent-setup / agent edits.
-    # Managed mode blocks agent writes, but deep-merge races can drop the block.
+    # Re-assert managed mcp_servers after hermes-agent-setup / agent edits.
+    # Managed mode blocks agent writes, but deep-merge races can drop blocks.
+    # Keep gbrain + robinhood-crypto (read-only data server) in sync with Nix.
     cfg=/var/lib/hermes/.hermes/config.yaml
     if [ -f "$cfg" ]; then
-      ${pkgs.python3}/bin/python3 - "$cfg" <<'PY'
+      ${pkgs.python3}/bin/python3 - "$cfg" ${lib.getExe robinhoodMcpWrapper} <<'PY'
 import sys
 from pathlib import Path
 try:
@@ -223,21 +240,41 @@ try:
 except ImportError:
     sys.exit(0)
 path = Path(sys.argv[1])
+robinhood_cmd = sys.argv[2]
 data = yaml.safe_load(path.read_text()) or {}
 mcp = data.setdefault("mcp_servers", {})
-desired = {
-    "command": "gbrain",
-    "args": ["serve"],
-    "connect_timeout": 120,
-    "timeout": 120,
-    "enabled": True,
-    "env": {
-        "HOME": "/home/hermes",
-        "PATH": "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin",
+desired_servers = {
+    "gbrain": {
+        "command": "gbrain",
+        "args": ["serve"],
+        "connect_timeout": 120,
+        "timeout": 120,
+        "enabled": True,
+        "env": {
+            "HOME": "/home/hermes",
+            "PATH": "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin",
+        },
+    },
+    # Read-only crypto data MCP — never robinhood-mcp-trading.
+    "robinhood-crypto": {
+        "command": robinhood_cmd,
+        "args": [],
+        "connect_timeout": 90,
+        "timeout": 120,
+        "enabled": True,
+        "env": {
+            "HOME": "/home/hermes",
+            "PATH": "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin",
+            "ROBINHOOD_CRYPTO_ENABLE_TRADING": "0",
+        },
     },
 }
-if mcp.get("gbrain") != desired:
-    mcp["gbrain"] = desired
+changed = False
+for name, desired in desired_servers.items():
+    if mcp.get(name) != desired:
+        mcp[name] = desired
+        changed = True
+if changed:
     path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
 PY
       chown hermes:hermes "$cfg" 2>/dev/null || true

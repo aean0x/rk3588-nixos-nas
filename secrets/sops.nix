@@ -39,6 +39,16 @@ let
     BTC_WALLET_KEY = "btc_wallet_key";
   };
 
+  # Optional Robinhood Crypto MCP credentials (read-only data server).
+  # Enable with settings.enableRobinhoodCryptoSecrets = true after adding keys
+  # to secrets.yaml (see secrets.yaml.example + hermes/BOOTSTRAP.md).
+  robinhoodCryptoEnabled = settings.enableRobinhoodCryptoSecrets or false;
+  # prettier-ignore
+  robinhoodCryptoSecrets = {
+    ROBINHOOD_CRYPTO_API_KEY = "robinhood_crypto_api_key";
+    ROBINHOOD_CRYPTO_PRIVATE_KEY = "robinhood_crypto_private_key";
+  };
+
   # Curated secrets for Hermes Agent (replaces OpenClaw-specific tokens).
   # Hermes reads these from $HERMES_HOME/.env at startup.
   # prettier-ignore
@@ -135,6 +145,19 @@ in
       (lib.mkIf wifiEnabled {
         wifi_psk = { };
       })
+      # Robinhood Crypto API (Ed25519). Optional until keys are registered.
+      (lib.mkIf robinhoodCryptoEnabled {
+        robinhood_crypto_api_key = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0400";
+        };
+        robinhood_crypto_private_key = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0400";
+        };
+      })
     ];
 
     templates = lib.mkMerge [
@@ -169,6 +192,26 @@ in
           mode = "0400";
           path = "/run/wifi.env";
           content = "WIFI_PSK=${config.sops.placeholder."wifi_psk"}";
+        };
+      })
+      # Dedicated env for read-only Robinhood Crypto MCP (not mixed into hermes.env
+      # by default so trading flags cannot accidentally land on the gateway).
+      # Merged into Hermes .env via environmentFiles when the template exists.
+      (lib.mkIf robinhoodCryptoEnabled {
+        hermesRobinhoodEnv = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0640";
+          path = "/run/hermes-robinhood.env";
+          content = lib.concatStringsSep "\n" (
+            (lib.mapAttrsToList (
+              envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
+            ) robinhoodCryptoSecrets)
+            ++ [
+              # Explicitly never enable trading via this secret surface.
+              "ROBINHOOD_CRYPTO_ENABLE_TRADING=0"
+            ]
+          );
         };
       })
     ];
