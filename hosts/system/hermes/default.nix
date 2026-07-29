@@ -24,6 +24,7 @@ in
     ./dashboard.nix
     ./gbrain.nix
     ./workstation.nix
+    ./browser.nix # persistent Chromium + loopback CDP for agent automation
   ];
 
   _module.args.hermes = hermes;
@@ -60,6 +61,7 @@ in
     # so secret rotation only needs `systemctl restart hermes-agent`.
     environmentFiles = [
       "/run/hermes.env"
+      "/run/hermes-browser.env" # BU_CDP_URL from ./browser.nix (loopback Chromium)
     ];
 
     settings = {

@@ -191,3 +191,27 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | SOUL.md / persona docs | **No** (disabled) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
+| Local Chromium + CDP (`browser.nix`) | Yes (service + profile dir); **warm cookies** still need a human once |
+
+---
+
+## 6. Local browser (CDP) + hybrid captcha
+
+After deploy, host runs `hermes-browser.service` (Xvfb + Chromium, profile `/var/lib/hermes/browser-profile`, CDP `http://127.0.0.1:9222` loopback only). Hermes gets `BU_CDP_URL` via `/run/hermes-browser.env`.
+
+```bash
+hermes-browser-status
+systemctl status hermes-browser
+curl -sS http://127.0.0.1:9222/json/version
+```
+
+**Cold profile still fails hard bot gates** (AXS/Cloudflare). Useful path:
+
+1. Agent attaches CDP, navigates, hits challenge.
+2. Agent screenshots → Telegram (“solve this in the shared browser”).
+3. You either:
+   - **xrdp** into the NAS desktop and open the same profile (if wired to that display — Xvfb is headless-virtual; for click-solvable UI prefer future noVNC on the same Chromium, or solve on your phone while agent holds a Browserless session with captcha solve), or
+   - reply **done** after solving if the session is interactive-shared.
+4. Agent continues checkout with the **same cookies**.
+
+Browserless (`BROWSERLESS_API_TOKEN`) remains available for soft-CF / general scraping; prefer **local CDP** for household-identity checkout after warm-up.
