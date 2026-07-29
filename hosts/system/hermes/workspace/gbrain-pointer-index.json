@@ -1,0 +1,16 @@
+[
+  {"aliases": ["ian", "operator"], "slug": "people/ian", "synopsis": "Operator prefs: autonomy, Telegram, workstation PRs"},
+  {"aliases": ["maton", "gmail", "outlook"], "slug": "ops/maton-map", "synopsis": "Maton gateway + mail/calendar connections"},
+  {"aliases": ["workstation", "grok build", "nix-pc", "coding hop"], "slug": "ops/workstation-coding", "synopsis": "Major PRs via workstation Grok, not Hermes container"},
+  {"aliases": ["feng", "autonomy", "l2", "l3", "l4", "silent"], "slug": "ops/feng-autonomy", "synopsis": "Feng L2/L3/L4 + cron SILENT rules"},
+  {"aliases": ["browser", "cdp", "novnc", "captcha", "checkout"], "slug": "ops/browser-backends", "synopsis": "Local CDP sticky profile + phone noVNC"},
+  {"aliases": ["mail triage", "unsubscribe", "daylight-checks", "inbox"], "slug": "ops/mail-triage-policy", "synopsis": "Notify only ACTION; silent unsub; no routine/user-echo"},
+  {"aliases": ["agentcard", "spend limit"], "slug": "ops/agentcard", "synopsis": "AgentCard $150 cap; confirm limit before charge"},
+  {"aliases": ["hermes managed", "config.yaml", "flake settings"], "slug": "ops/hermes-managed-config", "synopsis": "HERMES_MANAGED; durable settings in flake"},
+  {"aliases": ["rocknas", "rk3588"], "slug": "ops/rocknas", "synopsis": "RK3588 NAS host identity + Hermes stack"},
+  {"aliases": ["gbrain", "long-term memory", "put_page"], "slug": "ops/gbrain-protocol", "synopsis": "GBrain SoT; MEMORY is working notes only"},
+  {"aliases": ["cron", "heartbeat", "morning-progress"], "slug": "ops/cron-catalog", "synopsis": "Scheduled jobs Europe/Berlin"},
+  {"aliases": ["skee mask", "music taste", "live music", "parcels", "donny benét"], "slug": "taste/music-style-guide", "synopsis": "S0 Skee Mask; live hip-hop no; indie/metal yes"},
+  {"aliases": ["berlin events", "zenner", "berghain"], "slug": "taste/berlin-events-2026-07-29", "synopsis": "Berlin event shortlist scan 2026-07-29"},
+  {"aliases": ["first message", "reintro", "session store", "hermes_state"], "slug": "ops/hermes-reintro-bug", "synopsis": "Session store packaging fix; first-message intro bug"}
+]

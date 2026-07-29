@@ -188,7 +188,12 @@ in
         "/data/skills"
         "/var/lib/hermes/skills"
       ];
-      plugins.external_dirs = [ "/var/lib/hermes/plugins" ];
+      # User plugins also live under ~/.hermes/plugins (gbrain-reflex activation).
+      # `enabled` is the first-party opt-in allow-list (hermes_cli plugins).
+      plugins = {
+        external_dirs = [ "/var/lib/hermes/plugins" ];
+        enabled = [ "gbrain-reflex" ];
+      };
 
       # Match host timezone so cron schedules and session timestamps are correct.
       timezone = "Europe/Berlin";

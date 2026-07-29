@@ -98,6 +98,8 @@ in
     environment = {
       HERMES_MEMORY_REGISTRY = "/data/memory/registry.json";
       GBRAIN_AUDIT_DIR = "/home/hermes/.gbrain/audit";
+      # Static alias index for gbrain-reflex pre_llm_call (container path).
+      GBRAIN_POINTER_INDEX = "/data/workspace/gbrain-pointer-index.json";
     };
   };
 
@@ -197,6 +199,28 @@ in
 
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
     install -m 0640 -o hermes -g hermes ${./workspace/GBRAIN.md} /var/lib/hermes/workspace/GBRAIN.md
+    install -m 0640 -o hermes -g hermes ${./workspace/gbrain-pointer-index.json} \
+      /var/lib/hermes/workspace/gbrain-pointer-index.json
+
+    # gbrain-reflex plugin (user plugins dir = ~/.hermes/plugins under HERMES_HOME).
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/plugins/gbrain-reflex
+    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/plugin.yaml} \
+      /var/lib/hermes/.hermes/plugins/gbrain-reflex/plugin.yaml
+    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/__init__.py} \
+      /var/lib/hermes/.hermes/plugins/gbrain-reflex/__init__.py
+    # Also seed external_dirs path if present (toolbox creates /var/lib/hermes/plugins).
+    if [ -d /var/lib/hermes/plugins ]; then
+      install -d -m 0755 -o hermes -g hermes /var/lib/hermes/plugins/gbrain-reflex
+      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/plugin.yaml} \
+        /var/lib/hermes/plugins/gbrain-reflex/plugin.yaml
+      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/__init__.py} \
+        /var/lib/hermes/plugins/gbrain-reflex/__init__.py
+    fi
+
+    # retrieval-reflex policy skill (skills.external_dirs includes /var/lib/hermes/skills).
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills/retrieval-reflex
+    install -m 0644 -o hermes -g hermes ${./skills/retrieval-reflex/SKILL.md} \
+      /var/lib/hermes/skills/retrieval-reflex/SKILL.md
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain
@@ -211,7 +235,7 @@ in
       ln -sfn /var/lib/hermes/home /home/hermes
     fi
 
-    # Re-assert mcpServers.gbrain after hermes-agent-setup / agent edits.
+    # Re-assert mcpServers.gbrain + plugins.enabled after hermes-agent-setup / agent edits.
     # Managed mode blocks agent writes, but deep-merge races can drop the block.
     cfg=/var/lib/hermes/.hermes/config.yaml
     if [ -f "$cfg" ]; then
@@ -224,8 +248,10 @@ except ImportError:
     sys.exit(0)
 path = Path(sys.argv[1])
 data = yaml.safe_load(path.read_text()) or {}
+changed = False
+
 mcp = data.setdefault("mcp_servers", {})
-desired = {
+desired_mcp = {
     "command": "gbrain",
     "args": ["serve"],
     "connect_timeout": 120,
@@ -236,8 +262,32 @@ desired = {
         "PATH": "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin",
     },
 }
-if mcp.get("gbrain") != desired:
-    mcp["gbrain"] = desired
+if mcp.get("gbrain") != desired_mcp:
+    mcp["gbrain"] = desired_mcp
+    changed = True
+
+# Opt-in allow-list: ensure gbrain-reflex is enabled without wiping other entries.
+plugins = data.setdefault("plugins", {})
+if not isinstance(plugins, dict):
+    plugins = {}
+    data["plugins"] = plugins
+enabled = plugins.get("enabled")
+if not isinstance(enabled, list):
+    enabled = []
+    plugins["enabled"] = enabled
+if "gbrain-reflex" not in enabled:
+    enabled.append("gbrain-reflex")
+    changed = True
+# Keep external_dirs if already set by declarative settings / prior merge.
+ext = plugins.get("external_dirs")
+if not isinstance(ext, list):
+    plugins["external_dirs"] = ["/var/lib/hermes/plugins"]
+    changed = True
+elif "/var/lib/hermes/plugins" not in ext:
+    ext.append("/var/lib/hermes/plugins")
+    changed = True
+
+if changed:
     path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
 PY
       chown hermes:hermes "$cfg" 2>/dev/null || true
