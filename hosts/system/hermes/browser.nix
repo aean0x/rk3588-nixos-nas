@@ -1,6 +1,8 @@
-# Hermes local browser — persistent Chromium + CDP + phone-reachable noVNC.
+# Hermes local browser — persistent Brave + CDP + phone-reachable noVNC.
 #
 # Primary automation path: local sticky profile on home WAN (Starlink/residential).
+# Brave (Chromium-based) is less commonly fingerprinted as automation than stock
+# Chromium; still not a CF silver bullet — warm domain cookies help more.
 # Browserless stays available for disposable scraping; it is NOT the checkout primary
 # when this host already egresses a household IP.
 #
@@ -8,6 +10,10 @@
 # - CDP  http://127.0.0.1:9222          (loopback only — agent attach)
 # - noVNC http://<host>:6080/vnc.html   (LAN/Tailscale — human captcha/fallback)
 # - VNC   <host>:5900                   (optional raw; password-gated)
+#
+# Warm profile cookies:
+#   sudo -u hermes hermes-browser-import-cookies /path/to/cookies.txt|.json
+#   (Netscape or Playwright JSON; imports via CDP Network.setCookie while Brave runs)
 #
 # Hybrid (phone):
 # 1. Agent hits CF/AXS challenge over CDP
@@ -22,6 +28,7 @@
 }:
 let
   profileDir = "/var/lib/hermes/browser-profile";
+  cookiesDir = "/var/lib/hermes/browser-cookies";
   logDir = "/var/lib/hermes/browser-logs";
   cdpPort = 9222;
   vncPort = 5900;
@@ -35,17 +42,37 @@ let
   # Plain password + URLs for Hermes to relay (mode 0640 hermes).
   vncEnvFile = "/run/hermes-browser-vnc.env";
   cdpEnvFile = "/run/hermes-browser.env";
+
+  # Brave binary (Chromium fork). Same remote-debugging flags as Chromium.
+  braveBin = "${pkgs.brave}/bin/brave";
+
+  importCookiesPy = ./scripts/import-browser-cookies.py;
+  hermesBrowserImportCookies = pkgs.writeShellApplication {
+    name = "hermes-browser-import-cookies";
+    runtimeInputs = [
+      (pkgs.python3.withPackages (ps: [ ps.websocket-client ]))
+      pkgs.curl
+      pkgs.coreutils
+    ];
+    text = ''
+      set -euo pipefail
+      exec python3 ${importCookiesPy} --cdp "http://${cdpAddr}:${toString cdpPort}" "$@"
+    '';
+  };
 in
 {
   environment.systemPackages = [
-    pkgs.chromium
+    pkgs.brave
     pkgs.xvfb
     pkgs.x11vnc
     pkgs.novnc
     pkgs.python3Packages.websockify
+    hermesBrowserImportCookies
     (pkgs.writeShellScriptBin "hermes-browser-status" ''
       set -euo pipefail
+      echo "engine:   brave"
       echo "profile:  ${profileDir}"
+      echo "cookies:  ${cookiesDir}  (drop Netscape/JSON; import with hermes-browser-import-cookies)"
       echo "cdp:      http://${cdpAddr}:${toString cdpPort}"
       echo "novnc:    http://0.0.0.0:${toString novncPort}/vnc.html"
       if ${pkgs.curl}/bin/curl -fsS --max-time 2 "http://${cdpAddr}:${toString cdpPort}/json/version"; then
@@ -76,6 +103,7 @@ in
 
   systemd.tmpfiles.rules = [
     "d ${profileDir} 0750 hermes hermes - -"
+    "d ${cookiesDir} 0750 hermes hermes - -"
     "d ${logDir} 0750 hermes hermes - -"
     "d /var/lib/hermes/home 0755 hermes hermes - -"
     "f ${cdpEnvFile} 0640 hermes hermes - "
@@ -93,6 +121,7 @@ in
       HERMES_BROWSER_CDP_URL = "http://${cdpAddr}:${toString cdpPort}";
       HERMES_BROWSER_PROFILE = profileDir;
       HERMES_BROWSER_NOVNC_PORT = toString novncPort;
+      HERMES_BROWSER_ENGINE = "brave";
     };
     # Docker process env (dotenv alone is not always visible to children / bash -lc probes).
     container.extraOptions = [
@@ -102,10 +131,12 @@ in
       "BU_CDP_URL=http://${cdpAddr}:${toString cdpPort}"
       "--env"
       "HERMES_BROWSER_CDP_URL=http://${cdpAddr}:${toString cdpPort}"
+      "--env"
+      "HERMES_BROWSER_ENGINE=brave"
     ];
     settings.browser = {
       cdp_url = "http://${cdpAddr}:${toString cdpPort}";
-      # attach to host Chromium on loopback
+      # attach to host Brave on loopback
       allow_private_urls = true;
     };
   };
@@ -152,6 +183,7 @@ HERMES_BROWSER_CDP_URL=http://${cdpAddr}:${toString cdpPort}
 HERMES_BROWSER_PROFILE=${profileDir}
 HERMES_BROWSER_NOVNC_URL=http://''${host_ip}:${toString novncPort}/vnc.html
 HERMES_BROWSER_NOVNC_PORT=${toString novncPort}
+HERMES_BROWSER_ENGINE=brave
 EOF
       chown hermes:hermes ${cdpEnvFile}
       chmod 0640 ${cdpEnvFile}
@@ -168,7 +200,7 @@ EOF
       # Upsert into Hermes dotenv (activation may merge empty env files first).
       hermes_env=/var/lib/hermes/.hermes/.env
       if [[ -f "$hermes_env" ]]; then
-        for key in BROWSER_CDP_URL BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT; do
+        for key in BROWSER_CDP_URL BU_CDP_URL HERMES_BROWSER_CDP_URL HERMES_BROWSER_PROFILE HERMES_BROWSER_NOVNC_URL HERMES_BROWSER_NOVNC_PORT HERMES_BROWSER_ENGINE; do
           val="$(${pkgs.gnugrep}/bin/grep -E "^''${key}=" ${cdpEnvFile} | ${pkgs.coreutils}/bin/head -1 || true)"
           if [[ -n "$val" ]]; then
             ${pkgs.gnused}/bin/sed -i "/^''${key}=/d" "$hermes_env" 2>/dev/null || true
@@ -189,9 +221,9 @@ EOF
     wants = [ "hermes-browser-env.service" ];
   };
 
-  # Chromium on Xvfb (the automation surface).
+  # Brave on Xvfb (the automation surface). Chromium-based; CDP protocol identical.
   systemd.services.hermes-browser = {
-    description = "Hermes persistent Chromium on Xvfb (CDP loopback)";
+    description = "Hermes persistent Brave on Xvfb (CDP loopback)";
     wantedBy = [ "multi-user.target" ];
     after = [
       "network-online.target"
@@ -209,9 +241,9 @@ EOF
       Restart = "on-failure";
       RestartSec = 5;
       MemoryMax = "2G";
-      TimeoutStartSec = 60;
-      StandardOutput = "append:${logDir}/chromium.stdout";
-      StandardError = "append:${logDir}/chromium.stderr";
+      TimeoutStartSec = 90;
+      StandardOutput = "append:${logDir}/brave.stdout";
+      StandardError = "append:${logDir}/brave.stderr";
     };
 
     environment = {
@@ -223,7 +255,7 @@ EOF
 
     script = ''
       set -euo pipefail
-      mkdir -p ${profileDir} /var/lib/hermes/home ${logDir}
+      mkdir -p ${profileDir} ${cookiesDir} /var/lib/hermes/home ${logDir}
 
       rm -f /tmp/.X${displayNum}-lock /tmp/.X11-unix/X${displayNum} || true
 
@@ -233,16 +265,19 @@ EOF
       sleep 1
 
       # --no-sandbox: hermes is an unprivileged service user without chrome-sandbox SUID.
-      exec ${pkgs.chromium}/bin/chromium \
+      # password-store=basic: avoid keyring prompts under a headless service user.
+      exec ${braveBin} \
         --user-data-dir=${profileDir} \
         --remote-debugging-address=${cdpAddr} \
         --remote-debugging-port=${toString cdpPort} \
+        --remote-allow-origins=* \
         --no-first-run \
         --no-default-browser-check \
         --no-sandbox \
         --disable-setuid-sandbox \
         --disable-dev-shm-usage \
         --disable-gpu \
+        --password-store=basic \
         --window-size=1400,900 \
         --disable-features=TranslateUI \
         about:blank
