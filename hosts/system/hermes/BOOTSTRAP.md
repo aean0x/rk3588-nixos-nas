@@ -191,7 +191,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | SOUL.md / persona docs | **No** (disabled) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
-| Local Chromium + CDP (`browser.nix`) | Yes (service + profile dir); **warm cookies** still need a human once |
+| Local Brave + CDP (`browser.nix`) | Yes (service + profile dir); warm via `hermes-browser-import-cookies` |
 
 ---
 
@@ -201,7 +201,10 @@ Primary automation browser is **local** (household/Starlink egress + sticky prof
 
 After deploy:
 
-- `hermes-browser.service` — Xvfb + Chromium, profile `/var/lib/hermes/browser-profile`, CDP `http://127.0.0.1:9222` (loopback)
+- `hermes-browser.service` — Xvfb + **Brave**, profile `/var/lib/hermes/browser-profile`, CDP `http://127.0.0.1:9222` (loopback)
+- Warm cookies (Netscape `.txt` or Playwright JSON): drop under `/var/lib/hermes/browser-cookies/` then  
+  `sudo -u hermes hermes-browser-import-cookies /var/lib/hermes/browser-cookies/ra-axs.json`  
+  (imports via CDP while Brave stays up; session + stable cookies only — not password dumps)
 - `hermes-browser-vnc.service` — x11vnc on the same display (password file)
 - `hermes-browser-novnc.service` — noVNC web UI on **port 6080** (phone browser)
 

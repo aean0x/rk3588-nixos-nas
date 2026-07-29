@@ -10,7 +10,8 @@ Aligned with Hetzner `modules/hermes-agent.nix` toolbox + MCP pattern.
 | **Bun globals** | `~/.bun/bin` (e.g. `gbrain`) | After `bun install -g` in container |
 | **npm globals** | `~/.npm-global/bin` (e.g. `agent-browser`) | After `npm install -g` |
 | **Workstation helpers** | Host `~/.local/bin` (ssh-workstation, …) | Host PATH only (not first on agent PATH) |
-| **Host Chromium CDP** | `hermes-browser.service` :9222 | `BROWSER_CDP_URL` + `browser.cdp_url` |
+| **Host Brave CDP** | `hermes-browser.service` :9222 | `BROWSER_CDP_URL` + `browser.cdp_url` |
+| **Cookie warm** | `hermes-browser-import-cookies` | Netscape / Playwright JSON → CDP `Network.setCookie` |
 | **MCP** | `mcpServers.gbrain` → `gbrain serve` | Tools `mcp_gbrain_*` (via tool_search) |
 
 ## PATH order (container / gateway)
