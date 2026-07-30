@@ -8,13 +8,16 @@
 # Port 8080: free of AdGuard (:3000), FileBrowser (:8085), Hermes dashboard (:9119).
 # openFirewall = false — only Caddy faces LAN/Tailscale.
 # Do NOT set API_SERVER_HOST=0.0.0.0; API stays on loopback.
-{ settings, ... }:
+{ lib, settings, ... }:
 let
   # Native open-webui default; documented in workspace/OPEN-WEBUI.md.
   port = 8080;
   domain = settings.domain;
 in
 {
+  # nixpkgs marks open-webui unfree (Open WebUI License) as of 0.11.x.
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
+
   # Hermes OpenAI-compatible API server (first-class, durable via HERMES_MANAGED
   # /run/hermes.env — not `hermes config set`). Non-secret knobs here so the
   # gateway process always sees them even if dotenv merge order drifts.
