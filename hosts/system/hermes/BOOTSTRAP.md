@@ -9,9 +9,9 @@ North-star behavior: `~/dev/hetzner-nixos` GBrain integration. Layout here lives
 ## 0. Prerequisites (workstation)
 
 ```bash
-# Secrets (ZeroEntropy already in hermesEnv as ZEROENTROPY_API_KEY)
+# Secrets (ZeroEntropy + Firecrawl land in hermesEnv as ZEROENTROPY_API_KEY / FIRECRAWL_API_KEY)
 cd secrets && ./decrypt          # edit secrets.yaml.work if rotating keys
-# ... edit ...
+# ... edit (set zeroentropy_api_key, firecrawl_api_key, …) ...
 ./encrypt                        # writes secrets.yaml
 
 # Deploy config
@@ -25,7 +25,8 @@ On device after switch:
 systemctl status hermes-agent
 ls -la /var/lib/hermes/memory/          # registry.json, AGENTS.md, export-schema.json
 ls -la /var/lib/hermes/.hermes/AGENTS.md  # live memory contract (not SOUL)
-grep ZEROENTROPY /run/hermes.env | sed 's/=.*/=…/'
+grep -E 'ZEROENTROPY|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
+# web_extract needs firecrawl-py (extraDependencyGroups) + FIRECRAWL_API_KEY
 ```
 
 ---
@@ -187,6 +188,8 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | Registry + export schema + memory AGENTS.md | Yes (activation) |
 | Timers consolidate / dream / embed | Yes |
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
+| `FIRECRAWL_API_KEY` | Yes (sops → hermesEnv; `web_extract`) |
+| `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
 | Model provider `xai-oauth` + default `grok-4.5` | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |

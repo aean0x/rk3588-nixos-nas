@@ -245,8 +245,10 @@ in
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
     # - messaging: Telegram/Discord/Slack — removed from `[all]` (2026-05-12); required for gateway.
+    # - firecrawl: web_extract / Firecrawl provider (firecrawl-py); lazy install disabled in Nix.
     extraDependencyGroups = [
       "messaging"
+      "firecrawl"
     ];
 
     restart = "always";

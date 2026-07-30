@@ -70,6 +70,8 @@ let
     BTC_WALLET_KEY = "btc_wallet_key";
     # GBrain embeddings (gbrain embed --stale / dream).
     ZEROENTROPY_API_KEY = "zeroentropy_api_key";
+    # Firecrawl (Hermes web_extract / scrape backend).
+    FIRECRAWL_API_KEY = "firecrawl_api_key";
     # Hermes OpenAI-compatible API server (Open WebUI / loopback clients).
     # Distinct from OPENAI_API_KEY above (that one is OpenRouter for LLM routing).
     API_SERVER_KEY = "hermes_api_server_key";
@@ -107,6 +109,7 @@ in
         cloudflare_dns_api_token = { };
         xai_api_key = { };
         zeroentropy_api_key = { };
+        firecrawl_api_key = { };
         filebrowser_password = { };
         crowdsec_bouncer_api_key = { };
         clawhub_token = { };

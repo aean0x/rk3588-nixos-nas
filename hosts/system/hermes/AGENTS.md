@@ -91,14 +91,17 @@ gbrain-dream (04:30)              → gbrain dream
 | Env | Sops key | Purpose |
 |-----|----------|---------|
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
+| `FIRECRAWL_API_KEY` | `firecrawl_api_key` | Hermes `web_extract` (Firecrawl / firecrawl-py) |
+| `BRAVE_API_KEY` | `brave_search_api_key` | Web search |
 | `XAI_API_KEY` | `xai_api_key` | Fallback / tooling (OAuth is primary for chat) |
 | `TELEGRAM_*` | telegram secrets | Gateway |
 | (file) | `nix_pc_agent_ssh_key` | `/run/secrets/…` only; `ssh-workstation` injects via IdentityFile (not in hermes HOME) |
 
 ```bash
 cd secrets && ./decrypt   # → secrets.yaml.work
-# edit, then:
+# edit (e.g. set firecrawl_api_key), then:
 ./encrypt                 # → secrets.yaml
+# After deploy: systemctl restart hermes-agent
 ```
 
 ## Coding workstation
@@ -147,5 +150,6 @@ sudo bash hosts/system/hermes/scripts/clean-hermes-state.sh
 
 - Module container is always `--network=host` — no docker `-p` for dashboard.
 - `messaging` must be in `extraDependencyGroups` (not in hermes `[all]`).
+- `firecrawl` must be in `extraDependencyGroups` for `web_extract` (firecrawl-py; lazy install disabled in Nix).
 - Memory **AGENTS.md** is not SOUL; gbrain activation overwrites `.hermes/AGENTS.md` from `memory/AGENTS.md`.
 - `HASS_*` env names for Home Assistant tools (not `HA_*`).
