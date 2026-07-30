@@ -13,6 +13,8 @@ Aligned with Hetzner `modules/hermes-agent.nix` toolbox + MCP pattern.
 | **Host Brave CDP** | `hermes-browser.service` :9222 | `BROWSER_CDP_URL` + `browser.cdp_url` |
 | **Cookie warm** | `hermes-browser-import-cookies` | Netscape / Playwright JSON → CDP `Network.setCookie` |
 | **MCP** | `mcpServers.gbrain` → `gbrain serve` | Tools `mcp_gbrain_*` (via tool_search) |
+| **Open WebUI** | native `:8080` → Caddy `open-webui.<domain>` | Chat UI → Hermes API `127.0.0.1:8642/v1` |
+| **Hermes API** | `API_SERVER_*` loopback only | Bearer = `hermes_api_server_key` (sops) |
 
 ## PATH order (container / gateway)
 
@@ -66,7 +68,7 @@ netcat-gnu, socat, chromium→chrome/google-chrome aliases.
 | sudo NOPASSWD | hermes-cli + hermes | same |
 | Dotenv PATH | stripped (host-safe); container via service/docker env | same — strip PATH/HERMES_PY/AGENT_BROWSER from `.env`; host CLI uses hermes-cli PATH |
 
-Intentional rocknas extras: host sticky Chromium CDP (`browser.nix`), OneDrive sync, gbrain consolidate/embed/dream timers.
+Intentional rocknas extras: host sticky Brave CDP (`browser.nix`), OneDrive sync, gbrain consolidate/embed/dream timers, Open WebUI, HMC + gbrain-reflex plugins.
 
 ## Host CLI routing note
 

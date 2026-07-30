@@ -19,18 +19,35 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 
 ```
 hosts/system/hermes/
-├── default.nix          # module import, model, maton MCP, no SOUL activation
+├── default.nix          # module import, model, plugins, maton MCP, no SOUL activation
 ├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
-├── gbrain.nix           # MCP gbrain, timers, activation, host CLIs
+├── package-fix.nix     # hermes_state_* wheel gap workaround
+├── gbrain.nix           # MCP gbrain, timers, gbrain-reflex, host CLIs
+├── context-manager.nix  # hermes-context-manager (HMC) pin + config
+├── open-webui.nix       # Open WebUI :8080 → Hermes API :8642 (loopback) + Caddy
+├── browser.nix          # Brave sticky profile + CDP + cookie import
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
-├── memory/              # declarative memory plane (→ /var/lib/hermes/memory + live AGENTS.md)
-├── prompts/
-├── scripts/             # consolidate/embed/validate/clean-hermes-state + check-tools
+├── plugins/             # gbrain-reflex (HMC tree is activation-copied from GitHub)
+├── skills/              # retrieval-reflex + workstation
+├── memory/              # declarative memory plane
+├── scripts/
 ├── BOOTSTRAP.md
-└── workspace/soul.md    # DRAFT ONLY — not installed
+└── workspace/           # GBRAIN.md, OPEN-WEBUI.md, pointer index, soul draft
 ```
+
+## Open WebUI
+
+`https://open-webui.<domain>/` (LAN) → native open-webui → Hermes `127.0.0.1:8642/v1`.
+Shared sops `hermes_api_server_key` → `API_SERVER_KEY` + Open WebUI `OPENAI_API_KEY`.
+Runbook: `workspace/OPEN-WEBUI.md`.
+
+## Token lean + plugins (0.19)
+
+- `tool_output` + compression prune/idle in `default.nix`
+- `plugins.enabled`: `hermes-context-manager`, `gbrain-reflex`
+- After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)
 

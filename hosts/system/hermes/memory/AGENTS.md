@@ -69,6 +69,7 @@ All inbox JSON must validate against `export-schema.json` (required: `record_id`
 | Recall / history / “what do we know” | MCP `query` / `volunteer_context` **before** MEMORY.md |
 | User shares durable knowledge | MCP `put_page` (and optional inbox export); not MEMORY-only |
 | Ops maps, preferences, project SoT | GBrain pages under stable slugs (`ops/…`, `projects/…`) |
+| Proactive pointers (injected `## GBrain pointers`) | Infra: `gbrain-reflex` plugin; **open** via MCP `get_page` / `query` when subject is salient (`retrieval-reflex` skill) |
 | Batch import / dream / embed | **Host timers only** — never ad-hoc CLI put while MCP serve is up |
 
 ### PGLite single-writer (infra)
