@@ -1,0 +1,63 @@
+# Managed by NixOS (hosts/system/hermes/context-manager.nix).
+# This file is the repo-side copy of the shipped HMC config for review/diffing.
+# Activation installs an equivalent file from writeText into
+# /var/lib/hermes/plugins/hermes-context-manager/config.yaml on each switch.
+#
+# Upstream: https://github.com/entrepeneur4lyf/hermes-context-manager
+# Pin: 3f775efd48e878679e8fd4290b96968880fed6f7
+#
+# After deploy: restart gateway, then `/hmc status`.
+# Dashboard stays off until `/hmc dashboard action=start`.
+
+enabled: true
+debug: false
+
+manual_mode:
+  enabled: false
+  automatic_strategies: true
+
+compress:
+  max_context_percent: 0.8
+  min_context_percent: 0.4
+  protected_tools:
+    - write_file
+    - patch
+
+strategies:
+  deduplication:
+    enabled: true
+    protected_tools: []
+  purge_errors:
+    enabled: true
+    turns: 4
+    protected_tools: []
+
+short_circuits:
+  enabled: true
+
+truncation:
+  enabled: true
+  max_lines: 50
+  head_lines: 10
+  tail_lines: 10
+  min_content_length: 500
+
+background_compression:
+  enabled: true
+  protect_recent_turns: 3
+
+analytics:
+  enabled: true
+  retention_days: 90
+  db_path: ""
+
+code_filter:
+  enabled: true
+  languages:
+    - python
+    - javascript
+    - typescript
+    - rust
+    - go
+  min_lines: 30
+  preserve_docstrings: true

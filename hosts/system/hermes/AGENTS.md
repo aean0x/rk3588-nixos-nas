@@ -19,18 +19,35 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 
 ```
 hosts/system/hermes/
-├── default.nix          # module import, model, maton MCP, no SOUL activation
+├── default.nix          # module import, model, token-lean settings, maton MCP, no SOUL
+├── context-manager.nix  # hermes-context-manager (HMC) pin + activation + config.yaml
 ├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
 ├── gbrain.nix           # MCP gbrain, timers, activation, host CLIs
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
+├── plugins/             # reviewable HMC config copy (live tree from fetchFromGitHub)
 ├── memory/              # declarative memory plane (→ /var/lib/hermes/memory + live AGENTS.md)
 ├── prompts/
 ├── scripts/             # consolidate/embed/validate/clean-hermes-state + check-tools
 ├── BOOTSTRAP.md
 └── workspace/soul.md    # DRAFT ONLY — not installed
 ```
+
+## Token lean (Hermes 0.19)
+
+Declarative in `default.nix` `services.hermes-agent.settings` (HERMES_MANAGED):
+
+| Axis | Settings |
+|------|----------|
+| Tool output | `tool_output.max_bytes=14000`, `max_lines=400`, `max_line_length=2000` |
+| Compression | `threshold=0.55`, `target_ratio=0.18`, `protect_last_n=8`, proactive prune 48k / min 4k chars / min reclaim 4096, idle compact 1800s |
+| Tool search | `tools.tool_search.enabled = "auto"` (unchanged) |
+| Aux routing | DeepSeek Flash for compression/titles/… (unchanged) |
+
+**Not set (absent from 0.19 DEFAULT_CONFIG):** `tools.compact_schemas`, `skills.prompt_mode=compact`.
+
+**HMC plugin** (`context-manager.nix`): pinned `entrepeneur4lyf/hermes-context-manager` → `/var/lib/hermes/plugins/hermes-context-manager` + symlink under `.hermes/plugins/`, `plugins.enabled = [ "hermes-context-manager" ]`. After deploy **restart the gateway**, then `/hmc status`. Dashboard off until `/hmc dashboard action=start`.
 
 ## Everyday tools (toolbox)
 

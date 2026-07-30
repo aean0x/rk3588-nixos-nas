@@ -27,6 +27,7 @@ in
     ./gbrain.nix
     ./workstation.nix
     ./browser.nix # persistent Brave + loopback CDP for agent automation
+    ./context-manager.nix # hermes-context-manager (HMC) plugin pin + config
   ];
 
   _module.args.hermes = hermes;
@@ -97,12 +98,26 @@ in
         user_profile_enabled = true;
       };
 
+      # Token lean 80/20: tighter native tool-output caps + proactive prune / idle compact.
+      # Values verified against hermes-agent 0.19 DEFAULT_CONFIG (hermes_cli/config.py).
+      # Skipped (not in 0.19 DEFAULT_CONFIG): tools.compact_schemas, skills.prompt_mode=compact.
+      tool_output = {
+        max_bytes = 14000;
+        max_lines = 400;
+        max_line_length = 2000;
+      };
+
       # Tighter context compression; aux model routes below (not main xai-oauth).
+      # Keep all existing keys; add proactive prune + idle compact (0.19 opt-in knobs).
       compression = {
         enabled = true;
         threshold = 0.55;
         target_ratio = 0.18;
-        protect_last_n = 15;
+        protect_last_n = 8;
+        proactive_prune_tokens = 48000;
+        proactive_prune_min_result_chars = 4000;
+        proactive_prune_min_reclaim_tokens = 4096;
+        idle_compact_after_seconds = 1800;
       };
 
       # ── Model routing (explicit axes — Hermes has no smart task classifier) ──
@@ -188,7 +203,16 @@ in
         "/data/skills"
         "/var/lib/hermes/skills"
       ];
-      plugins.external_dirs = [ "/var/lib/hermes/plugins" ];
+      # external_dirs: host + container paths (container mounts stateDir → /data).
+      # Discovery still uses $HERMES_HOME/plugins; activation also symlinks HMC there.
+      plugins = {
+        external_dirs = [
+          "/data/plugins"
+          "/var/lib/hermes/plugins"
+        ];
+        # 0.19 opt-in allow-list (required for user plugins to load).
+        enabled = [ "hermes-context-manager" ];
+      };
 
       # Match host timezone so cron schedules and session timestamps are correct.
       timezone = "Europe/Berlin";

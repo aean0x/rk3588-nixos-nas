@@ -28,6 +28,23 @@ ls -la /var/lib/hermes/.hermes/AGENTS.md  # live memory contract (not SOUL)
 grep ZEROENTROPY /run/hermes.env | sed 's/=.*/=…/'
 ```
 
+### Token lean + hermes-context-manager (HMC)
+
+Settings live in `default.nix` (tool_output, compression prune/idle, tool_search). Plugin pin + `config.yaml` in `context-manager.nix`.
+
+```bash
+# After remote-switch / remote-test — required so HMC hooks load:
+hermes gateway restart
+# or: sudo systemctl restart hermes-agent
+
+# In chat (or hermes chat):
+# /hmc status
+ls -la /var/lib/hermes/plugins/hermes-context-manager/
+ls -la /var/lib/hermes/.hermes/plugins/hermes-context-manager  # → ../../plugins/...
+```
+
+Dashboard stays off until `/hmc dashboard action=start`.
+
 ---
 
 ## 1. Bootstrap the agent (OAuth + model)
