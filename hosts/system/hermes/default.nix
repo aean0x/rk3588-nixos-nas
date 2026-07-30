@@ -176,6 +176,8 @@ in
         model = "deepseek/deepseek-v4-flash";
         model_provider = "openrouter";
         model_drift_guard = true;
+        # Mobile noty: raw agent text (no Cronjob Response header/footer).
+        wrap_response = false;
       };
 
       # Lazy tool schema loading to cut MCP/tool definition tax; keep toolsets = [ "all" ].
