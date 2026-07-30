@@ -23,13 +23,17 @@ hosts/system/hermes/
 ├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
 ├── gbrain.nix           # MCP gbrain, timers, activation, host CLIs
 ├── dashboard.nix        # web UI :9119 + Caddy
+├── open-webui.nix       # Open WebUI :8080 → Hermes API :8642 (loopback) + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
 ├── memory/              # declarative memory plane (→ /var/lib/hermes/memory + live AGENTS.md)
 ├── prompts/
 ├── scripts/             # consolidate/embed/validate/clean-hermes-state + check-tools
 ├── BOOTSTRAP.md
-└── workspace/soul.md    # DRAFT ONLY — not installed
+└── workspace/
+    ├── soul.md          # DRAFT ONLY — not installed
+    ├── GBRAIN.md
+    └── OPEN-WEBUI.md    # Open WebUI operator runbook
 ```
 
 ## Everyday tools (toolbox)
@@ -76,6 +80,7 @@ gbrain-dream (04:30)              → gbrain dream
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
 | `XAI_API_KEY` | `xai_api_key` | Fallback / tooling (OAuth is primary for chat) |
 | `TELEGRAM_*` | telegram secrets | Gateway |
+| `API_SERVER_KEY` (+ Open WebUI `OPENAI_API_KEY`) | `hermes_api_server_key` | Shared bearer: Hermes API :8642 ↔ Open WebUI (not OpenRouter) |
 | (file) | `nix_pc_agent_ssh_key` | `/run/secrets/…` only; `ssh-workstation` injects via IdentityFile (not in hermes HOME) |
 
 ```bash
@@ -111,7 +116,8 @@ release-workstation
 | SSH | `./deploy ssh` (fallback; prefer named `./deploy` subcommands) |
 | Telegram | bot DM (allowlisted) |
 | Dashboard | `https://hermes.<domain>/` |
-| Logs | `./deploy journal hermes-agent` / `./deploy logs hermes-agent` |
+| Open WebUI | `https://open-webui.<domain>/` (LAN; → Hermes API `127.0.0.1:8642`) — runbook `workspace/OPEN-WEBUI.md` |
+| Logs | `./deploy journal hermes-agent` / `./deploy logs hermes-agent` / `journalctl -u open-webui` |
 
 Bootstrap prompts and gbrain install instructions: **`BOOTSTRAP.md`**. After `remote-switch`/`remote-upgrade`, continue autonomously: confirm OAuth, prompt/install GBrain, run validate + benchmark prompts.
 

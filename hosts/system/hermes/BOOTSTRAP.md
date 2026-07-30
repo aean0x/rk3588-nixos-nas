@@ -58,6 +58,7 @@ sudo systemctl restart hermes-agent
 | Host CLI | `hermes chat` (sudo-routed into container) |
 | Telegram | DM the bot (allowlist from `TELEGRAM_ALLOWED_USERS`) |
 | Dashboard | `https://hermes.<domain>/` (LAN) |
+| **Open WebUI** | `https://open-webui.<domain>/` (LAN) — polished chat UI → Hermes API `:8642` |
 
 **Smoke prompts (agent bootstrap):**
 
@@ -225,3 +226,47 @@ grep NOVNC /run/hermes-browser-vnc.env
 Cellular without Tailscale will not reach LAN-only NAS; use Tailscale.
 
 **Cold profile still fails hard gates** until warmed once via noVNC or cookie import.
+
+---
+
+## 7. Open WebUI (chat frontend)
+
+Native NixOS `services.open-webui` on **127.0.0.1:8080**, reverse-proxied as LAN-only
+`https://open-webui.<domain>` (same Caddy guard as the Hermes dashboard). Hermes exposes an
+OpenAI-compatible API on **loopback :8642** only — never bind the API to `0.0.0.0`.
+
+Full runbook: **`workspace/OPEN-WEBUI.md`**.
+
+### Prerequisites (sops — required before first deploy of this feature)
+
+```bash
+cd secrets && ./decrypt
+# In secrets.yaml.work, add (generate a fresh secret):
+#   hermes_api_server_key: "<output of: openssl rand -hex 32>"
+./encrypt
+```
+
+This single secret is written to:
+
+| File | Variable |
+|------|----------|
+| `/run/hermes.env` | `API_SERVER_KEY` (+ `API_SERVER_ENABLED=true`, host/port/model name) |
+| `/run/open-webui.env` | `OPENAI_API_KEY` (must match) |
+
+Do **not** set API server knobs with `hermes config set` on this host — Nix owns them via
+`/run/hermes.env` (HERMES_MANAGED) and `services.hermes-agent.environment`.
+
+### After switch
+
+```bash
+systemctl status hermes-agent open-webui
+curl -sS http://127.0.0.1:8642/health
+KEY=$(grep '^API_SERVER_KEY=' /run/hermes.env | cut -d= -f2-)
+curl -sS -H "Authorization: Bearer $KEY" http://127.0.0.1:8642/v1/models
+```
+
+Open `https://open-webui.<domain>/`, register the **first user** (becomes admin). Model
+dropdown should show **`hermes-agent`**. Prefer **Chat Completions** API type (default).
+
+First Open WebUI start may take 15–30s (sentence-transformer download). `ENABLE_OLLAMA_API=false`
+avoids an empty Ollama entry cluttering the model picker.

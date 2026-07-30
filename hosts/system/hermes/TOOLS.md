@@ -45,6 +45,13 @@ netcat-gnu, socat, chromium→chrome/google-chrome aliases.
 | `AGENT_BROWSER_EXECUTABLE_PATH` | `/data/toolbox/bin/chromium` |
 | `BROWSER_CDP_URL` | `http://127.0.0.1:9222` (browser.nix) |
 | `browser.cdp_url` | same (config.yaml) |
+| `API_SERVER_ENABLED` | `true` (Open WebUI / OpenAI-compatible clients) |
+| `API_SERVER_HOST` / `PORT` | `127.0.0.1` / `8642` (loopback only) |
+| `API_SERVER_KEY` | sops `hermes_api_server_key` → `/run/hermes.env` |
+| `API_SERVER_MODEL_NAME` | `hermes-agent` (model id in Open WebUI) |
+
+Open WebUI (native `services.open-webui`, host `127.0.0.1:8080`): `OPENAI_API_BASE_URL=http://127.0.0.1:8642/v1`,
+`OPENAI_API_KEY` from `/run/open-webui.env` (same secret). See `workspace/OPEN-WEBUI.md`.
 
 ## MCP
 

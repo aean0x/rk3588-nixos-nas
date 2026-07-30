@@ -27,6 +27,7 @@ in
     ./gbrain.nix
     ./workstation.nix
     ./browser.nix # persistent Brave + loopback CDP for agent automation
+    ./open-webui.nix # Open WebUI → Hermes API server :8642 (loopback)
   ];
 
   _module.args.hermes = hermes;
