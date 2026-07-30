@@ -38,9 +38,21 @@ If inbox is stuck, tell the operator to run `sudo hermes-gbrain-consolidate` (ex
 
 Use MCP put_page; keep MEMORY as index only.
 
+## Proactive pointers (infra)
+
+Infra owns auto-recall **pointers only** — not a second memory product.
+
+- **`gbrain-reflex` plugin** (`pre_llm_call`) injects **0–3** compact pointers into the **user message** from a static alias index (`gbrain-pointer-index.json`). This preserves the system-prompt cache (Hermes invariant: never inject into system prompt).
+- Pointers look like: `Name → slug — one-line synopsis`. Full pages are **never** auto-dumped.
+- When a pointer (or named entity) is the **subject** of the turn, open it with MCP `get_page` / `query` / `volunteer_context` — see skill **`retrieval-reflex`**.
+- Fail-open: no network, no `gbrain` CLI in the hot path (PGLite locked by MCP serve). Index is flake-owned under `workspace/gbrain-pointer-index.json`; update it when adding durable slugs that should auto-surface.
+- Env: `GBRAIN_POINTER_INDEX` (default container path `/data/workspace/gbrain-pointer-index.json`).
+
 ## Anti-patterns
 
 - Defaulting to MEMORY + session_search for every recall  
 - Never calling `volunteer_context`  
 - CLI `gbrain put` while gateway is up  
 - Treating probe/benchmark pages as a healthy brain  
+- Ignoring injected `## GBrain pointers` when the entity is the subject  
+

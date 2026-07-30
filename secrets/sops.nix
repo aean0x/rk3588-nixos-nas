@@ -70,6 +70,9 @@ let
     BTC_WALLET_KEY = "btc_wallet_key";
     # GBrain embeddings (gbrain embed --stale / dream).
     ZEROENTROPY_API_KEY = "zeroentropy_api_key";
+    # Hermes OpenAI-compatible API server (Open WebUI / loopback clients).
+    # Distinct from OPENAI_API_KEY above (that one is OpenRouter for LLM routing).
+    API_SERVER_KEY = "hermes_api_server_key";
   };
 in
 {
@@ -114,6 +117,9 @@ in
         x_bearer_token = { };
         github_pat = { };
         btc_wallet_key = { };
+        # Shared bearer for Hermes API_SERVER_KEY + Open WebUI OPENAI_API_KEY.
+        # Generate: openssl rand -hex 32
+        hermes_api_server_key = { };
         # Hermes → workstation agent SSH private key (/run/secrets/…).
         # Used only by ssh-workstation wrappers (IdentityFile). Do not copy into
         # hermes HOME — keep out of the model’s normal workspace tree.
@@ -155,11 +161,29 @@ in
           group = "hermes";
           mode = "0640";
           path = "/run/hermes.env";
+          # HERMES_MANAGED durable path for API server: secret + static knobs
+          # land in ${stateDir}/.hermes/.env at activation (not `hermes config set`).
           content = lib.concatStringsSep "\n" (
-            lib.mapAttrsToList (
+            (lib.mapAttrsToList (
               envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
-            ) hermesSecrets
+            ) hermesSecrets)
+            ++ [
+              ""
+              "# Hermes OpenAI-compatible API server (Open WebUI / loopback clients)"
+              "API_SERVER_ENABLED=true"
+              "API_SERVER_HOST=127.0.0.1"
+              "API_SERVER_PORT=8642"
+              "API_SERVER_MODEL_NAME=hermes-agent"
+            ]
           );
+        };
+        # Open WebUI OPENAI_API_KEY must match Hermes API_SERVER_KEY.
+        openWebuiEnv = {
+          owner = "root";
+          group = "root";
+          mode = "0400";
+          path = "/run/open-webui.env";
+          content = "OPENAI_API_KEY=${config.sops.placeholder.hermes_api_server_key}";
         };
       }
       (lib.mkIf wifiEnabled {

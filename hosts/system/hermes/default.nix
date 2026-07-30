@@ -27,6 +27,8 @@ in
     ./gbrain.nix
     ./workstation.nix
     ./browser.nix # persistent Brave + loopback CDP for agent automation
+    ./open-webui.nix # Open WebUI → Hermes API :8642 (loopback)
+    ./context-manager.nix # hermes-context-manager (HMC) plugin pin + config
   ];
 
   _module.args.hermes = hermes;
@@ -97,12 +99,24 @@ in
         user_profile_enabled = true;
       };
 
+      # Token lean 80/20: native tool-output caps (0.19 DEFAULT_CONFIG knobs).
+      # Skipped (not in 0.19 DEFAULT_CONFIG): tools.compact_schemas, skills.prompt_mode.
+      tool_output = {
+        max_bytes = 14000;
+        max_lines = 400;
+        max_line_length = 2000;
+      };
+
       # Tighter context compression; aux model routes below (not main xai-oauth).
       compression = {
         enabled = true;
         threshold = 0.55;
         target_ratio = 0.18;
-        protect_last_n = 15;
+        protect_last_n = 8;
+        proactive_prune_tokens = 48000;
+        proactive_prune_min_result_chars = 4000;
+        proactive_prune_min_reclaim_tokens = 4096;
+        idle_compact_after_seconds = 1800;
       };
 
       # ── Model routing (explicit axes — Hermes has no smart task classifier) ──
@@ -183,12 +197,23 @@ in
         cron_mode = "deny";
       };
 
-      # Skills / plugins dirs on the hermes volume (see toolbox activation).
+      # Skills / plugins dirs on the hermes volume (see toolbox + gbrain activation).
       skills.external_dirs = [
         "/data/skills"
         "/var/lib/hermes/skills"
       ];
-      plugins.external_dirs = [ "/var/lib/hermes/plugins" ];
+      # 0.19 opt-in allow-list for user plugins (HMC + gbrain-reflex).
+      # Discovery uses $HERMES_HOME/plugins; external_dirs also scanned.
+      plugins = {
+        external_dirs = [
+          "/data/plugins"
+          "/var/lib/hermes/plugins"
+        ];
+        enabled = [
+          "hermes-context-manager"
+          "gbrain-reflex"
+        ];
+      };
 
       # Match host timezone so cron schedules and session timestamps are correct.
       timezone = "Europe/Berlin";

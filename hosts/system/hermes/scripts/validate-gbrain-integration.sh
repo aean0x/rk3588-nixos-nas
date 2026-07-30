@@ -140,6 +140,58 @@ else
   warn "restore drill not run (set RESTORE_DRILL=1 to document operator path)"
 fi
 
+echo "=== 13. gbrain-reflex plugin + retrieval-reflex skill + pointer index ==="
+PLUGIN_HOME=/var/lib/hermes/.hermes/plugins/gbrain-reflex
+PLUGIN_EXT=/var/lib/hermes/plugins/gbrain-reflex
+INDEX=/var/lib/hermes/workspace/gbrain-pointer-index.json
+SKILL=/var/lib/hermes/skills/retrieval-reflex/SKILL.md
+GBRAIN_MD=/var/lib/hermes/workspace/GBRAIN.md
+CFG=/var/lib/hermes/.hermes/config.yaml
+
+if [ -f "$PLUGIN_HOME/plugin.yaml" ] && [ -f "$PLUGIN_HOME/__init__.py" ]; then
+  ok "plugin present at $PLUGIN_HOME"
+elif [ -f "$PLUGIN_EXT/plugin.yaml" ] && [ -f "$PLUGIN_EXT/__init__.py" ]; then
+  ok "plugin present at $PLUGIN_EXT"
+else
+  bad "gbrain-reflex plugin missing under .hermes/plugins or plugins/"
+fi
+if [ -f "$PLUGIN_HOME/plugin.yaml" ] || [ -f "$PLUGIN_EXT/plugin.yaml" ]; then
+  if grep -q 'pre_llm_call' "$PLUGIN_HOME/plugin.yaml" 2>/dev/null \
+    || grep -q 'pre_llm_call' "$PLUGIN_EXT/plugin.yaml" 2>/dev/null; then
+    ok "plugin declares pre_llm_call"
+  else
+    bad "plugin.yaml missing pre_llm_call"
+  fi
+fi
+[ -f "$SKILL" ] && grep -q 'retrieval-reflex' "$SKILL" && ok "retrieval-reflex skill present" \
+  || bad "missing retrieval-reflex skill at $SKILL"
+[ -f "$INDEX" ] && grep -q 'ops/gbrain-protocol' "$INDEX" && ok "pointer index present" \
+  || bad "missing or incomplete pointer index at $INDEX"
+if [ -f "$GBRAIN_MD" ] && grep -q 'Proactive pointers' "$GBRAIN_MD"; then
+  ok "GBRAIN.md documents proactive pointers"
+else
+  bad "GBRAIN.md missing Proactive pointers section"
+fi
+if [ -f "$CFG" ]; then
+  if grep -qE 'gbrain-reflex' "$CFG"; then
+    ok "config.yaml mentions gbrain-reflex (enabled allow-list greppable)"
+  else
+    warn "config.yaml has no gbrain-reflex string (check plugins.enabled after activate)"
+  fi
+  if grep -qE 'plugins:' "$CFG" && grep -qE 'enabled:' "$CFG"; then
+    ok "config.yaml has plugins/enabled keys"
+  else
+    warn "config.yaml plugins.enabled not greppable yet"
+  fi
+else
+  warn "config.yaml missing (gateway not set up yet)"
+fi
+if docker exec "$CONTAINER" test -f /data/workspace/gbrain-pointer-index.json 2>/dev/null; then
+  ok "container sees pointer index bind"
+else
+  warn "container pointer index path missing (container down or not activated)"
+fi
+
 if [ "$fail" -eq 0 ]; then
   echo "=== INTEGRATION CHECKS PASSED (see WARN for optional items) ==="
 else
