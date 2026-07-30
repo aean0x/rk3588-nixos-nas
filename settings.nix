@@ -23,6 +23,11 @@
   # Public domain (subdomains like ha.aean.io are created per-service)
   domain = "aean.io";
 
+  # Cloudflare Tunnel ID (non-secret). Empty = public tunnel off (LAN Caddy only).
+  # Bootstrap: ./scripts/setup-cloudflare-tunnel.sh
+  # Hostnames: services.cloudflareTunnel.proxyServices in each module (like caddy.proxyServices).
+  cloudflareTunnelId = "f5ef5a5a-7c69-47c2-94f5-4ca71d3e63fc";
+
   # Repository (format: "owner/repo")
   repoUrl = "aean0x/rock-5-nas";
 

@@ -19,9 +19,9 @@ let
   lanInterface = if (settings.enableRouter or false) then "br0" else settings.network.interface;
 in
 {
-  services.caddy.proxyServices = {
-    "homeassistant.${settings.domain}" = haPort;
-  };
+  # LAN via Caddy; public via Cloudflare Tunnel (CGNAT — not orange-cloud DDNS).
+  services.caddy.proxyServices."homeassistant.${settings.domain}" = haPort;
+  services.cloudflareTunnel.proxyServices."homeassistant.${settings.domain}" = haPort;
 
   virtualisation.oci-containers.containers = {
     # ===================

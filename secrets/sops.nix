@@ -132,12 +132,8 @@ in
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };
       })
-      (lib.mkIf (config.users.users ? cloudflared) {
-        cloudflared_tunnel_credentials = {
-          owner = "cloudflared";
-          group = "cloudflared";
-        };
-      })
+      # cloudflared uses DynamicUser + LoadCredential; root-owned secret is fine.
+      # Declared when settings.cloudflareTunnelId is set (see services/cloudflared.nix).
       (lib.mkIf wifiEnabled {
         wifi_psk = { };
       })

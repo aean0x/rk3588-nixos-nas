@@ -202,13 +202,14 @@ Services are toggled by uncommenting imports in `hosts/system/services.nix`:
 ```nix
 imports = [
   ./services/tailscale.nix      # Tailscale VPN
-  ./services/caddy.nix          # Reverse proxy with Cloudflare HTTPS
-  ./services/adguard.nix        # AdGuard Home DNS (port 53, web UI 3000)
+  ./services/caddy.nix          # LAN reverse proxy (Cloudflare DNS-01 HTTPS)
+  ./services/cloudflare.nix     # Apex DDNS
+  ./services/cloudflared.nix    # Public HTTPS via Cloudflare Tunnel (CGNAT)
+  ./services/adguard.nix        # AdGuard Home DNS
   ./services/remote-desktop.nix # XFCE + xrdp
-  # ./services/cockpit.nix      # Web-based system management (port 9090)
-  # ./services/cloudflared.nix  # Cloudflare tunnel
-  # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin, etc.)
-  # ./services/transmission.nix # Torrent client with VPN killswitch
+  # ./services/cockpit.nix
+  # ./services/arr-suite.nix
+  # ./services/transmission.nix
 ];
 ```
 
@@ -218,15 +219,25 @@ Docker containers are imported separately via `containers.nix`:
 - **Comet** - Optional Stremio addon (enabled via `containers/comet.nix`) at `comet.<domain>`
 - **OpenClaw** - AI agent gateway with sandbox containers (see below)
 
-### Caddy Reverse Proxy
-
-Caddy is built with the `caddy-dns/cloudflare` plugin for automatic HTTPS via DNS-01 challenge. Service modules register subdomains through a custom NixOS option:
+### Exposing a service (LAN + public)
 
 ```nix
-services.caddy.proxyServices."app.example.io" = 8080;
+# In the service module:
+services.caddy.proxyServices."app.${settings.domain}" = 8080;              # LAN
+services.cloudflareTunnel.proxyServices."app.${settings.domain}" = 8080;   # public (CGNAT)
 ```
 
-Each entry auto-generates HTTP-to-HTTPS redirect and reverse proxy vhosts. The Cloudflare DNS API token is injected from SOPS at runtime.
+- **Caddy** — LAN HTTPS (`externalHosts` optional: skip LAN IP guard).
+- **Cloudflare Tunnel** — public HTTPS when behind CGNAT (Starlink). Outbound only; orange-cloud + open ports do not work.
+
+One-time tunnel bootstrap (API token needs `Zone.DNS:Edit` + `Account.Cloudflare Tunnel:Edit`):
+
+```bash
+./scripts/setup-cloudflare-tunnel.sh   # credentials + tunnel id + DNS CNAMEs
+./deploy remote-test
+```
+
+Re-run the script after adding new `cloudflareTunnel.proxyServices` hostnames (syncs DNS from the flake).
 
 ### OneDrive Sync
 

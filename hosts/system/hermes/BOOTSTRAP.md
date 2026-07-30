@@ -230,9 +230,9 @@ Cellular without Tailscale will not reach LAN-only NAS; use Tailscale.
 
 ## 7. Open WebUI (chat frontend)
 
-Native `services.open-webui` on **127.0.0.1:8080**, reverse-proxied as LAN-only
-`https://open-webui.<domain>` (same Caddy guard as the Hermes dashboard). Hermes exposes an
-OpenAI-compatible API on **loopback :8642** only — never bind the API to `0.0.0.0`.
+Native `services.open-webui` on **127.0.0.1:8080**. LAN: Caddy. WAN: Cloudflare Tunnel
+(`services.cloudflareTunnel.proxyServices` — same declaration style as Caddy). Hermes API stays on
+**loopback :8642** only. Dashboard (`hermes.<domain>`) is LAN-only.
 
 Full runbook: **`workspace/OPEN-WEBUI.md`**.
 

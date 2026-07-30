@@ -103,7 +103,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `cloudflare_dns_api_token` — Cloudflare API for ACME DNS-01 challenge
 - `filebrowser_password` — FileBrowser admin password
 - `onedrive_rclone_config` — rclone config for OneDrive sync (mode 0444)
-- `cloudflared_tunnel_credentials` — Cloudflare tunnel JSON (conditional, owned by cloudflared user)
+- `cloudflared_tunnel_credentials` — Cloudflare Tunnel credentials JSON (from `./scripts/setup-cloudflare-tunnel.sh`)
 - `nix_pc_agent_ssh_key` — Hermes → workstation `agent` SSH key at `/run/secrets/…` only; **wrappers** inject it (not copied into hermes HOME). See `hosts/system/hermes/workstation.nix`.
 - Workstation hop: skill **`workstation`**, commands `checkout-workstation` / `release-workstation` / `ssh-workstation`; no Wake-on-LAN.
 
@@ -157,13 +157,29 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the offici
 
 The old `hosts/system/openclaw/` (multi-agent gateway, openclaw.json, custom Docker images, sandbox spawning, sub-agent delegation protocol, lobster workflows) is no longer imported or active. The files remain for reference but are not evaluated.
 
-### Caddy Reverse Proxy
+### Caddy Reverse Proxy (LAN)
 
-Custom NixOS option `services.caddy.proxyServices` maps hostnames to backend ports. Each entry auto-generates:
-- HTTP vhost with redirect to HTTPS
-- HTTPS vhost with Cloudflare DNS-01 TLS and `reverse_proxy` to localhost
+Custom option `services.caddy.proxyServices` maps hostnames → backend ports. Each entry gets HTTPS (Cloudflare DNS-01) and reverse_proxy to localhost. Non-`externalHosts` clients outside LAN get 403.
 
-Uses `caddy-dns/cloudflare` plugin built via `pkgs.caddy.withPlugins`. Root domain routes to Home Assistant. Service modules register their own subdomains (e.g., `services.caddy.proxyServices."files.${settings.domain}" = 8080`). Hermes does not currently register an external port.
+```nix
+services.caddy.proxyServices."files.${settings.domain}" = 8080;  # LAN
+services.caddy.externalHosts = [ "homeassistant.${settings.domain}" ];  # optional: no LAN guard
+```
+
+### Cloudflare Tunnel (public / CGNAT)
+
+Starlink CGNAT: inbound 443 and orange-cloud→origin both fail. Public HTTPS uses an **outbound** tunnel.
+
+```nix
+# Same shape as caddy.proxyServices — declare in the service module:
+services.cloudflareTunnel.proxyServices."open-webui.${settings.domain}" = 8080;
+services.cloudflareTunnel.proxyServices."homeassistant.${settings.domain}" = 8123;
+```
+
+- **Enable:** `settings.cloudflareTunnelId` + sops `cloudflared_tunnel_credentials` (once via `./scripts/setup-cloudflare-tunnel.sh`)
+- **DNS:** setup script creates proxied CNAME → `<tunnelId>.cfargotunnel.com` for each proxyServices hostname
+- **Path:** browser → CF edge → cloudflared → `127.0.0.1:<port>` (skips Caddy)
+- Module: `hosts/system/services/cloudflared.nix`
 
 ### ZFS Pool
 
@@ -279,7 +295,7 @@ After netboot completes, plug device into router for WAN access before running `
 - sops-nix warnings during `nixos-install` are normal — secrets materialize on first real boot
 - ZFS dataset mounts use `nofail` — boot succeeds even if pool isn't created yet
 - `services.resolved.enable = false` in adguard.nix — systemd-resolved conflicts with port 53
-- Cloudflared credentials must be owned by `cloudflared` user/group (set in sops.nix)
+- Cloudflare Tunnel uses DynamicUser + LoadCredential; sops secret is root-owned. Set `settings.cloudflareTunnelId` and declare `services.cloudflareTunnel.proxyServices` per app
 - Docker containers with static tags (`:latest`, `:stable`) are NOT re-pulled on rebuild — the unified `refresh-containers` timer (Sun 02:00) and per-service refresh timers handle image updates
 - Hermes container uses host network + bind mounts; agent tools inside see the hermes user env and writable layer. No more `ws://172.17.0.1` gateway for sub-agents (single-agent model).
 - Hermes workspace (`/var/lib/hermes/workspace`) is owned by the hermes system user; OneDrive sync and hostUsers (in hermes group) have group-writable access.

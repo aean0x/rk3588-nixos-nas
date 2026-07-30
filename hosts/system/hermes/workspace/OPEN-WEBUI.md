@@ -5,15 +5,21 @@ Polished web chat frontend for Hermes Agent via the built-in OpenAI-compatible A
 ## Architecture
 
 ```
-Browser → https://open-webui.<domain>   (Caddy, LAN-only by default)
-       → services.open-webui            127.0.0.1:8080
-       → Hermes API server              http://127.0.0.1:8642/v1
-       → full agent tools on rocknas
+WAN:  Browser → CF edge → cloudflared → open-webui :8080 → Hermes :8642/v1
+LAN:  Browser → Caddy open-webui.<domain> → open-webui :8080 → Hermes :8642/v1
+```
+
+Declared in `open-webui.nix`:
+
+```nix
+services.caddy.proxyServices."open-webui.${domain}" = 8080;
+services.cloudflareTunnel.proxyServices."open-webui.${domain}" = 8080;
 ```
 
 - **API stays on loopback** (`API_SERVER_HOST=127.0.0.1`). Never bind `0.0.0.0` publicly.
-- Only Open WebUI (via Caddy) faces LAN/Tailscale — same pattern as `hermes.<domain>` dashboard.
-- Port **8080** is intentional (AdGuard uses :3000, FileBrowser :8085, dashboard :9119).
+- **CGNAT:** public path is tunnel only (`./scripts/setup-cloudflare-tunnel.sh` once).
+- Hermes dashboard (`hermes.<domain>`) is LAN-only (no `cloudflareTunnel.proxyServices` entry).
+- Port **8080**; auth on (`WEBUI_AUTH=true`); first user is admin.
 
 ## URL and first login
 

@@ -5,7 +5,8 @@
   imports = [
     ./services/cockpit.nix # Web-based system management
     ./services/tailscale.nix # Tailscale VPN (native)
-    ./services/cloudflare.nix # Cloudflare DDNS + tunnel
+    ./services/cloudflare.nix # Cloudflare DDNS (apex A/AAAA; not enough alone under CGNAT)
+    ./services/cloudflared.nix # Cloudflare Tunnel (public HTTPS behind Starlink CGNAT)
     ./services/remote-desktop.nix # XFCE + xrdp
     # ./services/arr-suite.nix    # Media stack (Sonarr, Radarr, Jellyfin, etc.)
     # ./services/transmission.nix # Torrent client with VPN killswitch

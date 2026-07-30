@@ -173,13 +173,9 @@ in
 
   # ===================
   # Reverse Proxy
-  # Caddy vhost at comet.<domain>. Marked external (WAN reachable for Stremio clients).
-  # Stremio clients on phones etc. need to fetch the manifest and streams from wherever
-  # the client is running, so we allow public access (no LAN 403 guard).
+  # Caddy vhost at comet.<domain>. LAN-only (not in caddy.externalHosts).
   # ===================
   services.caddy.proxyServices = {
     "${host}" = port;
   };
-
-  services.caddy.externalHosts = lib.mkAfter [ host ];
 }

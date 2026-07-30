@@ -39,7 +39,7 @@ hosts/system/hermes/
 
 ## Open WebUI
 
-`https://open-webui.<domain>/` (LAN) → native open-webui → Hermes `127.0.0.1:8642/v1`.
+`https://open-webui.<domain>/` — LAN via Caddy, WAN via `services.cloudflareTunnel.proxyServices` (CGNAT tunnel).
 Shared sops `hermes_api_server_key` → `API_SERVER_KEY` + Open WebUI `OPENAI_API_KEY`.
 Runbook: `workspace/OPEN-WEBUI.md`.
 
