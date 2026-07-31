@@ -41,12 +41,16 @@ Environment override (optional): `HERMES_MEMORY_REGISTRY` must point at the regi
 
 | Job | Trigger | Idempotent |
 |-----|---------|------------|
-| Hermes memory snapshot + inbox | `hermes-gbrain-consolidate.timer` | yes |
-| G-Brain import inbox + dream | same service chain | yes |
+| Hermes MEMORY snapshot (audit only) | `hermes-gbrain-consolidate.timer` | yes |
+| Optional MEMORY inbox dump | same, only if `GBRAIN_MEMORY_INBOX_DUMP=1` | yes |
+| G-Brain import ~/brain + dream | same service chain | yes |
 | G-Brain embed refresh | `gbrain-embed.timer` | yes |
 | Hermes curator (skills) | gateway `curator.interval_hours` | yes |
+| MEMORY pressure nudge | plugin `gbrain-memory-flush` (pre_llm_call) | yes |
 
-Manual: `/run/current-system/sw/bin/hermes-gbrain-consolidate` on the host (runs in container as `hermes`).
+**Day-to-day durable writes:** MCP `put_page` while gateway is up — **not** exclusive CLI. The old whole-MEMORY→`hermes/inbox/*` dump is retired (PGLite race / corruption class).
+
+Manual exclusive maintenance: `/run/current-system/sw/bin/hermes-gbrain-consolidate` on the host (stops agent briefly).
 
 ## 5. Anti-clobber
 

@@ -208,12 +208,23 @@ in
       /var/lib/hermes/.hermes/plugins/gbrain-reflex/plugin.yaml
     install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/__init__.py} \
       /var/lib/hermes/.hermes/plugins/gbrain-reflex/__init__.py
+    # gbrain-memory-flush: background_review → MCP put_page + MEMORY prune
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/plugins/gbrain-memory-flush
+    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/plugin.yaml} \
+      /var/lib/hermes/.hermes/plugins/gbrain-memory-flush/plugin.yaml
+    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/__init__.py} \
+      /var/lib/hermes/.hermes/plugins/gbrain-memory-flush/__init__.py
     if [ -d /var/lib/hermes/plugins ]; then
       install -d -m 0755 -o hermes -g hermes /var/lib/hermes/plugins/gbrain-reflex
       install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/plugin.yaml} \
         /var/lib/hermes/plugins/gbrain-reflex/plugin.yaml
       install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/__init__.py} \
         /var/lib/hermes/plugins/gbrain-reflex/__init__.py
+      install -d -m 0755 -o hermes -g hermes /var/lib/hermes/plugins/gbrain-memory-flush
+      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/plugin.yaml} \
+        /var/lib/hermes/plugins/gbrain-memory-flush/plugin.yaml
+      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/__init__.py} \
+        /var/lib/hermes/plugins/gbrain-memory-flush/__init__.py
     fi
 
     # retrieval-reflex policy skill (skills.external_dirs).
@@ -265,7 +276,7 @@ if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
     changed = True
 
-# Opt-in allow-list: ensure gbrain-reflex (+ keep hermes-context-manager if present).
+# Opt-in allow-list: gbrain-reflex + HMC + memory-flush.
 plugins = data.setdefault("plugins", {})
 if not isinstance(plugins, dict):
     plugins = {}
@@ -274,7 +285,7 @@ enabled = plugins.get("enabled")
 if not isinstance(enabled, list):
     enabled = []
     plugins["enabled"] = enabled
-for name in ("gbrain-reflex", "hermes-context-manager"):
+for name in ("gbrain-reflex", "hermes-context-manager", "gbrain-memory-flush"):
     if name not in enabled:
         enabled.append(name)
         changed = True
