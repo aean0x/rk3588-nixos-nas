@@ -168,6 +168,18 @@ in
     };
   };
 
+  # Legacy container-path helper under /var/lib/hermes/bin (bind-mounted as /data/bin).
+  # Keep in sync with host consolidateScript: MEMORY→inbox dump is opt-in only.
+  consolidateInnerScript = pkgs.writeShellApplication {
+    name = "hermes-gbrain-consolidate-inner";
+    runtimeInputs = runtime;
+    excludeShellChecks = [
+      "SC2329"
+      "SC2181"
+    ];
+    text = builtins.readFile ./scripts/hermes-gbrain-consolidate-inner.sh;
+  };
+
   environment.systemPackages = [
     consolidateScript
     embedScript
@@ -175,6 +187,10 @@ in
   ];
 
   system.activationScripts.hermes-memory-manifest = lib.stringAfter [ "hermes-agent-setup" ] ''
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
+    install -m 0755 -o root -g hermes ${lib.getExe consolidateInnerScript} \
+      /var/lib/hermes/bin/hermes-gbrain-consolidate-inner
+
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/memory
     install -m 0644 ${registryFile} /var/lib/hermes/memory/registry.json
     install -m 0644 ${schemaFile} /var/lib/hermes/memory/export-schema.json
