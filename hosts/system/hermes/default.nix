@@ -102,20 +102,23 @@ in
       # Token lean 80/20: native tool-output caps (0.19 DEFAULT_CONFIG knobs).
       # Skipped (not in 0.19 DEFAULT_CONFIG): tools.compact_schemas, skills.prompt_mode.
       tool_output = {
-        max_bytes = 14000;
-        max_lines = 400;
+        max_bytes = 8000;
+        max_lines = 200;
         max_line_length = 2000;
       };
 
-      # Tighter context compression; aux model routes below (not main xai-oauth).
+      # Keep interactive under ~120k even on large-context models (grok 500k).
+      # threshold_tokens is the absolute floor; percent alone never fires before 200k
+      # because small-context floor raises the ratio trigger near 75% of 500k.
       compression = {
         enabled = true;
-        threshold = 0.55;
+        threshold = 0.30;
+        threshold_tokens = 120000;
         target_ratio = 0.18;
         protect_last_n = 8;
-        proactive_prune_tokens = 48000;
-        proactive_prune_min_result_chars = 4000;
-        proactive_prune_min_reclaim_tokens = 4096;
+        proactive_prune_tokens = 24000;
+        proactive_prune_min_result_chars = 2000;
+        proactive_prune_min_reclaim_tokens = 2048;
         idle_compact_after_seconds = 1800;
       };
 
@@ -214,6 +217,7 @@ in
         enabled = [
           "hermes-context-manager"
           "gbrain-reflex"
+          "gbrain-memory-flush"
         ];
       };
 

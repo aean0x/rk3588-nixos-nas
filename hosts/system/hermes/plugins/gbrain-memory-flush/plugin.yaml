@@ -1,0 +1,10 @@
+name: gbrain-memory-flush
+version: 0.2.0
+description: >-
+  When MEMORY.md nears the injection budget, inject a pre_llm_call nudge to
+  put durable facts via MCP put_page and prune MEMORY. Replaces exclusive-CLI
+  MEMORY→inbox dumps that raced gbrain serve / corrupted PGLite.
+author: aean0x
+kind: standalone
+provides_hooks:
+  - pre_llm_call
