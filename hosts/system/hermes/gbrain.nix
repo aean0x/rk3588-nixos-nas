@@ -79,6 +79,19 @@ let
       runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" gbrain dream
     '';
   };
+
+  # Legacy container-path helper under /var/lib/hermes/bin (bind-mounted as /data/bin).
+  # Keep in sync with host consolidateScript: MEMORY→inbox dump is opt-in only.
+  consolidateInnerScript = pkgs.writeShellApplication {
+    name = "hermes-gbrain-consolidate-inner";
+    runtimeInputs = runtime;
+    excludeShellChecks = [
+      "SC2329"
+      "SC2181"
+      "SC2016" # intentional jq single-quoted filters
+    ];
+    text = builtins.readFile ./scripts/hermes-gbrain-consolidate-inner.sh;
+  };
 in
 {
   services.hermes-agent = {
@@ -166,18 +179,6 @@ in
       OnCalendar = "Sun 05:00";
       Persistent = true;
     };
-  };
-
-  # Legacy container-path helper under /var/lib/hermes/bin (bind-mounted as /data/bin).
-  # Keep in sync with host consolidateScript: MEMORY→inbox dump is opt-in only.
-  consolidateInnerScript = pkgs.writeShellApplication {
-    name = "hermes-gbrain-consolidate-inner";
-    runtimeInputs = runtime;
-    excludeShellChecks = [
-      "SC2329"
-      "SC2181"
-    ];
-    text = builtins.readFile ./scripts/hermes-gbrain-consolidate-inner.sh;
   };
 
   environment.systemPackages = [
