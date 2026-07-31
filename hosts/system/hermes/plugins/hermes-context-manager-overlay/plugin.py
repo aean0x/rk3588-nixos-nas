@@ -1215,11 +1215,13 @@ class HermesContextManagerPlugin:
         tool_name: str = "",
         result=None,
         args=None,
+        session_id: str = "",
         **kwargs,
     ):
         """Rewrite fat tool results before they enter conversation history.
 
-        Returning a string replaces the tool result. Returning None leaves it.
+        Hermes requires a plain string return to replace the result; non-strings
+        are ignored. Returning None leaves the original result intact.
         """
         try:
             if not self.config.enabled:
@@ -1244,7 +1246,7 @@ class HermesContextManagerPlugin:
                 head = "\n".join(lines[:head_n])
                 tail = "\n".join(lines[-tail_n:]) if tail_n else ""
                 omitted = max(0, len(lines) - head_n - tail_n)
-                new = (
+                new_text = (
                     f"{head}\n\n"
                     f"[HMC truncated: omitted {omitted} lines / "
                     f"{len(result)} chars from {tool_name or 'tool'}]\n\n"
@@ -1252,21 +1254,24 @@ class HermesContextManagerPlugin:
                 )
             else:
                 keep = 3500
-                new = (
+                new_text = (
                     result[:keep]
                     + f"\n\n[HMC truncated: {len(result) - keep} chars "
                     f"omitted from {tool_name or 'tool'}]\n"
                 )
 
-            saved_chars = max(0, len(result) - len(new))
+            saved_chars = max(0, len(result) - len(new_text))
             try:
-                self.state.tools_pruned = getattr(self.state, "tools_pruned", 0) + 1
-                self.state.tokens_saved = getattr(self.state, "tokens_saved", 0) + (
-                    saved_chars // 4
-                )
+                sid = session_id or kwargs.get("session_id") or "default"
+                state = self._get_state(sid)
+                state.total_prune_count = int(getattr(state, "total_prune_count", 0) or 0) + 1
+                state.tokens_saved = int(getattr(state, "tokens_saved", 0) or 0) + (saved_chars // 4)
+                state.tokens_kept_out_total = int(
+                    getattr(state, "tokens_kept_out_total", 0) or 0
+                ) + (saved_chars // 4)
             except Exception:
                 pass
-            return new
+            return new_text
         except Exception:
             LOGGER.exception("HMC transform_tool_result failed")
             return None
@@ -1275,8 +1280,10 @@ class HermesContextManagerPlugin:
         self,
         *,
         messages=None,
+        request_messages=None,
         conversation_history=None,
         approx_input_tokens: int = 0,
+        session_id: str = "",
         **kwargs,
     ):
         """Measure real request size every API call; prune live tool content over budget.
@@ -1284,51 +1291,62 @@ class HermesContextManagerPlugin:
         Hermes passes a shallow copy of the messages list but shares the inner
         dicts — mutating tool message ``content`` in-place affects the request.
         ``approx_input_tokens`` already includes system + tools + history.
+        Prefer ``request_messages`` (what the API will send); also touch
+        ``conversation_history`` so session history stays aligned.
         """
         try:
             if not self.config.enabled:
                 return None
 
+            sid = session_id or kwargs.get("session_id") or "default"
+            state = self._get_state(sid)
+
             approx = int(approx_input_tokens or 0)
+            # Prefer request_messages (actual API payload); fall back carefully.
+            req = request_messages if isinstance(request_messages, list) else None
+            hist = conversation_history if isinstance(conversation_history, list) else None
+            legacy = messages if isinstance(messages, list) else None
             if approx <= 0:
-                msgs = messages if isinstance(messages, list) else conversation_history
-                if isinstance(msgs, list):
+                probe = req or hist or legacy
+                if isinstance(probe, list):
                     approx = (
                         sum(
                             len(str(m.get("content") or ""))
-                            for m in msgs
+                            for m in probe
                             if isinstance(m, dict)
                         )
                         // 4
                     )
 
-            # Publish measurement so hmc_control % tracks reality (not ~1%).
-            try:
-                window = int(
-                    getattr(self.state, "context_window", 0)
-                    or kwargs.get("context_window")
-                    or 500000
-                )
-                self.state.context_window = window
-                self.state.current_tokens = approx
-                self.state.context_percent = (
-                    (approx / window) * 100.0 if window else 0.0
-                )
-            except Exception:
-                pass
+            window = int(
+                getattr(state, "last_context_window", 0)
+                or kwargs.get("context_window")
+                or 500000
+            )
+            if window <= 0:
+                window = 500000
+            percent = (approx / window) * 100.0 if window else 0.0
+            state.last_context_window = window
+            state.last_context_tokens = approx
+            state.last_context_percent = percent
 
             compress = self.config.compress
             budget = int(getattr(compress, "max_context_tokens", 0) or 0)
             over = budget > 0 and approx >= budget
             if not over:
-                window = int(getattr(self.state, "context_window", 500000) or 500000)
                 pct = float(getattr(compress, "max_context_percent", 0.24) or 0.24)
                 over = window > 0 and (approx / window) >= pct
             if not over:
                 return None
 
-            msgs = messages if isinstance(messages, list) else conversation_history
-            if not isinstance(msgs, list):
+            # Mutate both request payload and live history when they share dicts
+            # (usual case) or when they are separate shallow copies of the same
+            # underlying content we still want trimmed for the outbound call.
+            targets = []
+            for candidate in (req, hist, legacy):
+                if isinstance(candidate, list) and candidate not in targets:
+                    targets.append(candidate)
+            if not targets:
                 return None
 
             trunc = self.config.truncation
@@ -1337,36 +1355,48 @@ class HermesContextManagerPlugin:
             tail_n = int(getattr(trunc, "tail_lines", 8) or 8)
             saved = 0
             pruned = 0
-            for m in msgs:
-                if not isinstance(m, dict) or m.get("role") != "tool":
-                    continue
-                content = m.get("content")
-                if not isinstance(content, str) or len(content) < 2500:
-                    continue
-                lines = content.splitlines()
-                if len(lines) <= max_lines and len(content) < 8000:
-                    continue
-                head = "\n".join(lines[:head_n])
-                tail = "\n".join(lines[-tail_n:]) if tail_n and len(lines) > head_n else ""
-                omitted = max(0, len(lines) - head_n - tail_n)
-                new = (
-                    f"{head}\n\n"
-                    f"[HMC pre_api prune: omitted {omitted} lines]\n\n"
-                    f"{tail}"
-                )
-                saved += max(0, len(content) - len(new))
-                m["content"] = new
-                pruned += 1
-            if saved:
-                try:
-                    self.state.tokens_saved = getattr(self.state, "tokens_saved", 0) + (
-                        saved // 4
+            seen_ids = set()
+            for msgs in targets:
+                for m in msgs:
+                    if not isinstance(m, dict) or m.get("role") != "tool":
+                        continue
+                    # Avoid double-counting when request/history share dicts
+                    mid = id(m)
+                    content = m.get("content")
+                    if not isinstance(content, str) or len(content) < 2500:
+                        continue
+                    lines = content.splitlines()
+                    if len(lines) <= max_lines and len(content) < 8000:
+                        continue
+                    if mid in seen_ids:
+                        # Already rewritten via shared dict reference
+                        continue
+                    head = "\n".join(lines[:head_n])
+                    tail = (
+                        "\n".join(lines[-tail_n:])
+                        if tail_n and len(lines) > head_n
+                        else ""
                     )
-                    self.state.tools_pruned = getattr(self.state, "tools_pruned", 0) + pruned
-                except Exception:
-                    pass
+                    omitted = max(0, len(lines) - head_n - tail_n)
+                    new_content = (
+                        f"{head}\n\n"
+                        f"[HMC pre_api prune: omitted {omitted} lines]\n\n"
+                        f"{tail}"
+                    )
+                    saved += max(0, len(content) - len(new_content))
+                    m["content"] = new_content
+                    pruned += 1
+                    seen_ids.add(mid)
+            if saved:
+                tok = saved // 4
+                state.tokens_saved = int(getattr(state, "tokens_saved", 0) or 0) + tok
+                state.tokens_kept_out_total = int(
+                    getattr(state, "tokens_kept_out_total", 0) or 0
+                ) + tok
+                state.total_prune_count = int(
+                    getattr(state, "total_prune_count", 0) or 0
+                ) + pruned
             return None
         except Exception:
             LOGGER.exception("HMC pre_api_request failed")
             return None
-
