@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Host-only Hermes → GBrain maintenance.
+# Host-only GBrain maintenance (exclusive CLI — stops hermes-agent first).
 # Stops hermes-agent so MCP releases PGLite, then runs CLI as hermes, then restarts.
-# No docker exec race, no exclusive-cli helper stack.
 #
-# Scheduled: hermes-gbrain-consolidate.timer (daily + up to 45m random delay).
-# Manual: sudo hermes-gbrain-consolidate  (or: systemctl start hermes-gbrain-consolidate.service)
+# Scope (after 2026-07-31):
+#   - Snapshot MEMORY/USER for audit
+#   - Optional emergency MEMORY inbox dump only if GBRAIN_MEMORY_INBOX_DUMP=1
+#   - Import ~/brain markdown via put
+#   - dream
+# Day-to-day durable facts: MCP put_page while gateway is up (not this script).
+#
+# Scheduled: hermes-gbrain-consolidate.timer (daily + random delay).
+# Manual: sudo hermes-gbrain-consolidate
 set -euo pipefail
 
 LOG_TAG="hermes-gbrain-consolidate"
@@ -108,7 +114,7 @@ pkill -f 'gbrain serve' 2>/dev/null || true
 sleep 1
 chown -R hermes:hermes "$HOME_DIR/.gbrain" "$HOME_DIR/brain" 2>/dev/null || true
 
-# Snapshot MEMORY/USER
+# Snapshot MEMORY/USER (audit only — do not re-import whole MEMORY into brain).
 UTC=$(date -u +%Y%m%dT%H%M%SZ)
 SNAP="$STATE/memories/export/snapshots/$UTC"
 mkdir -p "$SNAP" "$STATE/memories/export/inbox" "$STATE/memories/export/inbox/.processed"
@@ -120,8 +126,17 @@ for f in MEMORY.md USER.md; do
 done
 chmod -R a-w "$SNAP" 2>/dev/null || true
 
-# Export MEMORY.md into inbox once per snapshot stamp
-if [[ -s "$STATE/memories/MEMORY.md" ]]; then
+# MEMORY → hermes/inbox/* dumps RETIRED (2026-07-31).
+# Dumping whole MEMORY.md via exclusive CLI raced gbrain serve and corrupted
+# PGLite. Day-to-day durable writes = MCP put_page (main agent + gbrain-memory-flush
+# nudge). Set GBRAIN_MEMORY_INBOX_DUMP=1 only for emergency backfill.
+IMPORTED=0
+FAILED=0
+PENDING=0
+PUT_ERR="$STATE/memories/export/last-put.err"
+: >"$PUT_ERR"
+
+if [[ "${GBRAIN_MEMORY_INBOX_DUMP:-0}" == "1" ]] && [[ -s "$STATE/memories/MEMORY.md" ]]; then
   OUT="$STATE/memories/export/inbox/${UTC}.json"
   if [[ ! -f "$OUT" ]]; then
     BODY=$(python3 -c 'import json,pathlib; print(json.dumps(pathlib.Path("'"$STATE"'/memories/MEMORY.md").read_text()))')
@@ -143,17 +158,13 @@ if [[ -s "$STATE/memories/MEMORY.md" ]]; then
       attribution: { hermes_home: "'"$STATE"'", exported_from: "MEMORY.md", checksum_sha256: $cs }
     }' >"$OUT"
   fi
+else
+  echo "{\"event\":\"memory_inbox_dump_skipped\",\"reason\":\"retired_use_mcp_put_page\"}" >>"$PUT_ERR"
 fi
 
-IMPORTED=0
-FAILED=0
-PENDING=0
-PUT_ERR="$STATE/memories/export/last-put.err"
-: >"$PUT_ERR"
-
-# Probe PGLite before burning the inbox queue (fail fast + actionable hint).
+# Probe PGLite before brain import.
 if ! gbrain_as_hermes list -n 1 >>"$PUT_ERR" 2>&1; then
-  log '"error":"pglite_unavailable","hint":"gbrain doctor; if WASM Aborted, backup brain.pglite then gbrain reinit-pglite --path /home/hermes/.gbrain/brain.pglite --embedding-model zeroentropyai:zembed-1 --embedding-dimensions 2560 -y --no-sync; re-import ~/brain md + inbox"'
+  log '"error":"pglite_unavailable","hint":"gbrain doctor; if WASM Aborted, backup brain.pglite then gbrain reinit-pglite"'
   echo "--- last-put.err ---" >&2
   cat "$PUT_ERR" >&2 || true
   exit 7
