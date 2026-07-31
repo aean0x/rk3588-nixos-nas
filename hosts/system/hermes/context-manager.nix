@@ -7,6 +7,7 @@
 #
 # After deploy: restart the gateway so hooks load (`hermes gateway restart` or
 # `systemctl restart hermes-agent`), then `/hmc status` in chat.
+# Overlay under plugins/hermes-context-manager-overlay fixes live mutation hooks.
 {
   lib,
   pkgs,
@@ -37,8 +38,10 @@ let
       automatic_strategies: true
 
     compress:
-      max_context_percent: 0.8
-      min_context_percent: 0.4
+      # Absolute budget: large windows (grok 500k) otherwise never compress before 200k+.
+      max_context_tokens: 120000
+      max_context_percent: 0.24
+      min_context_percent: 0.24
       protected_tools:
         - write_file
         - patch
@@ -57,9 +60,9 @@ let
 
     truncation:
       enabled: true
-      max_lines: 50
-      head_lines: 10
-      tail_lines: 10
+      max_lines: 40
+      head_lines: 12
+      tail_lines: 8
       min_content_length: 500
 
     background_compression:
@@ -105,6 +108,20 @@ in
     rm -rf "$dest/.github" "$dest/tests" "$dest/.gitignore" 2>/dev/null || true
 
     install -m 0640 -o hermes -g hermes ${hmcConfig} "$dest/config.yaml"
+
+    # Overlay: real live-mutation hooks (transform_tool_result + pre_api_request)
+    # and CompressConfig.max_context_tokens. Upstream post_tool_call is observational
+    # only — without this overlay HMC reports ~1% context and 0 tokens saved.
+    overlay=${./plugins/hermes-context-manager-overlay}
+    if [ -f "$overlay/plugin.py" ]; then
+      install -m 0640 -o hermes -g hermes "$overlay/plugin.py" \
+        "$dest/hermes_context_manager/plugin.py"
+    fi
+    if [ -f "$overlay/config.py" ]; then
+      install -m 0640 -o hermes -g hermes "$overlay/config.py" \
+        "$dest/hermes_context_manager/config.py"
+    fi
+
     chown -R hermes:hermes "$dest"
     find "$dest" -type d -exec chmod 2770 {} \;
     find "$dest" -type f -exec chmod 0640 {} \;
