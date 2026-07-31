@@ -63,7 +63,7 @@ Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 | Nix / timers own | Agent owns (see `workspace/GBRAIN.md`) |
 |------------------|----------------------------------------|
 | MCP `gbrain serve`, consolidate/embed/dream | MCP `query` / `put_page` / links |
-| Exclusive CLI wrapper (PGLite single-writer) | Keep MEMORY.md thin; durable → GBrain |
+| Exclusive CLI (stop agent → put/dream → start) | Keep MEMORY.md thin; durable → GBrain |
 | Registry + `memory/AGENTS.md` install | `volunteer_context` on recall |
 
 ## GBrain (summary)
