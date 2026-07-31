@@ -29,6 +29,19 @@
 
 If inbox is stuck, tell the operator to run `sudo hermes-gbrain-consolidate` (exclusive path freezes MCP serve briefly).
 
+### PGLite recovery (operator / host)
+
+If consolidate logs `PGLite failed to initialize its WASM runtime` / `Aborted()` even with hermes stopped:
+
+1. **Backup:** `cp -a /var/lib/hermes/home/.gbrain/brain.pglite /var/lib/hermes/home/.gbrain/brain.pglite.corrupt-$(date -u +%Y%m%dT%H%M%SZ)`
+2. **Reinit:** stop hermes-agent, then as hermes:
+   `gbrain reinit-pglite --path /home/hermes/.gbrain/brain.pglite --embedding-model zeroentropyai:zembed-1 --embedding-dimensions 2560 -y --no-sync`
+3. **Re-import:** markdown under `~/brain` + inbox JSON via consolidate (shell `gbrain put`; not `gbrain sync` — bun cannot `posix_spawn` git on this host).
+4. **Config:** keep `database_path` = `/home/hermes/.gbrain/brain.pglite` (never point at `/tmp`).
+5. Restart hermes-agent; MCP `query`/`put_page` again.
+
+Corrupt backup dirs may be deleted after a few good consolidate runs.
+
 ## First pages to seed (if missing)
 
 - `ops/maton-map` — Maton/email/calendar integration map  

@@ -26,12 +26,37 @@ fi
 
 log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
 
+# Container-facing brain checkout (git + markdown). Prefer this path so gbrain
+# resolves the same absolute paths as MCP (config uses /home/hermes/...).
+BRAIN_DIR="${HERMES_BRAIN_DIR:-/home/hermes/brain}"
+
 # runuser as hermes with container-aligned HOME (passwd home is /var/lib/hermes).
 gbrain_as_hermes() {
   runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
     ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" \
     OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
     gbrain "$@"
+}
+
+# Import ~/brain markdown without `gbrain sync` (bun on this host cannot
+# posix_spawn git — EACCES — so sync always fails at discover_git_root).
+import_brain_markdown() {
+  local root="$1"
+  local count=0 fail=0
+  [[ -d "$root" ]] || return 0
+  while IFS= read -r -d '' f; do
+    local rel="${f#"$root"/}"
+    local slug="${rel%.md}"
+    # skip hidden paths
+    [[ "$rel" == .* ]] && continue
+    if gbrain_as_hermes put "$slug" <"$f" >>"$PUT_ERR" 2>&1; then
+      count=$((count + 1))
+    else
+      fail=$((fail + 1))
+      echo "{\"event\":\"brain_md_put_failed\",\"file\":\"$rel\",\"slug\":\"$slug\"}" >>"$PUT_ERR"
+    fi
+  done < <(find "$root" -type f -name '*.md' ! -path '*/.git/*' -print0 2>/dev/null)
+  echo "{\"event\":\"brain_md_import\",\"imported\":$count,\"failed\":$fail,\"root\":\"$root\"}"
 }
 
 started=0
@@ -125,6 +150,15 @@ FAILED=0
 PENDING=0
 PUT_ERR="$STATE/memories/export/last-put.err"
 : >"$PUT_ERR"
+
+# Probe PGLite before burning the inbox queue (fail fast + actionable hint).
+if ! gbrain_as_hermes list -n 1 >>"$PUT_ERR" 2>&1; then
+  log '"error":"pglite_unavailable","hint":"gbrain doctor; if WASM Aborted, backup brain.pglite then gbrain reinit-pglite --path /home/hermes/.gbrain/brain.pglite --embedding-model zeroentropyai:zembed-1 --embedding-dimensions 2560 -y --no-sync; re-import ~/brain md + inbox"'
+  echo "--- last-put.err ---" >&2
+  cat "$PUT_ERR" >&2 || true
+  exit 7
+fi
+
 for j in "$STATE/memories/export/inbox"/*.json; do
   [[ -f "$j" ]] || continue
   PENDING=$((PENDING + 1))
@@ -144,26 +178,28 @@ for j in "$STATE/memories/export/inbox"/*.json; do
   fi
 done
 
+# Markdown brain import (shell put; not gbrain sync — bun cannot spawn git here).
+BRAIN_MD_OK=null
+if [[ -d "$BRAIN_DIR" ]]; then
+  import_brain_markdown "$BRAIN_DIR" | tee -a "$PUT_ERR"
+  BRAIN_MD_OK=true
+else
+  BRAIN_MD_OK=false
+  echo "{\"event\":\"brain_dir_missing\",\"path\":\"$BRAIN_DIR\"}" >>"$PUT_ERR"
+fi
+
 DREAM_OK=false
-if gbrain_as_hermes dream >>"$PUT_ERR" 2>&1; then
+# --dir enables filesystem dream phases against the markdown checkout.
+if gbrain_as_hermes dream --dir "$BRAIN_DIR" >>"$PUT_ERR" 2>&1 \
+  || gbrain_as_hermes dream >>"$PUT_ERR" 2>&1; then
   DREAM_OK=true
 fi
 
-SYNC_OK=null
-if [[ -d "$HOME_DIR/brain/.git" ]]; then
-  if gbrain_as_hermes sync --repo "$HOME_DIR/brain" --no-embed >>"$PUT_ERR" 2>&1; then
-    SYNC_OK=true
-  else
-    SYNC_OK=false
-  fi
-fi
-
-echo "{\"snapshot\":\"$SNAP\",\"inbox_pending\":$PENDING,\"inbox_imported\":$IMPORTED,\"inbox_failed\":$FAILED,\"dream\":$DREAM_OK,\"brain_sync\":$SYNC_OK}"
+echo "{\"snapshot\":\"$SNAP\",\"inbox_pending\":$PENDING,\"inbox_imported\":$IMPORTED,\"inbox_failed\":$FAILED,\"brain_md\":$BRAIN_MD_OK,\"dream\":$DREAM_OK}"
 log '"status":"complete"'
 
 if [[ "$FAILED" -gt 0 || ( "$PENDING" -gt 0 && "$IMPORTED" -eq 0 ) ]]; then
   log '"error":"put_or_dream_failed","see":"'"$PUT_ERR"'"'
-  # Surface gbrain CLI stderr in journal for the operator
   if [[ -s "$PUT_ERR" ]]; then
     echo "--- last-put.err ---" >&2
     cat "$PUT_ERR" >&2 || true

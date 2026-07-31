@@ -84,7 +84,7 @@ gbrain-dream (04:30)              → gbrain dream
 
 - CLI expected at `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
 - Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env`.
-- Maintenance pauses `gbrain serve` (PGLite lock).
+- Maintenance **stops hermes-agent** (releases PGLite). If WASM `Aborted()`, reinit-pglite (see `workspace/GBRAIN.md`).
 
 ## Secrets
 
