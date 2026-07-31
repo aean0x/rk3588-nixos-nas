@@ -1,11 +1,24 @@
-# HMC overlay (Hermes Context Manager)
+# hermes-context-manager overlay
 
-Copied over upstream after `context-manager.nix` installs the pinned HMC tree.
+Installed over upstream  (and config.py/config.yaml)
+by .
 
-## Fixes (2026-07-31)
-- `transform_tool_result` — actually truncates tool output before history append
-- `pre_api_request` — uses Hermes `approx_input_tokens`; prunes live tool content
-- `compress.max_context_tokens: 120000` — absolute budget so large windows compress before 200k+
-- Tighter truncation defaults (40 lines)
+## Why
+Upstream HMC only measured at turn start and could not rewrite tool results.
+This overlay adds:
 
-Root cause of prior 0 savings / ~1% context: `post_tool_call` is observational only.
+1.  — return a **string** (Hermes ignores non-string returns)
+2.  — measure every mid-loop call via 
+3. Absolute budget 
+4. Correct session state via  and SessionState fields
+   (, , ,
+   , , )
+5. Mutate  (API payload) and  (live)
+
+## Bugs fixed 2026-07-31 follow-up
+-  AttributeError on every under-budget 
+  (log: "HMC pre_api_request failed")
+- Handler looked for  but Hermes passes 
+- Transform must return a plain string, not 
+
+After deploy: restart hermes gateway so hooks reload.
