@@ -77,7 +77,11 @@ chmod -R a-w "$SNAP" 2>/dev/null || true
 MANIFEST=/data/.hermes/memories/export/last-manifest.json
 $JQ -n --arg utc "$UTC" --arg snap "$SNAP" '{schema_version:1,snapshot_dir:$snap,created_at:$utc,files:([])}' > "$MANIFEST"
 
-if [ -s /data/.hermes/memories/MEMORY.md ]; then
+# MEMORY.md -> hermes/inbox dump is OPT-IN only (align with outer consolidate).
+# Default OFF: exclusive CLI + serve holding PGLite caused corruption.
+# Durable notes go via MCP put_page (main sessions / gbrain-memory-flush).
+# Enable dump with: GBRAIN_MEMORY_INBOX_DUMP=1
+if [ "${GBRAIN_MEMORY_INBOX_DUMP:-0}" = "1" ] && [ -s /data/.hermes/memories/MEMORY.md ]; then
   BODY=$("$PYTHON3" -c 'import json,pathlib; print(json.dumps(pathlib.Path("/data/.hermes/memories/MEMORY.md").read_text()))')
   RID=$("$PYTHON3" -c 'import uuid; print(uuid.uuid4())')
   NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -99,6 +103,8 @@ if [ -s /data/.hermes/memories/MEMORY.md ]; then
       attribution: { hermes_home: "/data/.hermes", exported_from: "MEMORY.md", checksum_sha256: $cs }
     }' > "$OUT"
   fi
+else
+  echo "{\"event\":\"memory_inbox_dump_skipped\",\"reason\":\"retired_use_mcp_put_page\"}" >> /data/.hermes/memories/export/last-put.err 2>/dev/null || true
 fi
 
 IMPORTED=0
