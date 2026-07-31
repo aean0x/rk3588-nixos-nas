@@ -161,7 +161,10 @@ Workstation helper (once wired in deploy):
 | Rotate ZeroEntropy | `secrets/decrypt` → edit → `encrypt` → `remote-switch` → `systemctl restart hermes-agent` |
 | Soft reset agent, keep gbrain | `sudo bash …/clean-hermes-state.sh` (preserves `~/brain`, `~/.bun`) |
 
-**Anti-clobber:** timers `pkill -f 'gbrain serve'` before maintenance so PGLite is not shared with MCP.
+**Anti-clobber:** consolidate/embed/dream **stop hermes-agent** so MCP releases PGLite, then run host CLI as `hermes`, then start hermes again.
+
+**PGLite WASM Aborted / stuck inbox:** data dir damage (not “MEMORY full”).  
+`sudo hermes-gbrain-consolidate` after recovery; if list/put still fail exclusive, see `workspace/GBRAIN.md` → *PGLite recovery* (`reinit-pglite` + re-import `~/brain` + inbox).
 
 ---
 
