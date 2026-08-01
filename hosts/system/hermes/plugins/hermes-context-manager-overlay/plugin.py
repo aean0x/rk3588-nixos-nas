@@ -1012,8 +1012,24 @@ class HermesContextManagerPlugin:
 
                 mode_str = "manual" if manual else "auto"
 
-                # Context info
-                ctx_pct = f"{state.last_context_percent * 100:.0f}%" if state.last_context_percent else "--"
+                # Managed budget (max_context_tokens), not model window (500k).
+                # last_context_percent is a fraction 0..1 of the *model* window
+                # when set from materialize; pre_api may store 0..100 of model
+                # window — normalize via tokens/budget for operator status.
+                budget = int(
+                    getattr(self.config.compress, "max_context_tokens", 0) or 0
+                ) or 120000
+                tokens = int(state.last_context_tokens or 0)
+                if tokens > 0 and budget > 0:
+                    budget_pct = min(100.0, (tokens / budget) * 100.0)
+                    ctx_pct = f"{budget_pct:.0f}% of {budget // 1000}k"
+                elif state.last_context_percent is not None:
+                    # Fraction 0..1 → display percent; values >1 already percent points.
+                    raw = float(state.last_context_percent)
+                    disp = raw * 100.0 if raw <= 1.0 else raw
+                    ctx_pct = f"{disp:.0f}% (model win)"
+                else:
+                    ctx_pct = "--"
 
                 # Index count
                 entries = self.state_store.read_index(session_id)
@@ -1026,7 +1042,7 @@ class HermesContextManagerPlugin:
                     saved_str = f"{_fmt(kept_out)} kept-out / {_fmt(uniq)} uniq"
 
                 lines = [
-                    f"HMC [{mode_str}] | ctx: {ctx_pct} | saved: {saved_str} tokens | tools: {tool_count} tracked, {prune_count} pruned",
+                    f"HMC [{mode_str}] | ctx: {ctx_pct} | ~{tokens} tok | saved: {saved_str} tokens | tools: {tool_count} tracked, {prune_count} pruned",
                     f"  breakdown: {breakdown}",
                 ]
                 if entries:
@@ -1035,11 +1051,21 @@ class HermesContextManagerPlugin:
                 return json.dumps({"status": "\n".join(lines)})
 
             if action == "context":
+                budget = int(
+                    getattr(self.config.compress, "max_context_tokens", 0) or 0
+                ) or 120000
+                tokens = int(state.last_context_tokens or 0)
                 return json.dumps(
                     {
-                        "context_tokens_estimate": state.last_context_tokens,
-                        "context_window": state.last_context_window,
-                        "context_usage_percent": state.last_context_percent,
+                        "context_tokens_estimate": tokens,
+                        "context_window_model": state.last_context_window,
+                        "managed_budget_tokens": budget,
+                        # Fraction of managed budget 0..1 (preferred).
+                        "context_usage_of_budget": (
+                            (tokens / budget) if budget > 0 else None
+                        ),
+                        # Legacy: may be fraction or percent points of *model* window.
+                        "context_usage_percent_model": state.last_context_percent,
                         "tool_calls_tracked": len(state.tool_calls),
                         "pruned_tools": len(state.pruned_tool_ids),
                         # Primary metric: un-gated real bytes kept out.
@@ -1264,11 +1290,17 @@ class HermesContextManagerPlugin:
             try:
                 sid = session_id or kwargs.get("session_id") or "default"
                 state = self._get_state(sid)
+                tok = saved_chars // 4
                 state.total_prune_count = int(getattr(state, "total_prune_count", 0) or 0) + 1
-                state.tokens_saved = int(getattr(state, "tokens_saved", 0) or 0) + (saved_chars // 4)
+                state.tokens_saved = int(getattr(state, "tokens_saved", 0) or 0) + tok
                 state.tokens_kept_out_total = int(
                     getattr(state, "tokens_kept_out_total", 0) or 0
-                ) + (saved_chars // 4)
+                ) + tok
+                # Attribute savings so status breakdown is not empty for live hooks.
+                by = state.tokens_kept_out_by_type
+                by["transform_tool_result"] = int(by.get("transform_tool_result", 0) or 0) + tok
+                uniq = state.tokens_saved_by_type
+                uniq["transform_tool_result"] = int(uniq.get("transform_tool_result", 0) or 0) + tok
             except Exception:
                 pass
             return new_text
@@ -1325,17 +1357,20 @@ class HermesContextManagerPlugin:
             )
             if window <= 0:
                 window = 500000
-            percent = (approx / window) * 100.0 if window else 0.0
+            # Always store a 0..1 fraction of the *model* window (same as
+            # _estimate_context_percent). Status display maps to managed budget.
+            percent = (approx / window) if window else 0.0
             state.last_context_window = window
             state.last_context_tokens = approx
             state.last_context_percent = percent
 
             compress = self.config.compress
             budget = int(getattr(compress, "max_context_tokens", 0) or 0)
+            # Prefer absolute managed budget (120k); percent of model window secondary.
             over = budget > 0 and approx >= budget
             if not over:
                 pct = float(getattr(compress, "max_context_percent", 0.24) or 0.24)
-                over = window > 0 and (approx / window) >= pct
+                over = window > 0 and percent >= pct
             if not over:
                 return None
 
@@ -1396,6 +1431,10 @@ class HermesContextManagerPlugin:
                 state.total_prune_count = int(
                     getattr(state, "total_prune_count", 0) or 0
                 ) + pruned
+                by = state.tokens_kept_out_by_type
+                by["pre_api_prune"] = int(by.get("pre_api_prune", 0) or 0) + tok
+                uniq = state.tokens_saved_by_type
+                uniq["pre_api_prune"] = int(uniq.get("pre_api_prune", 0) or 0) + tok
             return None
         except Exception:
             LOGGER.exception("HMC pre_api_request failed")

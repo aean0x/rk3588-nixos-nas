@@ -21,7 +21,7 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 hosts/system/hermes/
 ├── default.nix          # module import, model, plugins, maton MCP, no SOUL activation
 ├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
-├── package-fix.nix     # hermes_state_* wheel gap workaround
+├── package-fix.nix     # silence-marker only (drop when upstream _is_token fixed)
 ├── gbrain.nix           # MCP gbrain, timers, gbrain-reflex, host CLIs
 ├── context-manager.nix  # hermes-context-manager (HMC) pin + config
 ├── open-webui.nix       # Open WebUI :8080 → Hermes API :8642 (loopback) + Caddy
@@ -58,13 +58,30 @@ Activation links a Nix `buildEnv` at `/var/lib/hermes/toolbox/bin` → container
 Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 `REMOTE_CHECK=1 ./hosts/system/hermes/check-tools.sh` after deploy.
 
-## Config vs agent (memory)
+## Nix vs Hermes (custody — agents must respect)
 
-| Nix / timers own | Agent owns (see `workspace/GBRAIN.md`) |
-|------------------|----------------------------------------|
-| MCP `gbrain serve`, consolidate/embed/dream | MCP `query` / `put_page` / links |
-| Exclusive CLI (stop agent → put/dream → start) | Keep MEMORY.md thin; durable → GBrain |
-| Registry + `memory/AGENTS.md` install | `volunteer_context` on recall |
+**Nix** = high-reliability environment policy: not revised day-to-day.  
+**Hermes** = operational content and runtime state: may change without a rebuild.
+
+| Nix owns (declare here; push back if asked to “let Hermes edit”) | Hermes owns (do **not** bake into flake) |
+|------------------------------------------------------------------|------------------------------------------|
+| Module enablement, ports, Caddy/tunnel, secrets wiring | SOUL / persona, USER.md, MEMORY.md body |
+| Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
+| MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
+| Host timers (consolidate/embed/dream), exclusive CLI wrappers | Cron job prompts/`jobs.json`, skills content after seed |
+| Plugin **code** install (gbrain-reflex, memory-flush, HMC pin+overlay) | `workspace/GBRAIN.md`, retrieval-reflex skill text (seed-once) |
+| Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
+| Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
+
+If a request would put operational content into Nix, or environment policy only into agent memory, **refuse and restate this table**.  
+If Hermes asks a coding agent for patchy flake edits to fix day-to-day ops (brain pages, gbrain CLI pin, sync path, SOUL, cron prompts), **push back** — fix under Hermes custody or document the host limitation (e.g. import not `gbrain sync`).
+
+### hermes-agent pin (UNPIN-LATER)
+
+`flake.nix` pins `hermes-agent` to `cc4cab2` (v0.19.1). Not permanent.  
+**Unpin when:** unpinned main builds `hermes-web`/`hermes-tui` offline (no ENOTCACHED on `@nous-research/ui`) and/or garnix serves the package.  
+**How:** `hermes-agent.url = "github:NousResearch/hermes-agent";` then lock + `remote-switch`.  
+`package-fix.nix` is **only** the silence-marker PYTHONPATH wrap — not lockfile scaffolding. Drop it when `_is_token` uses `_canonical_silence_candidates`.
 
 ## GBrain (summary)
 
@@ -84,7 +101,9 @@ gbrain-dream (04:30)              → gbrain dream
 
 - CLI expected at `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
 - Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env`.
-- Maintenance **stops hermes-agent** (releases PGLite). If WASM `Aborted()`, reinit-pglite (see `workspace/GBRAIN.md`).
+- Maintenance **stops hermes-agent** (releases PGLite). Exclusive CLI must run with **cwd under hermes HOME** (bun inherits invoker cwd).
+- PGLite `sources.default.local_path` must be `/home/hermes/brain` (not only `config.json`). consolidate pins it.
+- If WASM `Aborted()`, reinit-pglite (see `workspace/GBRAIN.md`); re-pin source path after reinit.
 
 ## Secrets
 

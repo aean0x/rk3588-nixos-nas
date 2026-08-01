@@ -1,4 +1,5 @@
 [
+  {"_comment": "Hermes-owned after seed. Nix does not overwrite. Full SoT: ops/gbrain-protocol."},
   {"aliases": ["ian", "operator"], "slug": "people/ian", "synopsis": "Operator prefs: autonomy, Telegram, workstation PRs"},
   {"aliases": ["maton", "gmail", "outlook"], "slug": "ops/maton-map", "synopsis": "Maton gateway + mail/calendar connections"},
   {"aliases": ["workstation", "grok build", "nix-pc", "coding hop"], "slug": "ops/workstation-coding", "synopsis": "Major PRs via workstation Grok, not Hermes container"},

@@ -164,7 +164,7 @@ Workstation helper (once wired in deploy):
 **Anti-clobber:** consolidate/embed/dream **stop hermes-agent** so MCP releases PGLite, then run host CLI as `hermes`, then start hermes again.
 
 **PGLite WASM Aborted / stuck inbox:** data dir damage (not “MEMORY full”).  
-`sudo hermes-gbrain-consolidate` after recovery; if list/put still fail exclusive, see `workspace/GBRAIN.md` → *PGLite recovery* (`reinit-pglite` + re-import `~/brain` + inbox).
+See `workspace/GBRAIN.md` → *PGLite recovery*: stop agent → rotate DB → `reinit-pglite` → import `~/brain` (not `gbrain sync`) → embed → **start agent** (MCP must drop stale serve). Then `sudo hermes-gbrain-consolidate` if needed. Prune old `brain.pglite.bak*` / `*.broken*` / `*.corrupt*` when disk fills (~40M each).
 
 ---
 
@@ -188,13 +188,15 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | Piece | Declarative? |
 |-------|----------------|
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
-| Registry + export schema + memory AGENTS.md | Yes (activation) |
+| Registry + export schema + memory AGENTS.md | Yes (activation, always) |
 | Timers consolidate / dream / embed | Yes |
+| Plugin **code** (gbrain-reflex, memory-flush, HMC) | Yes (activation) |
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
 | `FIRECRAWL_API_KEY` | Yes (sops → hermesEnv; `web_extract`) |
 | `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
 | Model provider `xai-oauth` + default `grok-4.5` | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
+| Pointer index, `GBRAIN.md` stub, retrieval-reflex skill | **Seed once** — Hermes owns afterward |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
 | Local Brave + CDP (`browser.nix`) | Yes (service + profile dir); warm via `hermes-browser-import-cookies` |

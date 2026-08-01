@@ -37,15 +37,63 @@ log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TA
 BRAIN_DIR="${HERMES_BRAIN_DIR:-/home/hermes/brain}"
 
 # runuser as hermes with container-aligned HOME (passwd home is /var/lib/hermes).
+# Critical: cwd must be readable by hermes. Bun inherits the invoker cwd and
+# chdir()s into it before posix_spawn; if we stay in /home/user or /root,
+# every child (git, true, …) fails with EACCES — looks like "bun cannot spawn".
 gbrain_as_hermes() {
   runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
     ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" \
     OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
-    gbrain "$@"
+    bash -c 'cd "$HOME" && exec gbrain "$@"' _ "$@"
 }
 
-# Import ~/brain markdown without `gbrain sync` (bun on this host cannot
-# posix_spawn git — EACCES — so sync always fails at discover_git_root).
+# Pin sources.default.local_path in PGLite (config.json alone is not enough).
+# Idempotent: no-op when already set to BRAIN_DIR.
+ensure_default_source_path() {
+  local want="${1:-$BRAIN_DIR}"
+  local json
+  json=$(gbrain_as_hermes sources list --json 2>/dev/null || true)
+  if echo "$json" | grep -q "\"local_path\": *\"$want\""; then
+    log "\"event\":\"source_path_ok\",\"path\":\"$want\""
+    return 0
+  fi
+  local gb_mod="$HOME_DIR/.bun/install/global/node_modules/gbrain"
+  local pin_script="$HOME_DIR/.gbrain/pin-default-source.ts"
+  if [[ ! -d "$gb_mod" ]]; then
+    log "\"event\":\"source_path_pin_failed\",\"reason\":\"gbrain_module_missing\""
+    return 1
+  fi
+  cat >"$pin_script" <<PIN
+import { createEngine } from "${gb_mod}/src/core/engine-factory.ts";
+import { loadConfig } from "${gb_mod}/src/core/config.ts";
+const path = process.argv[2] || "/home/hermes/brain";
+const cfg = loadConfig();
+if (!cfg) throw new Error("no gbrain config");
+const engine = await createEngine(cfg as any);
+await engine.connect(cfg as any);
+await engine.executeRaw(
+  \`UPDATE sources SET local_path = \$1 WHERE id = \$2\`,
+  [path, "default"],
+);
+const rows = await engine.executeRaw(
+  \`SELECT id, local_path FROM sources WHERE id = 'default'\`,
+);
+console.log(JSON.stringify(rows));
+if (typeof (engine as any).close === "function") await (engine as any).close();
+else if (typeof (engine as any).disconnect === "function") await (engine as any).disconnect();
+PIN
+  chown hermes:hermes "$pin_script" 2>/dev/null || true
+  if runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
+      bash -c 'cd "$HOME" && exec bun run "$@"' _ "$pin_script" "$want"
+  then
+    log "\"event\":\"source_path_pinned\",\"path\":\"$want\""
+  else
+    log "\"event\":\"source_path_pin_failed\",\"path\":\"$want\""
+    return 1
+  fi
+}
+
+# Prefer gbrain sync when source local_path is wired; fall back to shell put.
 import_brain_markdown() {
   local root="$1"
   local count=0 fail=0
@@ -55,13 +103,17 @@ import_brain_markdown() {
     local slug="${rel%.md}"
     # skip hidden paths
     [[ "$rel" == .* ]] && continue
+    # Legacy whole-MEMORY dumps + archives; never re-import into PGLite.
+    [[ "$rel" == hermes/inbox/* ]] && continue
+    [[ "$rel" == hermes/inbox.archived*/* ]] && continue
+    [[ "$rel" == hermes/inbox.archived*/*/* ]] && continue
     if gbrain_as_hermes put "$slug" <"$f" >>"$PUT_ERR" 2>&1; then
       count=$((count + 1))
     else
       fail=$((fail + 1))
       echo "{\"event\":\"brain_md_put_failed\",\"file\":\"$rel\",\"slug\":\"$slug\"}" >>"$PUT_ERR"
     fi
-  done < <(find "$root" -type f -name '*.md' ! -path '*/.git/*' -print0 2>/dev/null)
+  done < <(find "$root" -type f -name '*.md' ! -path '*/.git/*' ! -path '*/hermes/inbox/*' ! -path '*/hermes/inbox.archived*/*' -print0 2>/dev/null)
   echo "{\"event\":\"brain_md_import\",\"imported\":$count,\"failed\":$fail,\"root\":\"$root\"}"
 }
 
@@ -90,13 +142,18 @@ if [[ ! -d "$HOME_DIR/.gbrain" ]]; then
   exit 5
 fi
 
-# Load embedding keys for dream (optional).
-if [[ -f "$STATE/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source <(grep -E '^(ZEROENTROPY_API_KEY|OPENAI_API_KEY)=' "$STATE/.env" || true)
-  set +a
-fi
+# Embedding keys: hermesEnv (/run/hermes.env) then agent .env (optional).
+load_embed_keys() {
+  local f
+  for f in /run/hermes.env "$STATE/.env"; do
+    [[ -f "$f" ]] || continue
+    set -a
+    # shellcheck disable=SC1090
+    source <(grep -E '^(ZEROENTROPY_API_KEY|OPENAI_API_KEY)=' "$f" || true)
+    set +a
+  done
+}
+load_embed_keys
 
 log '"event":"stopping_hermes_for_pglite"'
 systemctl stop hermes-agent.service
@@ -113,6 +170,9 @@ rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
 pkill -f 'gbrain serve' 2>/dev/null || true
 sleep 1
 chown -R hermes:hermes "$HOME_DIR/.gbrain" "$HOME_DIR/brain" 2>/dev/null || true
+
+# Ensure PGLite sources.default.local_path matches markdown brain (sync + doctor).
+ensure_default_source_path "$BRAIN_DIR" || true
 
 # Snapshot MEMORY/USER (audit only — do not re-import whole MEMORY into brain).
 UTC=$(date -u +%Y%m%dT%H%M%SZ)
@@ -189,13 +249,27 @@ for j in "$STATE/memories/export/inbox"/*.json; do
   fi
 done
 
-# Markdown brain import (shell put; not gbrain sync — bun cannot spawn git here).
+# Markdown brain: prefer gbrain sync (needs local_path + hermes-cwd); fall back to put.
 BRAIN_MD_OK=null
+SYNC_OK=null
 if [[ -d "$BRAIN_DIR" ]]; then
-  import_brain_markdown "$BRAIN_DIR" | tee -a "$PUT_ERR"
-  BRAIN_MD_OK=true
+  set +e
+  gbrain_as_hermes sync --source default --no-embed >>"$PUT_ERR" 2>&1
+  sync_ec=$?
+  set -e
+  if [[ "$sync_ec" -eq 0 ]]; then
+    SYNC_OK=true
+    BRAIN_MD_OK=true
+    echo "{\"event\":\"brain_sync\",\"ok\":true}" | tee -a "$PUT_ERR"
+  else
+    SYNC_OK=false
+    echo "{\"event\":\"brain_sync\",\"ok\":false,\"fallback\":\"import_brain_markdown\"}" | tee -a "$PUT_ERR"
+    import_brain_markdown "$BRAIN_DIR" | tee -a "$PUT_ERR"
+    BRAIN_MD_OK=true
+  fi
 else
   BRAIN_MD_OK=false
+  SYNC_OK=false
   echo "{\"event\":\"brain_dir_missing\",\"path\":\"$BRAIN_DIR\"}" >>"$PUT_ERR"
 fi
 
@@ -206,7 +280,7 @@ if gbrain_as_hermes dream --dir "$BRAIN_DIR" >>"$PUT_ERR" 2>&1 \
   DREAM_OK=true
 fi
 
-echo "{\"snapshot\":\"$SNAP\",\"inbox_pending\":$PENDING,\"inbox_imported\":$IMPORTED,\"inbox_failed\":$FAILED,\"brain_md\":$BRAIN_MD_OK,\"dream\":$DREAM_OK}"
+echo "{\"snapshot\":\"$SNAP\",\"inbox_pending\":$PENDING,\"inbox_imported\":$IMPORTED,\"inbox_failed\":$FAILED,\"brain_md\":$BRAIN_MD_OK,\"brain_sync\":$SYNC_OK,\"dream\":$DREAM_OK}"
 log '"status":"complete"'
 
 if [[ "$FAILED" -gt 0 || ( "$PENDING" -gt 0 && "$IMPORTED" -eq 0 ) ]]; then

@@ -54,8 +54,10 @@ If tool_search hides them, search for `gbrain` and call the resolved name. Do **
 
 | Layer | Owner |
 |-------|--------|
-| Static alias index + `pre_llm_call` injection | Flake / `gbrain-reflex` plugin |
+| Alias index JSON (`gbrain-pointer-index.json`) | **You** (Hermes) — edit aliases/slugs; Nix seeds once only |
+| `pre_llm_call` injection code | Flake / `gbrain-reflex` plugin (infra) |
 | Open page / query / put when salient | **You** (this skill) |
+| This skill file | **You** after seed — Nix does not overwrite |
 | Nightly consolidate / embed / dream | Host timers |
 
-Pointers are one-line synopses only — full truth lives on the page.
+Pointers are one-line synopses only — full truth lives on the page (`ops/gbrain-protocol`).

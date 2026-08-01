@@ -31,9 +31,11 @@ let
     name = "hermes-gbrain-consolidate";
     runtimeInputs = runtime;
     # trap cleanup() looks unused to shellcheck
+    # SC2016: intentional single-quoted bash -c so $HOME expands in hermes shell
     excludeShellChecks = [
       "SC2329"
       "SC2181"
+      "SC2016"
     ];
     text = builtins.readFile ./scripts/hermes-gbrain-consolidate.sh;
   };
@@ -44,6 +46,7 @@ let
     excludeShellChecks = [
       "SC2329"
       "SC2181"
+      "SC2016"
     ];
     text = builtins.readFile ./scripts/hermes-gbrain-embed.sh;
   };
@@ -54,6 +57,7 @@ let
     excludeShellChecks = [
       "SC2329"
       "SC2181"
+      "SC2016"
     ];
     text = ''
       set -euo pipefail
@@ -76,7 +80,9 @@ let
       sleep 2
       pkill -f 'gbrain serve' 2>/dev/null || true
       rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
-      runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" gbrain dream
+      # cwd under hermes HOME so bun can posix_spawn children (git, etc.)
+      runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
+        bash -c 'cd "$HOME" && exec gbrain dream'
     '';
   };
 
@@ -188,10 +194,21 @@ in
   ];
 
   system.activationScripts.hermes-memory-manifest = lib.stringAfter [ "hermes-agent-setup" ] ''
+    # seed_if_missing DEST SRC MODE — Hermes owns content after first install.
+    # Infra never overwrites agent edits to pointer index, GBRAIN.md, or skills.
+    seed_if_missing() {
+      dest="$1"; src="$2"; mode="$3"
+      if [ ! -e "$dest" ]; then
+        install -D -m "$mode" -o hermes -g hermes "$src" "$dest"
+        echo "hermes-seed: created $dest"
+      fi
+    }
+
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
     install -m 0755 -o root -g hermes ${lib.getExe consolidateInnerScript} \
       /var/lib/hermes/bin/hermes-gbrain-consolidate-inner
 
+    # ── Always managed (memory contract / registry) ──
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/memory
     install -m 0644 ${registryFile} /var/lib/hermes/memory/registry.json
     install -m 0644 ${schemaFile} /var/lib/hermes/memory/export-schema.json
@@ -208,46 +225,42 @@ in
       {
         echo '# MEMORY.md — working / short-horizon only'
         echo
-        echo 'Durable knowledge → GBrain MCP put_page (see workspace/GBRAIN.md).'
+        echo 'Durable knowledge → GBrain MCP put_page (ops/gbrain-protocol).'
       } > /var/lib/hermes/.hermes/memories/MEMORY.md
       chown hermes:hermes /var/lib/hermes/.hermes/memories/MEMORY.md
       chmod 0640 /var/lib/hermes/.hermes/memories/MEMORY.md
     fi
 
+    # ── Hermes-owned content (seed once; agent maintains) ──
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
-    install -m 0640 -o hermes -g hermes ${./workspace/GBRAIN.md} /var/lib/hermes/workspace/GBRAIN.md
-    install -m 0640 -o hermes -g hermes ${./workspace/gbrain-pointer-index.json} \
-      /var/lib/hermes/workspace/gbrain-pointer-index.json
+    seed_if_missing /var/lib/hermes/workspace/GBRAIN.md \
+      ${./workspace/GBRAIN.md} 0640
+    seed_if_missing /var/lib/hermes/workspace/gbrain-pointer-index.json \
+      ${./workspace/gbrain-pointer-index.json} 0640
 
-    # gbrain-reflex plugin (user plugins under HERMES_HOME/plugins + external_dirs).
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/plugins/gbrain-reflex
-    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/plugin.yaml} \
-      /var/lib/hermes/.hermes/plugins/gbrain-reflex/plugin.yaml
-    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/__init__.py} \
-      /var/lib/hermes/.hermes/plugins/gbrain-reflex/__init__.py
-    # gbrain-memory-flush: background_review → MCP put_page + MEMORY prune
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/plugins/gbrain-memory-flush
-    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/plugin.yaml} \
-      /var/lib/hermes/.hermes/plugins/gbrain-memory-flush/plugin.yaml
-    install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/__init__.py} \
-      /var/lib/hermes/.hermes/plugins/gbrain-memory-flush/__init__.py
-    if [ -d /var/lib/hermes/plugins ]; then
-      install -d -m 0755 -o hermes -g hermes /var/lib/hermes/plugins/gbrain-reflex
-      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/plugin.yaml} \
-        /var/lib/hermes/plugins/gbrain-reflex/plugin.yaml
-      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-reflex/__init__.py} \
-        /var/lib/hermes/plugins/gbrain-reflex/__init__.py
-      install -d -m 0755 -o hermes -g hermes /var/lib/hermes/plugins/gbrain-memory-flush
-      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/plugin.yaml} \
-        /var/lib/hermes/plugins/gbrain-memory-flush/plugin.yaml
-      install -m 0644 -o hermes -g hermes ${./plugins/gbrain-memory-flush/__init__.py} \
-        /var/lib/hermes/plugins/gbrain-memory-flush/__init__.py
+    # ── Infra plugins (force-managed code; not agent content) ──
+    # Prefer $HERMES_HOME/plugins; mirror to external_dirs for dual discovery.
+    install_plugin_tree() {
+      name="$1"; src_dir="$2"
+      for base in /var/lib/hermes/.hermes/plugins /var/lib/hermes/plugins; do
+        [ -d "$(dirname "$base")" ] || continue
+        install -d -m 0755 -o hermes -g hermes "$base/$name"
+        install -m 0644 -o hermes -g hermes "$src_dir/plugin.yaml" \
+          "$base/$name/plugin.yaml"
+        install -m 0644 -o hermes -g hermes "$src_dir/__init__.py" \
+          "$base/$name/__init__.py"
+      done
+    }
+    install_plugin_tree gbrain-reflex ${./plugins/gbrain-reflex}
+    install_plugin_tree gbrain-memory-flush ${./plugins/gbrain-memory-flush}
+
+    # retrieval-reflex policy skill — Hermes owns after seed
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills
+    seed_if_missing /var/lib/hermes/skills/retrieval-reflex/SKILL.md \
+      ${./skills/retrieval-reflex/SKILL.md} 0644
+    if [ -d /var/lib/hermes/skills/retrieval-reflex ]; then
+      chown -R hermes:hermes /var/lib/hermes/skills/retrieval-reflex
     fi
-
-    # retrieval-reflex policy skill (skills.external_dirs).
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills/retrieval-reflex
-    install -m 0644 -o hermes -g hermes ${./skills/retrieval-reflex/SKILL.md} \
-      /var/lib/hermes/skills/retrieval-reflex/SKILL.md
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain
@@ -262,8 +275,8 @@ in
       ln -sfn /var/lib/hermes/home /home/hermes
     fi
 
-    # Re-assert mcpServers.gbrain + plugins.enabled after hermes-agent-setup / agent edits.
-    # Managed mode blocks agent writes, but deep-merge races can drop the blocks.
+    # Ensure plugins.enabled + gbrain MCP survive deep-merge races (infra only).
+    # Does not touch agent-added MCP servers (e.g. robinhood).
     cfg=/var/lib/hermes/.hermes/config.yaml
     if [ -f "$cfg" ]; then
       ${pkgs.python3}/bin/python3 - "$cfg" <<'PY'
@@ -293,7 +306,6 @@ if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
     changed = True
 
-# Opt-in allow-list: gbrain-reflex + HMC + memory-flush.
 plugins = data.setdefault("plugins", {})
 if not isinstance(plugins, dict):
     plugins = {}

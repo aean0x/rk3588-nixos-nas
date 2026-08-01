@@ -22,12 +22,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -f "$STATE/.env" ]]; then
+for f in /run/hermes.env "$STATE/.env"; do
+  [[ -f "$f" ]] || continue
   set -a
   # shellcheck disable=SC1090
-  source <(grep -E '^(ZEROENTROPY_API_KEY|OPENAI_API_KEY)=' "$STATE/.env" || true)
+  source <(grep -E '^(ZEROENTROPY_API_KEY|OPENAI_API_KEY)=' "$f" || true)
   set +a
-fi
+done
 
 if [[ -z "${ZEROENTROPY_API_KEY:-}" && -z "${OPENAI_API_KEY:-}" ]]; then
   log '"embed":"skip","reason":"no_embedding_api_key"'
@@ -40,9 +41,11 @@ started=1
 sleep 2
 rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
 
+# cwd under hermes HOME so bun can posix_spawn (see consolidate.sh)
 set +e
-runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
-  gbrain embed --stale
+runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
+  ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+  bash -c 'cd "$HOME" && exec gbrain embed --stale'
 ec=$?
 set -e
 echo "{\"embed\":$([[ $ec -eq 0 ]] && echo true || echo false)}"

@@ -20,7 +20,7 @@ in
 {
   imports = [
     inputs.hermes-agent.nixosModules.default
-    ./package-fix.nix # hermes_state_* modules missing from 0.19.0 wheel
+    ./package-fix.nix # silence marker fix (state modules OK in 0.19.1)
     ./toolbox.nix # everyday CLI toolkit → /data/toolbox/bin + agent PATH
     ./onedrive.nix
     ./dashboard.nix

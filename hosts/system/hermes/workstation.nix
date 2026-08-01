@@ -89,7 +89,9 @@ in {
       /var/lib/hermes/.hermes/skills/devops/workstation/SKILL.md
 
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
-    cat > /var/lib/hermes/workspace/WORKSTATION.md <<'EOF'
+    # Hermes-owned after seed; wrappers + skill stay force-managed above.
+    if [ ! -f /var/lib/hermes/workspace/WORKSTATION.md ]; then
+      cat > /var/lib/hermes/workspace/WORKSTATION.md <<'EOF'
 # Coding workstation (remote Grok)
 
 Host must be **powered on**. Use wrappers only — do not dig for SSH keys.
@@ -107,8 +109,9 @@ ssh-workstation 'bash -lc "grok --always-approve -p \"…\""'
 release-workstation
 ```
 EOF
-    chown hermes:hermes /var/lib/hermes/workspace/WORKSTATION.md
-    chmod 0640 /var/lib/hermes/workspace/WORKSTATION.md
+      chown hermes:hermes /var/lib/hermes/workspace/WORKSTATION.md
+      chmod 0640 /var/lib/hermes/workspace/WORKSTATION.md
+    fi
     rm -f /var/lib/hermes/workspace/NIX_PC_AGENT.md
   '';
 
