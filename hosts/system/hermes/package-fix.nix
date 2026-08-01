@@ -34,6 +34,23 @@ let
     "hermes_state_search.py"
   ];
 
+
+  # Cron/webhook silence matcher used only _canonical_silence_candidate, so
+  # **[SILENT]** / *NO_REPLY* failed to suppress while intentional silence
+  # (interactive) already used punctuation-stripped candidates. Copy gateway
+  # package and fix _is_token; PYTHONPATH-prepend so it wins over the wheel.
+  silenceFixedGateway = pkgs.runCommand "hermes-gateway-silence-fix" { } ''
+    mkdir -p "$out/${siteRel}"
+    cp -a "${upstream}/${siteRel}/gateway" "$out/${siteRel}/"
+    chmod -R u+w "$out"
+    ${pkgs.gnused}/bin/sed -i \
+      's/return _canonical_silence_candidate(line) in LIVE_GATEWAY_SILENT_MARKERS/return any(c in LIVE_GATEWAY_SILENT_MARKERS for c in _canonical_silence_candidates(line))/' \
+      "$out/${siteRel}/gateway/response_filters.py"
+    grep -q '_canonical_silence_candidates(line)' \
+      "$out/${siteRel}/gateway/response_filters.py" \
+      || { echo "silence fix sed did not apply" >&2; exit 1; }
+  '';
+
   hermesStateModules = pkgs.runCommand "hermes-state-split-modules" { } ''
     mkdir -p "$out/${siteRel}"
     ${lib.concatMapStringsSep "\n" (name: ''
@@ -65,6 +82,7 @@ let
         for bin in hermes hermes-agent hermes-acp; do
           if [ -e "$out/bin/$bin" ]; then
             wrapProgram "$out/bin/$bin" \
+              --prefix PYTHONPATH : "${silenceFixedGateway}/${siteRel}" \
               --prefix PYTHONPATH : "${hermesStateModules}/${siteRel}"
           fi
         done
