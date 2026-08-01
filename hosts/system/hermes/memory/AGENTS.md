@@ -86,14 +86,20 @@ All inbox JSON must validate against `export-schema.json` (required: `record_id`
 ### Surfaces
 
 - MCP: `gbrain serve` — **preferred for agent turns** (put_page / query)
-- CLI: host maintenance only (timers above)
-- Brain git: `~/brain` — agent commits; consolidate may `gbrain sync`
-- Protocol: `/data/workspace/GBRAIN.md`
+- CLI: host maintenance only (timers above; exclusive — stops agent)
+- Brain git: `~/brain` — agent commits; exclusive consolidate prefers `gbrain sync` then falls back to shell `put`
+- Source path: PGLite `sources.default.local_path` must be `/home/hermes/brain` (config.json alone is not enough)
+- Exclusive CLI: always cwd under hermes HOME (bun inherits invoker cwd; wrong cwd → false EACCES on git)
+- Protocol: `/data/workspace/GBRAIN.md` (stub); SoT page `ops/gbrain-protocol`
+- After any `reinit-pglite`: restart hermes-agent before trusting MCP; re-pin source path if status says no local_path
 
 ### Config vs agent
 
-| Config / Nix owns | Agent owns |
-|-------------------|------------|
+| Config / Nix owns | Hermes owns |
+|-------------------|-------------|
 | MCP serve, timers, exclusive CLI, registry, AGENTS.md install | put_page / query / links / timelines |
-| Inbox snapshot from MEMORY.md | Deciding what is durable vs ephemeral |
-| Embed/dream schedules | Not filling MEMORY with SoT that belongs in GBrain |
+| Plugin code (gbrain-reflex, gbrain-memory-flush, HMC pin) | Pointer index JSON, retrieval-reflex skill, workspace GBRAIN.md stub |
+| Embed/dream schedules | Brain content (`ops/gbrain-protocol` is memory SoT) |
+| | MEMORY.md thin working set only — never durable SoT |
+
+**Retired (do not reintroduce):** whole-MEMORY → `hermes/inbox/*` dumps; concurrent exclusive CLI while gateway is up; declarative SOUL.
