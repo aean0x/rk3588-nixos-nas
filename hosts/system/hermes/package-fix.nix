@@ -99,11 +99,13 @@ in
   services.hermes-agent.package = lib.mkForce hermesAgentFixed;
 
   # Belt-and-suspenders for children that inherit process env but not the wrapper.
-  services.hermes-agent.environment.PYTHONPATH = "${hermesStateModules}/${siteRel}";
+  # Silence fix first so gateway.response_filters wins over the sealed wheel.
+  services.hermes-agent.environment.PYTHONPATH =
+    "${silenceFixedGateway}/${siteRel}:${hermesStateModules}/${siteRel}";
 
   # Container gateway: docker --env so hermes python children see modules.
   services.hermes-agent.container.extraOptions = [
     "--env"
-    "PYTHONPATH=${hermesStateModules}/${siteRel}"
+    "PYTHONPATH=${silenceFixedGateway}/${siteRel}:${hermesStateModules}/${siteRel}"
   ];
 }
