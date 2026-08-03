@@ -218,6 +218,7 @@ in
           "hermes-context-manager"
           "gbrain-reflex"
           "gbrain-memory-flush"
+          "projects-auto-commit"
         ];
       };
 
