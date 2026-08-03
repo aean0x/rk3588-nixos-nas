@@ -190,7 +190,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
 | Registry + export schema + memory AGENTS.md | Yes (activation, always) |
 | Timers consolidate / dream / embed | Yes |
-| Plugin **code** (gbrain-reflex, memory-flush, HMC) | Yes (activation) |
+| Plugin **code** (gbrain-reflex, memory-flush, tool-call-coherency, HMC) | Yes (activation) |
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
 | `FIRECRAWL_API_KEY` | Yes (sops → hermesEnv; `web_extract`) |
 | `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
@@ -277,4 +277,4 @@ ls -la /var/lib/hermes/.hermes/plugins/hermes-context-manager  # → ../../plugi
 
 Dashboard stays off until `/hmc dashboard action=start`.
 
-**gbrain-reflex** (proactive brain pointers) installs with gbrain activation; enable list includes both plugins.
+**gbrain-reflex** (proactive brain pointers) and **tool-call-coherency** (heal misrouted tool_call / MCP thrash) install with gbrain activation; enable list includes both plus HMC + memory-flush.
