@@ -29,7 +29,7 @@ hosts/system/hermes/
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
-├── plugins/             # gbrain-reflex (HMC tree is activation-copied from GitHub)
+├── plugins/             # gbrain-reflex, memory-flush, tool-call-coherency (HMC from GitHub)
 ├── skills/              # retrieval-reflex + workstation
 ├── memory/              # declarative memory plane
 ├── scripts/
@@ -46,7 +46,7 @@ Runbook: `workspace/OPEN-WEBUI.md`.
 ## Token lean + plugins (0.19)
 
 - `tool_output` + compression prune/idle in `default.nix`
-- `plugins.enabled`: `hermes-context-manager`, `gbrain-reflex`
+- `plugins.enabled`: `hermes-context-manager`, `gbrain-reflex`, `gbrain-memory-flush`, `tool-call-coherency`
 - After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)
@@ -69,7 +69,7 @@ Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 | Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
 | MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
 | Host timers (consolidate/embed/dream), exclusive CLI wrappers | Cron job prompts/`jobs.json`, skills content after seed |
-| Plugin **code** install (gbrain-reflex, memory-flush, HMC pin+overlay) | `workspace/GBRAIN.md`, retrieval-reflex skill text (seed-once) |
+| Plugin **code** install (gbrain-reflex, memory-flush, tool-call-coherency, HMC pin+overlay) | `workspace/GBRAIN.md`, retrieval-reflex skill text (seed-once) |
 | Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
 | Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
 

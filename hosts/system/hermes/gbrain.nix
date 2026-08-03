@@ -253,6 +253,7 @@ in
     }
     install_plugin_tree gbrain-reflex ${./plugins/gbrain-reflex}
     install_plugin_tree gbrain-memory-flush ${./plugins/gbrain-memory-flush}
+    install_plugin_tree tool-call-coherency ${./plugins/tool-call-coherency}
 
     # retrieval-reflex policy skill — Hermes owns after seed
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills
@@ -314,7 +315,12 @@ enabled = plugins.get("enabled")
 if not isinstance(enabled, list):
     enabled = []
     plugins["enabled"] = enabled
-for name in ("gbrain-reflex", "hermes-context-manager", "gbrain-memory-flush"):
+for name in (
+    "gbrain-reflex",
+    "hermes-context-manager",
+    "gbrain-memory-flush",
+    "tool-call-coherency",
+):
     if name not in enabled:
         enabled.append(name)
         changed = True
