@@ -15,13 +15,9 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # UNPIN-LATER (temporary): pinned to v0.19.1 (2026.7.30) because main cannot
-    # offline-build hermes-web/tui (package-lock missing resolved for
-    # @nous-research/ui; garnix also 502 as of 2026-08-01). No extra scaffolding —
-    # only this URL pin. When fixed: set url to "github:NousResearch/hermes-agent"
-    # and `nix flake lock` / remote-switch. Verify: hermes-web + hermes-tui build
-    # without ENOTCACHED, then drop this comment.
-    hermes-agent.url = "github:NousResearch/hermes-agent/cc4cab2f592e60a197e796506de9168f74baf3ea";
+    # Hermes Agent (NousResearch). Was temporarily pinned to v0.19.1 for a
+    # hermes-web/tui package-lock ENOTCACHED issue; unpinned after v0.20.0.
+    hermes-agent.url = "github:NousResearch/hermes-agent";
   };
 
   outputs =
