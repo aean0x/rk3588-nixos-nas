@@ -219,6 +219,7 @@ in
           "gbrain-reflex"
           "gbrain-memory-flush"
           "tool-call-coherency"
+          "projects-auto-commit"
         ];
       };
 
