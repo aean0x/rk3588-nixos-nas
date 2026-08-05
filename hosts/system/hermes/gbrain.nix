@@ -254,6 +254,21 @@ in
     install_plugin_tree gbrain-reflex ${./plugins/gbrain-reflex}
     install_plugin_tree gbrain-memory-flush ${./plugins/gbrain-memory-flush}
     install_plugin_tree tool-call-coherency ${./plugins/tool-call-coherency}
+    install_plugin_tree projects-auto-commit ${./plugins/projects-auto-commit}
+
+    # Host scripts used by plugins / agent (force-managed; not agent content).
+    # Live path in container: /data/.hermes/scripts (HERMES_HOME bind).
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/scripts
+    install -m 0755 -o hermes -g hermes ${./scripts/projects_auto_commit.py} \
+      /var/lib/hermes/.hermes/scripts/projects_auto_commit.py
+    install -m 0755 -o hermes -g hermes ${./scripts/git-credential-github-env} \
+      /var/lib/hermes/.hermes/scripts/git-credential-github-env
+    # Push auth for monorepo auto-commit: env GITHUB_PAT via credential helper.
+    if command -v git >/dev/null 2>&1; then
+      sudo -u hermes git config --global credential.helper \
+        /var/lib/hermes/.hermes/scripts/git-credential-github-env || true
+      sudo -u hermes git config --global credential.useHttpPath true || true
+    fi
 
     # retrieval-reflex policy skill — Hermes owns after seed
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills
@@ -320,6 +335,7 @@ for name in (
     "hermes-context-manager",
     "gbrain-memory-flush",
     "tool-call-coherency",
+    "projects-auto-commit",
 ):
     if name not in enabled:
         enabled.append(name)
