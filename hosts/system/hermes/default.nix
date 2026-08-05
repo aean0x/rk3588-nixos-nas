@@ -207,7 +207,7 @@ in
         "/data/skills"
         "/var/lib/hermes/skills"
       ];
-      # 0.19 opt-in allow-list for user plugins (HMC + gbrain-reflex).
+      # 0.19 opt-in allow-list for user plugins (HMC + gbrain-reflex + thrash heal).
       # Discovery uses $HERMES_HOME/plugins; external_dirs also scanned.
       plugins = {
         external_dirs = [
@@ -218,6 +218,7 @@ in
           "hermes-context-manager"
           "gbrain-reflex"
           "gbrain-memory-flush"
+          "tool-call-coherency"
         ];
       };
 
