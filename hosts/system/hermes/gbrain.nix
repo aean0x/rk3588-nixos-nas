@@ -253,6 +253,7 @@ in
     }
     install_plugin_tree gbrain-reflex ${./plugins/gbrain-reflex}
     install_plugin_tree gbrain-memory-flush ${./plugins/gbrain-memory-flush}
+    install_plugin_tree tool-call-coherency ${./plugins/tool-call-coherency}
     install_plugin_tree projects-auto-commit ${./plugins/projects-auto-commit}
 
     # Host scripts used by plugins / agent (force-managed; not agent content).
@@ -329,7 +330,13 @@ enabled = plugins.get("enabled")
 if not isinstance(enabled, list):
     enabled = []
     plugins["enabled"] = enabled
-for name in ("gbrain-reflex", "hermes-context-manager", "gbrain-memory-flush", "projects-auto-commit"):
+for name in (
+    "gbrain-reflex",
+    "hermes-context-manager",
+    "gbrain-memory-flush",
+    "tool-call-coherency",
+    "projects-auto-commit",
+):
     if name not in enabled:
         enabled.append(name)
         changed = True
