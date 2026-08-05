@@ -98,7 +98,7 @@ All inbox JSON must validate against `export-schema.json` (required: `record_id`
 | Config / Nix owns | Hermes owns |
 |-------------------|-------------|
 | MCP serve, timers, exclusive CLI, registry, AGENTS.md install | put_page / query / links / timelines |
-| Plugin code (gbrain-reflex, gbrain-memory-flush, HMC pin) | Pointer index JSON, retrieval-reflex skill, workspace GBRAIN.md stub |
+| Plugin code (gbrain-reflex, gbrain-memory-flush, tool-call-coherency, HMC pin) | Pointer index JSON, retrieval-reflex skill, workspace GBRAIN.md stub |
 | Embed/dream schedules | Brain content (`ops/gbrain-protocol` is memory SoT) |
 | | MEMORY.md thin working set only — never durable SoT |
 
