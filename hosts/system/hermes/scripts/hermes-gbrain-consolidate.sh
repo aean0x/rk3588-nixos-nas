@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Host-only GBrain maintenance (exclusive CLI — stops hermes-agent first).
+# Host-only GBrain maintenance (exclusive CLI via hermes-gbrain-exclusive).
+#
 # Stops hermes-agent so MCP releases PGLite, then runs CLI as hermes, then restarts.
+# Exclusive acquire/stop/wait/restart lives in hermes-gbrain-exclusive (one code path).
 #
 # Scope (after 2026-07-31):
 #   - Snapshot MEMORY/USER for audit
@@ -30,7 +32,19 @@ if [[ ! -e /home/hermes ]]; then
   ln -sfn "$HOME_DIR" /home/hermes 2>/dev/null || true
 fi
 
-log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
+log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",$1}"; }
+
+# Re-exec under exclusive runner (flock + stop agent + wait + restart on EXIT).
+# HERMES_GBRAIN_EXCLUSIVE=1 is set by the runner / second stage.
+if [[ "${HERMES_GBRAIN_EXCLUSIVE:-}" != 1 ]]; then
+  EXCL="${HERMES_GBRAIN_EXCLUSIVE_BIN:-hermes-gbrain-exclusive}"
+  if ! command -v "$EXCL" >/dev/null 2>&1; then
+    log "\"error\":\"exclusive_runner_missing\",\"hint\":\"deploy hermes-gbrain-exclusive\""
+    exit 2
+  fi
+  log '"event":"delegating_to_exclusive_runner"'
+  exec "$EXCL" --as-root -- env HERMES_GBRAIN_EXCLUSIVE=1 "$0" "$@"
+fi
 
 # Container-facing brain checkout (git + markdown). Prefer this path so gbrain
 # resolves the same absolute paths as MCP (config uses /home/hermes/...).
@@ -60,7 +74,7 @@ ensure_default_source_path() {
   local gb_mod="$HOME_DIR/.bun/install/global/node_modules/gbrain"
   local pin_script="$HOME_DIR/.gbrain/pin-default-source.ts"
   if [[ ! -d "$gb_mod" ]]; then
-    log "\"event\":\"source_path_pin_failed\",\"reason\":\"gbrain_module_missing\""
+    log '"event":"source_path_pin_failed","reason":"gbrain_module_missing"'
     return 1
   fi
   cat >"$pin_script" <<PIN
@@ -117,14 +131,6 @@ import_brain_markdown() {
   echo "{\"event\":\"brain_md_import\",\"imported\":$count,\"failed\":$fail,\"root\":\"$root\"}"
 }
 
-started=0
-cleanup() {
-  if [[ "$started" -eq 1 ]]; then
-    systemctl start hermes-agent.service 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT
-
 if [[ ! -x "$(command -v gbrain 2>/dev/null || true)" ]]; then
   log '"error":"gbrain_not_on_path","hint":"agent should bun install -g github:garrytan/gbrain under hermes HOME"'
   exit 2
@@ -155,20 +161,6 @@ load_embed_keys() {
 }
 load_embed_keys
 
-log '"event":"stopping_hermes_for_pglite"'
-systemctl stop hermes-agent.service
-started=1
-# Wait for lock release
-for _ in $(seq 1 60); do
-  if [[ ! -e "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" ]] \
-    && ! pgrep -f 'gbrain serve' >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.5
-done
-rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
-pkill -f 'gbrain serve' 2>/dev/null || true
-sleep 1
 chown -R hermes:hermes "$HOME_DIR/.gbrain" "$HOME_DIR/brain" 2>/dev/null || true
 
 # Ensure PGLite sources.default.local_path matches markdown brain (sync + doctor).
@@ -224,7 +216,11 @@ fi
 
 # Probe PGLite before brain import.
 if ! gbrain_as_hermes list -n 1 >>"$PUT_ERR" 2>&1; then
-  log '"error":"pglite_unavailable","hint":"gbrain doctor; if WASM Aborted, backup brain.pglite then gbrain reinit-pglite"'
+  if grep -qiE 'WASM|Aborted|already (instantiated|open)|multiple PGLite|failed to initialize' "$PUT_ERR" 2>/dev/null; then
+    log '"error":"pglite_wasm_or_lock","hint":"PGLite single-writer/WASM class — exclusive gbrain doctor; backup brain.pglite; reinit-pglite only if doctor confirms damage (never auto-reinit). See workspace/GBRAIN.md"'
+  else
+    log '"error":"pglite_unavailable","hint":"gbrain doctor; if WASM Aborted, backup brain.pglite then gbrain reinit-pglite"'
+  fi
   echo "--- last-put.err ---" >&2
   cat "$PUT_ERR" >&2 || true
   exit 7

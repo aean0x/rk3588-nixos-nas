@@ -104,9 +104,10 @@ gbrain-dream (04:30)              → gbrain dream
 
 - CLI expected at `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
 - Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env`.
-- Maintenance **stops hermes-agent** (releases PGLite). Exclusive CLI must run with **cwd under hermes HOME** (bun inherits invoker cwd).
+- **PGLite single-writer:** host jobs share `hermes-gbrain-exclusive` (flock + stop agent + wait + restart). Timers use systemd `Conflicts=`. Ad-hoc: `/var/lib/hermes/bin/gbrain-exclusive-cli` (refuses if agent/serve up). Full runbook: `workspace/GBRAIN.md`.
+- Exclusive CLI must run with **cwd under hermes HOME** (bun inherits invoker cwd).
 - PGLite `sources.default.local_path` must be `/home/hermes/brain` (not only `config.json`). consolidate pins it.
-- If WASM `Aborted()`, reinit-pglite (see `workspace/GBRAIN.md`); re-pin source path after reinit.
+- Missing MCP tools while gbrain “enabled” ≈ crash-loop / single-writer class (mcp-stderr WASM), not a config typo. Soft stop/start first; reinit only if doctor confirms damage — never auto-reinit.
 
 ## Secrets
 
