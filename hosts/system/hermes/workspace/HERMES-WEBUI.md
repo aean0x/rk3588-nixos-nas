@@ -30,7 +30,7 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 | URL | `https://archimedes.<domain>` (e.g. `https://archimedes.aean.io`) |
 | Auth | Optional `HERMES_WEBUI_PASSWORD` (set in Settings or sops if exposing further) |
 | Chat | In-process Hermes agent (same config as CLI / gateway) |
-| TTS | ElevenLabs when `ELEVENLABS_API_KEY` is set (engine selectable in Settings) |
+| TTS | ElevenLabs when `ELEVENLABS_API_KEY` is set; flake SoT: `tts.provider=elevenlabs` + `eleven_flash_v2_5` + voice `pNInz6obpgDQGcFmaJgB` |
 
 ## Secrets (operator)
 
