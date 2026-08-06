@@ -47,12 +47,11 @@ in
         cache_size = 64 * 1024 * 1024; # 64 MiB
         cache_ttl_min = 30;
         cache_optimistic = true;
-        # Cron / agent storms can exceed default ~20 rps/client; don't 429 localhost/LAN.
+        # Cron / agent storms can exceed default ~20 rps/client. 0 = disabled.
+        # ratelimit_whitelist is []netip.Addr (single IPs only — CIDRs fatal).
+        # Always declare explicitly so yaml-merge overwrites any poisoned work-dir list.
         ratelimit = 0;
-        ratelimit_whitelist = [
-          "127.0.0.1"
-          "192.168.1.0/24"
-        ];
+        ratelimit_whitelist = [ "127.0.0.1" ];
       };
 
       # Kid lockdown profile: persistent client REQUIRES non-empty ids
