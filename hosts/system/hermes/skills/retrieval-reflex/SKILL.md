@@ -1,63 +1,47 @@
 ---
 name: retrieval-reflex
-description: "Use when a named entity/brain pointer is salient — open GBrain page before answering from MEMORY."
+description: "When brain pointers appear or a durable entity is salient, get_page / volunteer_context before answering from MEMORY alone."
 ---
 
-# Retrieval reflex (GBrain)
+# Retrieval reflex (gbrain-native)
 
-**When a named entity or injected GBrain pointer is the subject of the turn, open the page before answering from MEMORY.md or session alone.**
+Policy skill for gbrain push-based context
+(`docs/guides/push-context.md`, #2095 / resolve-ipc).
 
-This skill is policy only. Infra injects compact pointers via the `gbrain-reflex` plugin (`pre_llm_call`); you still decide when to retrieve full content.
+## What injects pointers
 
-## When to retrieve
+| Channel | Who | How |
+|---------|-----|-----|
+| Ambient | plugin `gbrain-retrieval-reflex` | Entity extract → **unix resolve IPC** owned by live `gbrain serve` → injects `## Brain pages…` |
+| Op | **you** (MCP) | `volunteer_context` with a rolling `user:` / `assistant:` window |
+| Search | **you** (MCP) | `query` / `get_page` |
 
-Open a page (or run a query) when **any** of these hold:
+There is **no** static `gbrain-pointer-index.json` and **no** `gbrain-reflex` alias table.
 
-1. **Pointer present** — the turn includes a `## GBrain pointers` block (or you already know a stable slug).
-2. **Named durable entity** — people, integrations, ops maps, project SoT, taste guides, host identity.
-3. **Preference / history question** — “what do we know about X”, “how do we usually…”, prior decisions.
-4. **About to invent process** — if the answer should live in GBrain, check first.
+## When a pointer block appears
 
-**Skip** logistics-only turns (acks, pings, pure yes/no) and pure ephemeral chat with no durable subject.
+1. Treat it as a hint that pages **exist**, not as full truth.
+2. Call MCP **`get_page`** on slugs that are the subject of the answer.
+3. Do **not** invent details from MEMORY when a pointer is present.
 
-## Retrieval ladder (cheap → deep)
+## When no pointer block (or IPC down)
 
-1. **Pointer / known slug** → `mcp__gbrain__get_page` (or equivalent `get_page` tool) with that slug.
-2. **No pointer but clear topic** → `mcp__gbrain__query` / `mcp__gbrain__volunteer_context` with a tight query.
-3. **Follow links** — if the page links related ops maps, open only what the answer needs (do not dump the graph).
-4. **Still missing** — answer from session/MEMORY only after the above; if the fact is durable, `put_page` when you learn it.
-
-Prefer **MCP tools while `gbrain serve` is up**. Never use the `gbrain` CLI in-session (PGLite single-writer; host timers own batch CLI).
-
-## Tool names
-
-Hermes MCP tools are typically:
-
-| Intent | Tool (typical) |
-|--------|----------------|
-| Open page by slug | `mcp__gbrain__get_page` |
-| Search / recall | `mcp__gbrain__query` |
-| Suggest relevant context | `mcp__gbrain__volunteer_context` |
-| Durable write | `mcp__gbrain__put_page` |
-
-If tool_search hides them, search for `gbrain` and call the resolved name. Do **not** require an OpenClaw resolver or any second memory product.
+1. Call MCP **`volunteer_context`** with a short window (oldest → newest,
+   `user:` / `assistant:` lines; current user turn is enough for one-shot).
+2. Else **`query`** with a tight phrase.
+3. Session / MEMORY only after that; durable facts → **`put_page`**.
 
 ## Anti-patterns
 
-- Seeing a pointer and answering only from MEMORY.md
-- Dumping full page bodies into chat when a short cite + answer suffices
-- Re-implementing alias matching (infra owns the index + injection)
-- CLI `gbrain get` / `put` while the gateway is running
-- Treating this skill as optional polish when the subject is a known ops/person/taste entity
+- Shell `gbrain` CLI while hermes-agent is up
+- Maintaining a workspace alias JSON
+- Answering from MEMORY alone when a pointer or durable entity is the subject
 
-## Relationship to infra
+## Tools (typical MCP names)
 
-| Layer | Owner |
-|-------|--------|
-| Alias index JSON (`gbrain-pointer-index.json`) | **You** (Hermes) — edit aliases/slugs; Nix seeds once only |
-| `pre_llm_call` injection code | Flake / `gbrain-reflex` plugin (infra) |
-| Open page / query / put when salient | **You** (this skill) |
-| This skill file | **You** after seed — Nix does not overwrite |
-| Nightly consolidate / embed / dream | Host timers |
-
-Pointers are one-line synopses only — full truth lives on the page (`ops/gbrain-protocol`).
+| Intent | Tool |
+|--------|------|
+| Multi-turn push | `volunteer_context` |
+| Open page | `get_page` |
+| Search | `query` |
+| Write | `put_page` |

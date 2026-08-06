@@ -1,0 +1,11 @@
+name: gbrain-retrieval-reflex
+version: 0.2.0
+description: >
+  Ambient retrieval reflex via gbrain-native resolve IPC (candidates → pointers
+  through the live `gbrain serve` unix socket). No static pointer index; no
+  second PGLite writer. Falls back to a MCP volunteer_context nudge if the
+  socket is unavailable.
+author: aean0x
+kind: standalone
+provides_hooks:
+  - pre_llm_call

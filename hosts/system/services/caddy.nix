@@ -20,6 +20,12 @@ let
     host: port:
     let
       isExt = builtins.elem host cfg.externalHosts;
+      # Loopback backends (e.g. Hermes dashboard) validate Host against the
+      # listen address. Caddy must rewrite Host or clients get 400 Invalid Host.
+      upstreamHost = cfg.proxyUpstreamHost.${host} or null;
+      hostRewrite = lib.optionalString (upstreamHost != null) ''
+        header_up Host ${upstreamHost}
+      '';
       guard = lib.optionalString (!isExt) ''
         @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} not remote_ip ${
           if (settings.enableRouter or false) then "192.168.2.0/24" else "192.168.1.0/24"
@@ -32,8 +38,10 @@ let
       handle @${builtins.replaceStrings [ "." ] [ "_" ] host} {
         ${guard}
         reverse_proxy 127.0.0.1:${toString port} {
+          ${hostRewrite}
           header_up X-Forwarded-For {remote_host}
           header_up X-Forwarded-Proto {scheme}
+          header_up X-Forwarded-Host {host}
         }
       }
     '';
@@ -58,6 +66,19 @@ in
       description = "Hostnames accessible from WAN. All others return 403 to non-LAN clients.";
       type = lib.types.listOf lib.types.str;
       default = [ ];
+    };
+
+    proxyUpstreamHost = lib.mkOption {
+      description = ''
+        Optional Host header rewrite per proxyServices hostname.
+        Use for loopback backends that reject non-loopback Host (e.g. Hermes
+        dashboard bound to 127.0.0.1 with DNS-rebinding protection).
+      '';
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = {
+        "hermes.example.io" = "127.0.0.1:9119";
+      };
     };
   };
 

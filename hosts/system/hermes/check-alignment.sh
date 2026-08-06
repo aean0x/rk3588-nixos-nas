@@ -119,6 +119,11 @@ if grep -q 'hermes-dashboard' "$DASHBOARD" && grep -q 'proxyServices."hermes' "$
 else
   fail "dashboard.nix missing service or caddy proxy"
 fi
+if grep -q 'proxyUpstreamHost."hermes' "$DASHBOARD" && grep -q 'proxyUpstreamHost' "$ROOT/hosts/system/services/caddy.nix"; then
+  pass "dashboard Host rewrite (proxyUpstreamHost) wired for loopback guard"
+else
+  fail "missing caddy proxyUpstreamHost for hermes dashboard (Invalid Host class)"
+fi
 
 # --- GBrain contract docs (supersede old high-value gap list) ---
 if [[ -f "$HERMES/gbrain.nix" ]] && [[ -f "$HERMES/memory/AGENTS.md" ]] && [[ -f "$HERMES/BOOTSTRAP.md" ]]; then

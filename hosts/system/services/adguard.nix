@@ -86,11 +86,11 @@ in
         filtering_enabled = true;
         rewrites_enabled = true;
         safebrowsing_enabled = true;
-        parental_enabled = false;
+        parental_enabled = true;
         blocking_mode = "default";
 
         safe_search = {
-          enabled = false;
+          enabled = true;
           bing = true;
           duckduckgo = true;
           google = true;
@@ -140,12 +140,22 @@ in
         }
         # Kid-oriented safety list (bypass/VPNs, self-harm, predators, adult AI, gore, radicalization).
         # Use together with the per-client parental_enabled + custom $client rules.
+        # Note: VPN-ish blocks hit apex tailscale.com → 0.0.0.0; allowlisted below.
         {
           enabled = true;
           url = "https://raw.githubusercontent.com/0xDarkMatter/aegis-blocklist/master/grades/standard.txt";
           name = "Aegis Child Safety (standard)";
           id = 5;
         }
+      ];
+
+      # Exception rules (adblock syntax). Aegis/VPN lists sinkhole the Tailscale
+      # marketing apex; control plane hostnames often still resolve, but
+      # tailscale.com → 0.0.0.0 breaks browser/docs and confuses tooling.
+      user_rules = [
+        "@@||tailscale.com^"
+        "@@||ts.net^"
+        "@@||tailscale.io^"
       ];
     };
   };

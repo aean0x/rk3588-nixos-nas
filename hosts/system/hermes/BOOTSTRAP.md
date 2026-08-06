@@ -132,39 +132,27 @@ hermes mcp list   # expect gbrain when CLI is on PATH
 
 ### 2c. Validate integration
 
-On device (after `remote-switch`):
-
-```bash
-# Structural + timer checks (from this repo; scp if needed)
-sudo bash /path/to/hosts/system/hermes/scripts/validate-gbrain-integration.sh
-# or after switch if installed under state:
-# host packages: hermes-gbrain-consolidate, hermes-gbrain-embed
-sudo hermes-gbrain-consolidate
-systemctl list-timers | grep -E 'gbrain|hermes-gbrain'
-```
-
-Workstation helper (once wired in deploy):
-
 ```bash
 ./deploy validate-gbrain
 ```
+
+Expect: MCP gbrain present, reflex plugins installed, **no** exclusive CLI bins/timers.
 
 ---
 
 ## 3. Day-2 operations
 
-| Action | Command |
-|--------|---------|
-| Daily consolidate (Hermes export → gbrain put + dream) | `sudo hermes-gbrain-consolidate` |
-| Embed refresh | `sudo hermes-gbrain-embed` / timer Sun 05:00 |
-| Dream only | timer 04:30 / `gbrain dream` in container with lock |
+| Action | How |
+|--------|-----|
+| Durable write / recall | Agent MCP `put_page` / `query` / `get_page` only |
+| Brain hygiene | gbrain MCP ops (e.g. onboard) or Hermes cron **via MCP tools** — never shell `gbrain` |
 | Rotate ZeroEntropy | `secrets/decrypt` → edit → `encrypt` → `remote-switch` → `systemctl restart hermes-agent` |
-| Soft reset agent, keep gbrain | `sudo bash …/clean-hermes-state.sh` (preserves `~/brain`, `~/.bun`) |
+| Soft reset agent, keep gbrain | `./deploy clean-hermes-state` (preserves `~/brain`, `~/.bun`) |
 
-**Anti-clobber:** consolidate/embed/dream **stop hermes-agent** so MCP releases PGLite, then run host CLI as `hermes`, then start hermes again.
+**Policy:** MCP + reflex only. Host exclusive consolidate/dream/embed/nightly **removed**. Do not run `gbrain` CLI while hermes-agent is up (PGLite single-writer). Operator CLI only with agent **stopped** for disaster recovery.
 
-**PGLite WASM Aborted / stuck inbox:** data dir damage (not “MEMORY full”).  
-See `workspace/GBRAIN.md` → *PGLite recovery*: stop agent → rotate DB → `reinit-pglite` → import `~/brain` (not `gbrain sync`) → embed → **start agent** (MCP must drop stale serve). Then `sudo hermes-gbrain-consolidate` if needed. Prune old `brain.pglite.bak*` / `*.broken*` / `*.corrupt*` when disk fills (~40M each).
+**PGLite WASM Aborted:** data dir damage (not “MEMORY full”).  
+See `workspace/GBRAIN.md` → recovery: stop agent → rotate DB if needed → reimport `~/brain` → **start agent** before trusting MCP.
 
 ---
 
@@ -189,14 +177,15 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 |-------|----------------|
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
 | Registry + export schema + memory AGENTS.md | Yes (activation, always) |
-| Timers consolidate / dream / embed | Yes |
-| Plugin **code** (gbrain-reflex, memory-flush, tool-call-coherency, HMC) | Yes (activation) |
+| Host exclusive gbrain CLI / dream timers | **No** (removed; MCP + Hermes cron only) |
+| Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC) | Yes (activation) |
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
 | `FIRECRAWL_API_KEY` | Yes (sops → hermesEnv; `web_extract`) |
 | `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
 | Model provider `xai-oauth` + default `grok-4.5` | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
-| Pointer index, `GBRAIN.md` stub, retrieval-reflex skill | **Seed once** — Hermes owns afterward |
+| `GBRAIN.md` policy stub | Yes (always managed; MCP-only policy) |
+| retrieval-reflex skill | Yes (always managed; gbrain-native policy) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
 | Local Brave + CDP (`browser.nix`) | Yes (service + profile dir); warm via `hermes-browser-import-cookies` |
@@ -275,4 +264,4 @@ ls -la /var/lib/hermes/.hermes/plugins/hermes-context-manager  # → ../../plugi
 
 Dashboard stays off until `/hmc dashboard action=start`.
 
-**gbrain-reflex** (proactive brain pointers) and **tool-call-coherency** (heal misrouted tool_call / MCP thrash) install with gbrain activation; enable list includes both plus HMC + memory-flush.
+**gbrain-retrieval-reflex** (ambient resolve IPC → live serve) and **tool-call-coherency** install with gbrain activation; enable list includes them plus HMC + memory-flush. No static pointer JSON.
