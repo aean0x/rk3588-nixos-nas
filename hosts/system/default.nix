@@ -33,7 +33,10 @@
     };
 
     defaultGateway = lib.mkIf (!(settings.enableRouter or false)) settings.network.gateway;
-    nameservers = [
+    # Prefer local AdGuard (see settings.network.hostNameservers). Upstream
+    # public DNS lives only on AdGuard — host bypass caused uncached EAI_AGAIN
+    # storms under concurrent hermes cron (2026-08-06).
+    nameservers = settings.network.hostNameservers or [
       settings.network.dnsPrimary
       settings.network.dnsSecondary
     ];
