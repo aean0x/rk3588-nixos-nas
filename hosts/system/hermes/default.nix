@@ -86,6 +86,15 @@ in
         model = "whisper-1";
       };
 
+      # Durable TTS SoT (HERMES_MANAGED) — not `hermes config set`.
+      tts = {
+        provider = "elevenlabs";
+        elevenlabs = {
+          voice_id = "pNInz6obpgDQGcFmaJgB";
+          model_id = "eleven_flash_v2_5";
+        };
+      };
+
       toolsets = [ "all" ];
 
       terminal = {
