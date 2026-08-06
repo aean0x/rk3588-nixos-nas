@@ -184,4 +184,4 @@ fi
 echo
 echo "Done. TunnelID=${TUNNEL_ID}"
 echo "Next: git add settings.nix secrets/secrets.yaml && ./deploy remote-test"
-echo "Check: curl -sSI https://open-webui.${DOMAIN}/ | head -15"
+echo "Check: curl -sSI https://archimedes.${DOMAIN}/ | head -15"

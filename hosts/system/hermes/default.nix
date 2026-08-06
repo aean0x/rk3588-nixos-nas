@@ -27,7 +27,7 @@ in
     ./gbrain.nix
     ./workstation.nix
     ./browser.nix # persistent Brave + loopback CDP for agent automation
-    ./open-webui.nix # Open WebUI → Hermes API :8642 (loopback)
+    ./hermes-webui.nix # Hermes WebUI (archimedes.<domain>) + ElevenLabs TTS
     ./context-manager.nix # hermes-context-manager (HMC) plugin pin + config
   ];
 
@@ -122,59 +122,62 @@ in
         idle_compact_after_seconds = 1800;
       };
 
-      # ── Model routing (explicit axes — Hermes has no smart task classifier) ──
-      # Primary chat/orchestration stays on grok-4.5 (model.* above).
-      # Routine / uncreative work is pinned to OpenRouter DeepSeek Flash:
-      #   - delegation.*  → child agents from the `delegate` tool only
-      #   - auxiliary.*   → side LLM (compress, titles, approvals, monitors…)
-      #   - cron.model*   → unpinned scheduled jobs (fleet default; beats chat model)
-      # Per-job pins (jobs.json model/provider) still win over cron.model.
-      # Interactive Telegram/chat never uses cron/delegation models unless
-      # the parent deliberately delegates.
+      # ── Model routing (80/20 — official Configuring Models guidance) ──
+      # Main (Grok 4.5): planning, tool loops, high-stakes judgment.
+      # Cheap fleet (DeepSeek V4 Flash via OpenRouter): high-frequency /
+      # low-stakes side work + subagent fleet + unpinned cron.
+      # Docs: https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
+      # Vision stays on main (Grok has native vision). `provider: auto` would
+      # inherit main for any unset aux slot — every volume task is pinned.
 
-      # Sub-agent traffic (parent still orchestrates on main model).
+      # Sub-agent fleet (delegate_task). Parent stays on main model.
+      # Per-task overrides on delegate_task still escalate individual children.
       delegation = {
         model = "deepseek/deepseek-v4-flash";
         provider = "openrouter";
       };
 
-      # Aux LLM tasks — "auto" would fall back to main grok spend.
-      auxiliary = {
-        compression = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
+      # Auxiliary slots (DEFAULT_CONFIG keys). reasoning_effort=none: Flash
+      # tasks are structured/low-stakes and do not benefit from CoT spend.
+      auxiliary =
+        let
+          flash = {
+            model = "deepseek/deepseek-v4-flash";
+            provider = "openrouter";
+            reasoning_effort = "none";
+          };
+        in
+        {
+          # Almost always — session titles; default docs recommend flash.
+          title_generation = flash;
+          # Largest background token hitter on long sessions.
+          compression = flash;
+          # Smart approval classifier — haiku/flash class is enough.
+          approval = flash;
+          # Pure summarization; no reasoning required.
+          web_extract = flash;
+          # Skill search / matching.
+          skills_hub = flash;
+          # MCP helper / tool routing.
+          mcp = flash;
+          # Kanban triage expansion + decomposition graph.
+          triage_specifier = flash;
+          kanban_decomposer = flash;
+          # Short profile blurbs.
+          profile_describer = flash;
+          # Skill-usage review (can run minutes on reasoning models).
+          curator = flash;
+          # Post-turn self-improvement fork (memory/skill capture).
+          background_review = flash;
+          # Monitor catalog urgency scoring (high volume).
+          monitor = flash;
+          # Memory query rewrite (already cheap; keep on fleet).
+          memory_query_rewrite = flash;
+          # vision intentionally omitted → auto → main Grok 4.5.
         };
-        title_generation = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
-        };
-        approval = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
-        };
-        # High-volume / mechanical side work that would otherwise inherit main.
-        skills_hub = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
-        };
-        monitor = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
-        };
-        background_review = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
-        };
-        memory_query_rewrite = {
-          model = "deepseek/deepseek-v4-flash";
-          provider = "openrouter";
-        };
-      };
 
-      # Cron fleet default: unpinned jobs (project-heartbeat, daylight-checks, …)
-      # must NOT inherit model.default=grok-4.5. Resolution at fire:
-      #   job.model > cron.model > HERMES_MODEL > model.default
-      # Setting these also skips the model_drift_guard for that axis.
+      # Cron fleet default: unpinned jobs must NOT inherit model.default=grok-4.5.
+      # Resolution at fire: job.model > cron.model > HERMES_MODEL > model.default
       cron = {
         model = "deepseek/deepseek-v4-flash";
         model_provider = "openrouter";

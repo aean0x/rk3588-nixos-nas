@@ -236,30 +236,28 @@ Cellular without Tailscale will not reach LAN-only NAS; use Tailscale.
 
 ---
 
-## 7. Open WebUI (chat frontend)
+## 7. Hermes WebUI (chat frontend)
 
-Native `services.open-webui` on **127.0.0.1:8080**. LAN: Caddy. WAN: Cloudflare Tunnel
-(`services.cloudflareTunnel.proxyServices` — same declaration style as Caddy). Hermes API stays on
-**loopback :8642** only. Dashboard (`hermes.<domain>`) is LAN-only.
+Native `services.hermes-webui` (flake `hermes-webui`) on **127.0.0.1:8787**.
+LAN: Caddy `archimedes.<domain>`. WAN: Cloudflare Tunnel (`services.cloudflareTunnel.proxyServices`).
+WebUI runs the agent **in-process** against `HERMES_HOME` (`/var/lib/hermes/.hermes`).
+Optional loopback API still on **:8642** for scripts. Dashboard (`hermes.<domain>`) is LAN-only.
 
-Full runbook: **`workspace/OPEN-WEBUI.md`**.
+Full runbook: **`workspace/HERMES-WEBUI.md`**.
 
 | Path | Role |
 |------|------|
-| `/run/hermes.env` | `API_SERVER_KEY` + static API_SERVER_* knobs |
-| `/run/open-webui.env` | `OPENAI_API_KEY` (same secret as API_SERVER_KEY) |
+| `/run/hermes.env` | `API_SERVER_KEY`, `ELEVENLABS_API_KEY`, static API_SERVER_* knobs |
+| `/run/hermes-webui.env` | `ELEVENLABS_API_KEY` (server-side TTS) |
 
 ```bash
-systemctl status hermes-agent open-webui
+systemctl status hermes-agent hermes-webui
+curl -sS http://127.0.0.1:8787/health
 curl -sS http://127.0.0.1:8642/health
-KEY=$(grep '^API_SERVER_KEY=' /run/hermes.env | cut -d= -f2-)
-curl -sS -H "Authorization: Bearer $KEY" http://127.0.0.1:8642/v1/models
 ```
 
-Open `https://open-webui.<domain>/`, register the **first user** (becomes admin). Model
-dropdown → **hermes-agent**. Prefer Chat Completions API type.
-
-First Open WebUI start may take 15–30s (model download). `ENABLE_OLLAMA_API=false`.
+Open `https://archimedes.<domain>/`. TTS engine → **ElevenLabs** when key is present.
+After adding the hostname, re-run `./scripts/setup-cloudflare-tunnel.sh` so DNS CNAME exists.
 
 ---
 

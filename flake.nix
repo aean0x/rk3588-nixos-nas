@@ -18,6 +18,7 @@
     # Hermes Agent (NousResearch). Was temporarily pinned to v0.19.1 for a
     # hermes-web/tui package-lock ENOTCACHED issue; unpinned after v0.20.0.
     hermes-agent.url = "github:NousResearch/hermes-agent";
+    hermes-webui.url = "github:nesquena/hermes-webui";
   };
 
   outputs =
