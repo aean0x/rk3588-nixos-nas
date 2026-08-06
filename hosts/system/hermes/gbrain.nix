@@ -191,10 +191,13 @@ in
       sudo -u hermes git config --global credential.useHttpPath true || true
     fi
 
-    # retrieval-reflex policy is infra-owned (MCP-only ladder); reinstall each activation.
+    # Skills: retrieval + HTTP auth wiring (infra-owned policy text).
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills/retrieval-reflex
     install -m 0644 -o hermes -g hermes ${./skills/retrieval-reflex/SKILL.md} \
       /var/lib/hermes/skills/retrieval-reflex/SKILL.md
+    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills/gbrain-http-auth
+    install -m 0644 -o hermes -g hermes ${./skills/gbrain-http-auth/SKILL.md} \
+      /var/lib/hermes/skills/gbrain-http-auth/SKILL.md
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain
@@ -261,10 +264,14 @@ if not token:
         if token:
             break
 cur = mcp.get("gbrain") or {}
-if token:
-    desired_mcp["headers"] = {"Authorization": f"Bearer {token}"}
+# Literal Bearer only. Reject unexpanded dollar-brace placeholders in the token.
+_ph = "$" + "{"
+if token and _ph not in token:
+    desired_mcp["headers"] = {"Authorization": "Bearer " + token}
 elif isinstance(cur.get("headers"), dict) and cur.get("headers"):
-    desired_mcp["headers"] = cur["headers"]
+    auth = str(cur["headers"].get("Authorization") or cur["headers"].get("authorization") or "")
+    if auth.startswith("Bearer ") and _ph not in auth:
+        desired_mcp["headers"] = {"Authorization": auth}
 # Normalize: never keep stdio fields on gbrain entry
 if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp

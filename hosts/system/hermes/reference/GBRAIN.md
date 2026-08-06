@@ -19,7 +19,7 @@ Repo-only doc (not installed into live workspace). Hermes owns **brain pages**.
 |---------|------|
 | systemd **`gbrain-mcp-http`** | Sole PGLite owner: `gbrain serve --http --bind 127.0.0.1 --port 3131` |
 | Hermes MCP `gbrain` | **url** `http://127.0.0.1:3131/mcp` + **Bearer** header (gateway + WebUI + CLI) |
-| Auth token | Once: `gbrain auth create hermes-agents` → `~/.gbrain/hermes-mcp.token` (+ optional `GBRAIN_REMOTE_TOKEN` in `.hermes/.env`). Activation re-applies headers from that file so deploy does not wipe auth. |
+| Auth token (no sops) | Mint once: `gbrain auth create hermes-agents`. Store **literal** token in (1) `~/.gbrain/hermes-mcp.token` (2) `GBRAIN_REMOTE_TOKEN` in `~/.hermes/.env` (3) `config.yaml` `headers.Authorization: Bearer <token>`. **Never** `Bearer ${GBRAIN_REMOTE_TOKEN}` (no expansion → 401). Setup: `./deploy gbrain-setup` or skill `gbrain-http-auth`. |
 | plugin `gbrain-retrieval-reflex` | Ambient: resolve IPC if sock present; else nudge MCP `volunteer_context` |
 | MCP tools | put_page / query / get_page / volunteer_context |
 | skill `retrieval-reflex` | Policy: open when pointers/salient |
