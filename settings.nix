@@ -37,8 +37,17 @@
     address = "192.168.1.200";
     prefixLength = 24;
     gateway = "192.168.1.1";
+    # AdGuard Home *upstream* resolvers (public recursive). Not host resolv.conf.
     dnsPrimary = "1.1.1.1";
     dnsSecondary = "8.8.8.8";
+    # Host /etc/resolv.conf. Prefer on-box AdGuard via loopback so hermes/cron
+    # get AGH's real cache (sub-ms hits). Public only as last-resort if AGH is
+    # mid-restart — glibc fails over on timeout, not on successful block answers.
+    # Do NOT point AGH upstream at these (loop). See hosts/system/services/adguard.nix.
+    hostNameservers = [
+      "127.0.0.1"
+      "1.1.1.1"
+    ];
   };
 
   # Optional WiFi (client mode — mutually exclusive with router mode)
