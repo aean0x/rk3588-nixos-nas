@@ -146,7 +146,7 @@ Examples: `hermes-agent-setup` (via the official module) + our activation writes
 Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the official NixOS module under `hosts/system/hermes/` (imported from `containers.nix`). GBrain long-term memory is the primary add-on (north star: `~/dev/hetzner-nixos` GBrain integration, adapted to this layout).
 
 - **Deployment mode**: `container.enable = true` (Ubuntu 24.04, module `--network=host`). State under `/var/lib/hermes`.
-- **Model**: `settings.model.provider = "xai-oauth"`, `default = "grok-4.5"`. One-time `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
+- **Model**: primary `openrouter` / `deepseek/deepseek-v4-flash` (token default). Grok via `/model grok` or job pin (`xai-oauth` / `grok-4.5`) for money/hard work. Keep `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: **No declarative SOUL.md** — activation does not install persona docs. Agent owns identity.
 - **GBrain**: `gbrain.nix` — `mcpServers.gbrain` (`gbrain serve`), memory registry under `hermes/memory/`, timers for consolidate/dream/embed, host CLIs `hermes-gbrain-consolidate` / `hermes-gbrain-embed`. CLI install is bun-global (agent bootstrap), not a Nix package.
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.

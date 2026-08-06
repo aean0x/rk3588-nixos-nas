@@ -76,9 +76,15 @@ in
       };
 
       model = {
-        # Primary: xAI OAuth (run `hermes auth add xai-oauth` once after deploy).
-        provider = "xai-oauth";
-        default = "grok-4.5";
+        # Token-default primary: DeepSeek Flash (OpenRouter).
+        # Grok is escalation-only — money/RH, hard architecture, user `/model grok`.
+        # Keep xAI OAuth configured (`hermes auth add xai-oauth`) for those pins.
+        provider = "openrouter";
+        default = "deepseek/deepseek-v4-flash";
+        aliases = {
+          ds = "openrouter/deepseek/deepseek-v4-flash";
+          grok = "xai-oauth/grok-4.5";
+        };
       };
 
       stt = {
@@ -122,15 +128,16 @@ in
         idle_compact_after_seconds = 1800;
       };
 
-      # ── Model routing (80/20 — official Configuring Models guidance) ──
-      # Main (Grok 4.5): planning, tool loops, high-stakes judgment.
-      # Cheap fleet (DeepSeek V4 Flash via OpenRouter): high-frequency /
-      # low-stakes side work + subagent fleet + unpinned cron.
+      # ── Model routing (token-default DS; Grok = escalate) ──
+      # Primary chat = DeepSeek Flash (OpenRouter). Grok is NOT fleet default.
+      # Cheap axes stay DeepSeek even if session is `/model grok`:
+      #   delegation / auxiliary volume slots / unpinned cron
+      # Escalate to Grok: money/RH job pins, hard architecture, user `/model grok`.
+      # Vision: pin Grok (native vision) — do not inherit DS primary.
       # Docs: https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
-      # Vision stays on main (Grok has native vision). `provider: auto` would
-      # inherit main for any unset aux slot — every volume task is pinned.
+      # `provider: auto` would inherit main for unset aux — every volume task pinned.
 
-      # Sub-agent fleet (delegate_task). Parent stays on main model.
+      # Sub-agent fleet (delegate_task). Parent stays on session main model.
       # Per-task overrides on delegate_task still escalate individual children.
       delegation = {
         model = "deepseek/deepseek-v4-flash";
@@ -171,12 +178,17 @@ in
           background_review = flash;
           # Monitor catalog urgency scoring (high volume).
           monitor = flash;
-          # Memory query rewrite (already cheap; keep on fleet).
+          # memory_query_rewrite already cheap; keep on fleet.
           memory_query_rewrite = flash;
-          # vision intentionally omitted → auto → main Grok 4.5.
+          # Vision on Grok (native). Must pin — primary is now DeepSeek.
+          vision = {
+            model = "grok-4.5";
+            provider = "xai-oauth";
+          };
         };
 
-      # Cron fleet default: unpinned jobs must NOT inherit model.default=grok-4.5.
+      # Cron fleet default: unpinned jobs stay DeepSeek even if operator
+      # temporarily sets model.default back to Grok.
       # Resolution at fire: job.model > cron.model > HERMES_MODEL > model.default
       cron = {
         model = "deepseek/deepseek-v4-flash";

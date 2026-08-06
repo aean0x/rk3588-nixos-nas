@@ -29,8 +29,10 @@ if grep -q 'soulMd\|writeText "hermes-soul' "$H/default.nix"; then
 else
   pass "no soulMd packaging in default.nix"
 fi
-grep -q 'grok-4.5' "$H/default.nix" && pass "model default grok-4.5" || fail "missing grok-4.5"
-grep -q 'xai-oauth' "$H/default.nix" && pass "provider xai-oauth" || fail "missing xai-oauth"
+grep -q 'deepseek/deepseek-v4-flash' "$H/default.nix" && pass "model default deepseek flash" || fail "missing deepseek default"
+grep -q 'provider = "openrouter"' "$H/default.nix" && pass "provider openrouter primary" || fail "missing openrouter primary"
+grep -q 'grok-4.5' "$H/default.nix" && pass "grok still available (alias/escalation)" || fail "missing grok alias target"
+grep -q 'xai-oauth' "$H/default.nix" && pass "xai-oauth still referenced for grok" || fail "missing xai-oauth"
 grep -q 'hermes-gbrain-consolidate' "$H/gbrain.nix" && pass "consolidate unit/script" || fail "no consolidate"
 grep -q 'gbrain-embed' "$H/gbrain.nix" && pass "embed timer" || fail "no embed"
 grep -q 'gbrain-dream' "$H/gbrain.nix" && pass "dream timer" || fail "no dream"

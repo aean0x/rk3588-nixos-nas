@@ -3,12 +3,12 @@
 ## Scope
 
 - **Runtime:** official `hermes-agent` NixOS module, container mode (`ubuntu:24.04`, `--network=host`).
-- **Model routing (80/20):** explicit axes (no automatic task classifier):
-  - **Main / orchestration:** `model.provider=xai-oauth`, `model.default=grok-4.5` (chat, tool loops, judgment).
-  - **Delegation:** OpenRouter `deepseek/deepseek-v4-flash` for the subagent fleet (`delegate_task`).
-  - **Auxiliary → Flash:** title_generation, compression, approval, web_extract, skills_hub, mcp, triage_specifier, kanban_decomposer, profile_describer, curator, background_review, monitor, memory_query_rewrite (`reasoning_effort=none`).
-  - **Vision:** left on main (Grok native vision; override only if volume/pricing hurts).
-  - **Cron fleet:** `cron.model` + `cron.model_provider` → DeepSeek Flash (unpinned jobs).
+- **Model routing (token-default DS):** explicit axes (no automatic task classifier):
+  - **Main / interactive default:** `model.provider=openrouter`, `model.default=deepseek/deepseek-v4-flash`.
+  - **Aliases:** `/model ds` → DeepSeek; `/model grok` → `xai-oauth/grok-4.5` (escalation).
+  - **Grok reserved for:** money/RH, hard multi-step architecture, explicit user escalate. Pin job or session.
+  - **Delegation / auxiliary volume / unpinned cron:** DeepSeek Flash (`reasoning_effort=none` on aux).
+  - **Vision:** pinned Grok (native vision) — does not inherit DS primary.
   - Per-job `jobs.json` / per-`delegate_task` model still wins when set.
   - Official ref: hermes-agent docs *Configuring Models*.
 - **Identity:** declarative **SOUL.md is disabled**. Fresh agent; no forced persona from Nix.

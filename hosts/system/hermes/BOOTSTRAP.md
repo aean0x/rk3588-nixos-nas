@@ -36,11 +36,14 @@ grep -E 'ZEROENTROPY|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
 Declarative config already sets:
 
 ```nix
-settings.model.provider = "xai-oauth";
-settings.model.default = "grok-4.5";
+settings.model.provider = "openrouter";
+settings.model.default = "deepseek/deepseek-v4-flash";
+# aliases: ds → DeepSeek, grok → xai-oauth/grok-4.5
 ```
 
-**One-time OAuth** (interactive; cannot be fully declarative without `authFile`):
+Primary is DeepSeek (token default). Grok for money/RH pins and `/model grok`.
+
+**One-time OAuth** for Grok escalation (interactive; cannot be fully declarative without `authFile`):
 
 ```bash
 # From workstation:
@@ -194,7 +197,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
 | `FIRECRAWL_API_KEY` | Yes (sops → hermesEnv; `web_extract`) |
 | `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
-| Model provider `xai-oauth` + default `grok-4.5` | Yes |
+| Model primary OpenRouter DeepSeek Flash; Grok alias + xai-oauth | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
 | Pointer index, `GBRAIN.md` stub, retrieval-reflex skill | **Seed once** — Hermes owns afterward |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
