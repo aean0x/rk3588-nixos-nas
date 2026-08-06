@@ -1,12 +1,50 @@
-You are on rocknas (Hermes container). Bootstrap GBrain now. Do not ask clarifying questions; use defaults below.
+You are on rocknas (Hermes). Bootstrap GBrain end-to-end for THIS host. Do not ask clarifying questions; use the rocknas model below. Do not invent exclusive CLI timers or stdio multi-serve.
 
-1) Fetch and follow https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md for install steps ONLY (bun + gbrain CLI + gbrain init --pglite). Skip soul-audit / identity generation.
-2) Persist under HOME=/home/hermes: ~/.bun, ~/.gbrain, ~/brain (git init if empty).
-3) Install: curl bun if needed; `bun install -g github:garrytan/gbrain`; if broken, clone+bun link recovery per install doc #218.
-4) Keys: ZEROENTROPY_API_KEY may appear after next system switch in /data/.hermes/.env — load it if present (do not print secret). Keyword search is fine without it for now.
-5) Search mode: set `gbrain config set search.mode balanced` (do not use tokenmax without operator OK).
-6) Verify: gbrain --version; gbrain doctor; gbrain list -n 3; mkdir -p ~/brain && (git -C ~/brain status || git -C ~/brain init).
-7) If /data/.hermes/AGENTS.md or /data/memory/registry.json exist, skim them; do not invent SOUL.md.
-8) Reply with short status: version, doctor pass/fail lines, paths for CLI/brain/pglite.
+## Architecture (SoT)
+- **Sole PGLite owner:** systemd `gbrain-mcp-http` → `gbrain serve --http --bind 127.0.0.1 --port 3131`
+- **Hermes MCP:** url `http://127.0.0.1:3131/mcp` + Bearer token (NOT stdio `gbrain serve` per agent)
+- **Plugins:** `gbrain-retrieval-reflex` + `gbrain-memory-flush` only (already declarative)
+- **NEVER:** `gbrain autopilot --install` (second writer); exclusive consolidate/dream; static pointer JSON
+- Upstream install steps only from: https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md
+  Skip soul-audit / persona generation (SOUL is non-declarative here).
 
-Use terminal tools. Finish install end-to-end.
+## Steps (use terminal; HOME=/home/hermes or /var/lib/hermes/home)
+
+### A. CLI install
+1. Ensure bun: `$HOME/.bun/bin` on PATH; install via curl bun installer if missing.
+2. `bun install -g github:garrytan/gbrain` (not npm registry `gbrain`). Recovery: clone+bun link per INSTALL #218.
+3. `gbrain --version`
+
+### B. Brain init + config
+4. If no `$HOME/.gbrain/brain.pglite`: `gbrain init --pglite`
+5. `mkdir -p ~/brain`; git init if empty.
+6. `gbrain config set search.mode balanced` (not tokenmax without operator OK).
+7. Prefer embedding model already in config (zeroentropyai:zembed-1). Load ZEROENTROPY from env/hermes.env if present — **never print secrets**.
+
+### C. HTTP sole-owner + auth (multi-client safe)
+8. Check `systemctl is-active gbrain-mcp-http` (operator/Nix owns the unit). If inactive and you have rights, start it; else report for operator.
+9. Mint MCP bearer once if `$HOME/.gbrain/hermes-mcp.token` missing:
+   - Prefer host setup: operator runs `hosts/system/hermes/scripts/gbrain-setup.sh`
+   - Or: `gbrain auth create hermes-agents` while HTTP serve is up; write token to `~/.gbrain/hermes-mcp.token` (mode 600); set `GBRAIN_REMOTE_TOKEN=` in `$HERMES_HOME/.env` (same token, do not print).
+10. Ensure `config.yaml` `mcp_servers.gbrain` is **url-only** `http://127.0.0.1:3131/mcp` with `headers.Authorization: Bearer <token>` — remove any stdio `command`/`args`/`env` strip for gbrain.
+11. Restart not always possible from agent; tell operator to `systemctl restart hermes-agent hermes-webui` if you cannot.
+
+### D. Content + embeds (serve must be STOPPED for CLI import/embed)
+12. If you can stop consumers (or operator does): stop gbrain-mcp-http + agents briefly.
+13. If ~/brain has markdown: `gbrain import ~/brain --no-embed`
+14. If ZEROENTROPY present: `gbrain embed --stale`
+15. Start gbrain-mcp-http again (sole owner), then agents.
+
+### E. Verify
+16. `curl -sS http://127.0.0.1:3131/health` → ok
+17. `hermes mcp test gbrain` or MCP tool list — expect get_page/put_page/query/volunteer_context
+18. Exactly **one** `gbrain serve` process (the HTTP unit)
+19. put_page / update `ops/gbrain-protocol` to describe HTTP sole-owner + two plugins (no exclusive)
+
+### F. Explicitly skip
+- gbrain autopilot --install
+- Host exclusive consolidate/dream/embed scripts
+- Reinit unless doctor (with serve stopped) proves damage
+
+## Reply
+Short status: gbrain version; init yes/no; token yes/no (not the value); HTTP health; mcp test; page/embed counts if known; anything only the operator can finish (sudo systemctl).

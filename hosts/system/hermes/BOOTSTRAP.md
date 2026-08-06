@@ -82,61 +82,62 @@ Optional API-key fallback (already in sops as `XAI_API_KEY`): set provider to `x
 
 ---
 
-## 2. Bootstrap GBrain (install CLI + brain + MCP)
+## 2. Bootstrap GBrain (post-install catalogue)
 
-GBrain is **not** a Nix package. CLI is a **bun global** under `/var/lib/hermes/home/.bun` → container `/home/hermes/.bun/bin/gbrain`. MCP is declarative (`services.hermes-agent.mcpServers.gbrain` → `gbrain serve`).
+### Declarative (Nix — already after `remote-switch`)
 
-### 2a. Preferred: prompt the agent (headless install)
+| Piece | Where |
+|-------|--------|
+| HTTP sole PGLite owner | `gbrain-mcp-http.service` (`gbrain serve --http :3131`) |
+| Hermes MCP client | `mcpServers.gbrain.url = http://127.0.0.1:3131/mcp` |
+| Bearer re-apply on activation | token file `~/.gbrain/hermes-mcp.token` or `GBRAIN_REMOTE_TOKEN` |
+| Plugins | `gbrain-retrieval-reflex`, `gbrain-memory-flush` |
+| Memory contract | `memory/AGENTS.md`, registry, export schema |
+| `ZEROENTROPY_API_KEY` | sops → `/run/hermes.env` → HTTP unit + agents |
 
-Agents should run this themselves:
+### One-shot / Hermes-home (must still run once)
+
+| Step | What |
+|------|------|
+| 1 | Install **bun** + **gbrain CLI** (`bun install -g github:garrytan/gbrain`) under hermes HOME |
+| 2 | `gbrain init --pglite` if no `~/.gbrain/brain.pglite` |
+| 3 | `~/brain` git tree; `gbrain config set search.mode balanced` |
+| 4 | Mint HTTP bearer: `gbrain auth create hermes-agents` → `~/.gbrain/hermes-mcp.token` + `GBRAIN_REMOTE_TOKEN` in `.hermes/.env` |
+| 5 | Wire `config.yaml` headers (setup script / activation) |
+| 6 | Import markdown: stop serve → `gbrain import ~/brain --no-embed` |
+| 7 | Embed: `gbrain embed --stale` with ZE (serve still stopped) |
+| 8 | Start `gbrain-mcp-http`, restart `hermes-agent` (+ webui) |
+| 9 | Smoke: `curl :3131/health`, `hermes mcp test gbrain` |
+
+**Never on this host:** `gbrain autopilot --install` (second writer); exclusive consolidate/dream; stdio multi-serve; soul-audit for SOUL.
+
+Upstream install steps only: **https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md**
+
+### 2a. Operator one-shot (preferred)
+
+```bash
+# From workstation after remote-switch (copies + runs on device):
+./deploy gbrain-setup
+# or on device as root:
+sudo bash hosts/system/hermes/scripts/gbrain-setup.sh
+```
+
+### 2b. Agent-assisted
 
 ```bash
 ./deploy hermes chat -Q --yolo --accept-hooks -q "$(cat hosts/system/hermes/prompts/gbrain-bootstrap-query.txt)"
-# or paste the prompt into Telegram / dashboard
 ```
 
-Canonical agent install doc (fetch, do not invent steps):
-
-**https://raw.githubusercontent.com/garrytan/gbrain/master/INSTALL_FOR_AGENTS.md**
-
-Operator-friendly one-shot CLI path (same end state):
-
-```bash
-# inside container as hermes (HOME persists under /var/lib/hermes/home)
-curl -fsSL https://bun.sh/install | bash
-export PATH="$HOME/.bun/bin:$PATH"
-bun install -g github:garrytan/gbrain
-gbrain init --pglite    # or: gbrain init
-gbrain config set search.mode balanced   # cost-safe default for this NAS
-gbrain doctor
-```
-
-If `bun install -g` breaks postinstall, clone+`bun link` recovery per install doc (#218).
-
-**Do not skip:** agent must **fetch INSTALL_FOR_AGENTS.md** (or the CLI path above). Skip soul-audit / persona generation on this host (SOUL is intentionally non-declarative).
-
-### 2b. Operator fallback (manual docker)
-
-```bash
-sudo docker exec -u hermes -it hermes-agent bash
-# inside container:
-export PATH="$HOME/.bun/bin:$PATH"
-# install bun if needed, then follow upstream install.md for gbrain
-gbrain --help
-gbrain list -n 3
-exit
-
-sudo systemctl restart hermes-agent
-hermes mcp list   # expect gbrain when CLI is on PATH
-```
-
-### 2c. Validate integration
+### 2c. Validate
 
 ```bash
 ./deploy validate-gbrain
+./deploy systemctl is-active gbrain-mcp-http hermes-agent
+./deploy curl -sS http://127.0.0.1:3131/health
+./deploy hermes mcp test gbrain
 ```
 
-Expect: MCP gbrain present, reflex plugins installed, **no** exclusive CLI bins/timers.
+Expect: one HTTP serve, bearer MCP tools, two plugins, no exclusive CLI.
 
 ---
 
