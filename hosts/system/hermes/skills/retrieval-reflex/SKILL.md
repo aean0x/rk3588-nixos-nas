@@ -12,11 +12,11 @@ Policy skill for gbrain push-based context
 
 | Channel | Who | How |
 |---------|-----|-----|
-| Ambient | plugin `gbrain-retrieval-reflex` | Entity extract → **unix resolve IPC** owned by live `gbrain serve` → injects `## Brain pages…` |
-| Op | **you** (MCP) | `volunteer_context` with a rolling `user:` / `assistant:` window |
-| Search | **you** (MCP) | `query` / `get_page` |
+| Ambient | plugin `gbrain-retrieval-reflex` | HTTP MCP **`volunteer_context`** against `gbrain-mcp-http` (Bearer) → injects `## Brain pages (volunteer_context)` |
+| Op | **you** (MCP) | Extra `volunteer_context` / `query` when ambient miss or multi-turn |
+| Search | **you** (MCP) | `get_page` on volunteered slugs |
 
-There is **no** static `gbrain-pointer-index.json` and **no** `gbrain-reflex` alias table.
+HTTP sole-owner does **not** bind resolve IPC sock (stdio-only upstream). Ambient uses the **op** over HTTP, not a second serve.
 
 ## When a pointer block appears
 
