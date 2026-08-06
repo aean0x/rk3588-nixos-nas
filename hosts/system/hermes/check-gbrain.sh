@@ -14,7 +14,14 @@ for f in gbrain.nix memory/AGENTS.md memory/registry.json memory/export-schema.j
 done
 
 grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && pass "mcpServers.gbrain in gbrain.nix" || fail_ "no mcpServers.gbrain"
-grep -q 'args = \[ "serve" \]' "$H/gbrain.nix" && pass "gbrain serve args" || fail_ "no serve args"
+grep -q 'gbrain-mcp-serve\|gbrain serve' "$H/gbrain.nix" && pass "gbrain serve wrapper/path" || fail_ "no gbrain serve"
+# Must not strip MCP child env to HOME/PATH only (kills ZEROENTROPY_API_KEY).
+if grep -n 'env = lib.mkForce' "$H/gbrain.nix" | grep -q .; then
+  fail_ "gbrain.nix still has env = lib.mkForce (strips embeddings keys from MCP child)"
+else
+  pass "no env = lib.mkForce in gbrain.nix"
+fi
+grep -q 'gbrain-mcp-serve\|/data/bin/gbrain-mcp-serve' "$H/gbrain.nix" && pass "gbrain-mcp-serve wrapper path" || fail_ "no gbrain-mcp-serve"
 grep -q 'gbrain-retrieval-reflex' "$H/gbrain.nix" && pass "gbrain-retrieval-reflex install" || fail_ "no retrieval-reflex plugin"
 # Static pointer index must be gone
 if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/plugins/gbrain-reflex" ]; then
@@ -28,16 +35,11 @@ else
   pass "no GBRAIN_POINTER_INDEX"
 fi
 
-# Must NOT package exclusive CLI / nightly dream.
-if grep -qE 'hermes-gbrain-nightly|hermes-gbrain-exclusive|hermes-gbrain-consolidate|hermes-gbrain-dream|hermes-gbrain-embed' "$H/gbrain.nix"; then
-  # Allow only in enable=false / rm -f purge lines
-  if grep -E 'writeShellApplication|ExecStart.*gbrain-nightly|environment.systemPackages' "$H/gbrain.nix" | grep -qE 'gbrain|exclusive|nightly|consolidate'; then
-    fail_ "gbrain.nix still packages exclusive CLI surface"
-  else
-    pass "gbrain.nix mentions legacy names only for disable/purge"
-  fi
+# Must NOT package exclusive CLI / nightly dream (disable/rm lines only OK).
+if grep -E 'writeShellApplication|environment\.systemPackages' "$H/gbrain.nix" | grep -qE 'exclusive|nightly|consolidate|gbrain-dream|gbrain-embed'; then
+  fail_ "gbrain.nix still packages exclusive CLI surface"
 else
-  pass "no exclusive script names in gbrain.nix"
+  pass "no exclusive CLI packaging in gbrain.nix"
 fi
 
 grep -q './gbrain.nix' "$H/default.nix" && pass "default.nix imports gbrain" || fail_ "gbrain not imported"
