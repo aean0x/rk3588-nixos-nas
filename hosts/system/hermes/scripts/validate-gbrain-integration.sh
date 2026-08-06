@@ -42,6 +42,57 @@ for u in hermes-gbrain-consolidate.timer gbrain-dream.timer gbrain-embed.timer; 
 done
 journalctl -u hermes-gbrain-consolidate.service -n 5 --no-pager 2>/dev/null | tail -3 || true
 
+echo "=== 2b. Exclusive runner + systemd Conflicts (PGLite single-writer) ==="
+if command -v hermes-gbrain-exclusive >/dev/null 2>&1 || [ -x /run/current-system/sw/bin/hermes-gbrain-exclusive ]; then
+  ok "hermes-gbrain-exclusive on PATH"
+else
+  bad "hermes-gbrain-exclusive missing (deploy switch)"
+fi
+if [ -x /var/lib/hermes/bin/gbrain-exclusive-cli ]; then
+  ok "gbrain-exclusive-cli installed under /var/lib/hermes/bin"
+else
+  bad "gbrain-exclusive-cli missing (activation install)"
+fi
+# Conflicts= must cross-link the three oneshots (cannot double-open PGLite).
+for unit in hermes-gbrain-consolidate gbrain-dream gbrain-embed; do
+  conf=$(systemctl show "${unit}.service" -p Conflicts --value 2>/dev/null || true)
+  case "$unit" in
+    hermes-gbrain-consolidate) need="gbrain-dream.service gbrain-embed.service" ;;
+    gbrain-dream) need="hermes-gbrain-consolidate.service gbrain-embed.service" ;;
+    gbrain-embed) need="hermes-gbrain-consolidate.service gbrain-dream.service" ;;
+  esac
+  missing=0
+  for n in $need; do
+    echo "$conf" | grep -qF "$n" || missing=1
+  done
+  if [ "$missing" -eq 0 ] && [ -n "$conf" ]; then
+    ok "${unit}.service Conflicts= peers"
+  else
+    warn "${unit}.service Conflicts= incomplete or unit not installed: $conf"
+  fi
+done
+# Guard must refuse while agent is up (no second PGLite writer).
+if systemctl is-active --quiet hermes-agent.service 2>/dev/null; then
+  if /var/lib/hermes/bin/gbrain-exclusive-cli list -n 1 >/tmp/gbrain-excl-cli.out 2>&1; then
+    bad "gbrain-exclusive-cli ran while hermes-agent active (should refuse)"
+  else
+    if grep -qE 'pglite_busy|hermes_agent_active' /tmp/gbrain-excl-cli.out 2>/dev/null; then
+      ok "gbrain-exclusive-cli refuses while agent active"
+    else
+      warn "gbrain-exclusive-cli failed while agent up (expected refuse); see /tmp/gbrain-excl-cli.out"
+    fi
+  fi
+else
+  warn "hermes-agent not active; skip exclusive-cli refuse check"
+fi
+# mcp-stderr: WASM / multi-instance → recovery hint only (never auto-reinit from validate).
+MCP_ERR=/var/lib/hermes/.hermes/logs/mcp-stderr.log
+if [ -f "$MCP_ERR" ] && grep -qiE 'WASM|Aborted|already (instantiated|open)|multiple PGLite|failed to initialize' "$MCP_ERR" 2>/dev/null; then
+  warn "mcp-stderr shows PGLite/WASM class errors — soft stop/start agent; exclusive doctor; reinit only if doctor confirms (see workspace/GBRAIN.md). validate never auto-reinits."
+else
+  ok "mcp-stderr has no recent WASM/single-writer pattern (or log absent)"
+fi
+
 echo "=== 3. G-Brain startup path resolution ==="
 docker exec -u hermes "$CONTAINER" bash -lc '
   export HERMES_MEMORY_REGISTRY=/data/memory/registry.json
@@ -84,19 +135,20 @@ if docker exec "$CONTAINER" test -d /data/.hermes/memories/export/inbox; then
   fi
 fi
 
-echo "=== 9. Concurrent soak (consolidate under flock) ==="
+echo "=== 9. Concurrent soak (exclusive flock serializes consolidate) ==="
 if [ "${SKIP_CONCURRENT_SOAK:-}" != 1 ] && [ -x /run/current-system/sw/bin/hermes-gbrain-consolidate ]; then
   /run/current-system/sw/bin/hermes-gbrain-consolidate >/tmp/consolidate-a.jsonl 2>&1 &
   PID_A=$!
   /run/current-system/sw/bin/hermes-gbrain-consolidate >/tmp/consolidate-b.jsonl 2>&1 &
   PID_B=$!
   wait "$PID_A" "$PID_B" || true
-  SKIPPED=0
-  grep -q 'consolidation_lock_held' /tmp/consolidate-a.jsonl /tmp/consolidate-b.jsonl 2>/dev/null && SKIPPED=1
-  if [ "$SKIPPED" -eq 1 ]; then
-    ok "parallel consolidate: one runner skipped on lock"
+  SERIAL=0
+  grep -qE 'exclusive_lock_acquired|delegating_to_exclusive_runner|consolidation_lock_held' /tmp/consolidate-a.jsonl /tmp/consolidate-b.jsonl 2>/dev/null && SERIAL=1
+  # Second run should wait on flock then proceed, or one may timeout — both must not open PGLite together.
+  if [ "$SERIAL" -eq 1 ]; then
+    ok "parallel consolidate: exclusive runner path exercised"
   else
-    warn "parallel consolidate: expected one skipped=true (check logs)"
+    warn "parallel consolidate: expected exclusive lock logs (check /tmp/consolidate-*.jsonl)"
   fi
 else
   warn "concurrent soak skipped"

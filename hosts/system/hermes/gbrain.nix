@@ -1,9 +1,11 @@
-# Hermes ↔ G-Brain: registry, MCP serve, simple host timers.
+# Hermes ↔ G-Brain: registry, MCP serve, exclusive host timers.
 #
 # Supported model (gbrain INSTALL_FOR_AGENTS + Hermes MCP):
 #   - Agent installs gbrain (`bun install -g`) and uses MCP serve for read/write.
-#   - Host jobs STOP hermes-agent (releases PGLite), run CLI as hermes, START again.
-#   - No exclusive-cli / docker-exec race scaffolding.
+#   - Host jobs share one exclusive path (hermes-gbrain-exclusive):
+#       flock → stop hermes-agent → wait (no serve / no .gbrain-lock) → CLI → restart
+#   - systemd Conflicts= serializes consolidate / dream / embed oneshots.
+#   - Ad-hoc CLI: /var/lib/hermes/bin/gbrain-exclusive-cli (refuses if agent/serve up).
 {
   lib,
   pkgs,
@@ -27,9 +29,20 @@ let
     systemd
   ];
 
+  exclusiveScript = pkgs.writeShellApplication {
+    name = "hermes-gbrain-exclusive";
+    runtimeInputs = runtime;
+    excludeShellChecks = [
+      "SC2329"
+      "SC2181"
+      "SC2016"
+    ];
+    text = builtins.readFile ./scripts/hermes-gbrain-exclusive.sh;
+  };
+
   consolidateScript = pkgs.writeShellApplication {
     name = "hermes-gbrain-consolidate";
-    runtimeInputs = runtime;
+    runtimeInputs = runtime ++ [ exclusiveScript ];
     # trap cleanup() looks unused to shellcheck
     # SC2016: intentional single-quoted bash -c so $HOME expands in hermes shell
     excludeShellChecks = [
@@ -42,7 +55,7 @@ let
 
   embedScript = pkgs.writeShellApplication {
     name = "hermes-gbrain-embed";
-    runtimeInputs = runtime;
+    runtimeInputs = runtime ++ [ exclusiveScript ];
     excludeShellChecks = [
       "SC2329"
       "SC2181"
@@ -53,37 +66,24 @@ let
 
   dreamScript = pkgs.writeShellApplication {
     name = "hermes-gbrain-dream";
+    runtimeInputs = runtime ++ [ exclusiveScript ];
+    excludeShellChecks = [
+      "SC2329"
+      "SC2181"
+      "SC2016"
+    ];
+    text = builtins.readFile ./scripts/hermes-gbrain-dream.sh;
+  };
+
+  exclusiveCliScript = pkgs.writeShellApplication {
+    name = "gbrain-exclusive-cli";
     runtimeInputs = runtime;
     excludeShellChecks = [
       "SC2329"
       "SC2181"
       "SC2016"
     ];
-    text = ''
-      set -euo pipefail
-      HOME_DIR=/var/lib/hermes/home
-      export HOME="$HOME_DIR"
-      export PATH="$HOME_DIR/.bun/bin:$HOME_DIR/.npm-global/bin:/var/lib/hermes/toolbox/bin:$PATH"
-      # gbrain config uses absolute /home/hermes paths (container); host needs symlink.
-      if [ ! -e /home/hermes ]; then
-        ln -sfn "$HOME_DIR" /home/hermes
-      fi
-      started=0
-      cleanup() {
-        if [ "$started" -eq 1 ]; then
-          systemctl start hermes-agent.service 2>/dev/null || true
-        fi
-      }
-      trap cleanup EXIT
-      systemctl stop hermes-agent.service
-      started=1
-      sleep 2
-      pkill -f 'gbrain serve' 2>/dev/null || true
-      rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
-      # cwd under hermes HOME so bun can posix_spawn children (git, etc.)
-      runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
-        bash -c 'cd "$HOME" && exec gbrain dream'
-    '';
+    text = builtins.readFile ./scripts/gbrain-exclusive-cli.sh;
   };
 
   # Legacy container-path helper under /var/lib/hermes/bin (bind-mounted as /data/bin).
@@ -98,6 +98,13 @@ let
     ];
     text = builtins.readFile ./scripts/hermes-gbrain-consolidate-inner.sh;
   };
+
+  # Mutual exclusion across the three oneshots (PGLite single-writer).
+  gbrainJobConflicts = [
+    "hermes-gbrain-consolidate.service"
+    "gbrain-dream.service"
+    "gbrain-embed.service"
+  ];
 in
 {
   services.hermes-agent = {
@@ -123,8 +130,9 @@ in
   };
 
   systemd.services.hermes-gbrain-consolidate = {
-    description = "Hermes memory snapshot + G-Brain inbox import (host CLI, hermes stopped)";
+    description = "Hermes memory snapshot + G-Brain inbox import (exclusive CLI, hermes stopped)";
     after = [ "hermes-agent.service" ];
+    conflicts = lib.filter (u: u != "hermes-gbrain-consolidate.service") gbrainJobConflicts;
     serviceConfig = {
       Type = "oneshot";
       User = "root";
@@ -150,12 +158,15 @@ in
   };
 
   systemd.services.gbrain-dream = {
-    description = "G-Brain overnight dream (host CLI, hermes stopped)";
+    description = "G-Brain overnight dream (exclusive CLI, hermes stopped)";
     after = [ "hermes-agent.service" ];
+    conflicts = lib.filter (u: u != "gbrain-dream.service") gbrainJobConflicts;
     serviceConfig = {
       Type = "oneshot";
       User = "root";
       ExecStart = "${lib.getExe dreamScript}";
+      StandardOutput = "journal";
+      StandardError = "journal";
     };
   };
 
@@ -169,12 +180,15 @@ in
   };
 
   systemd.services.gbrain-embed = {
-    description = "G-Brain embed --stale (host CLI, hermes stopped)";
+    description = "G-Brain embed --stale (exclusive CLI, hermes stopped)";
     after = [ "hermes-agent.service" ];
+    conflicts = lib.filter (u: u != "gbrain-embed.service") gbrainJobConflicts;
     serviceConfig = {
       Type = "oneshot";
       User = "root";
       ExecStart = "${lib.getExe embedScript}";
+      StandardOutput = "journal";
+      StandardError = "journal";
     };
   };
 
@@ -188,9 +202,11 @@ in
   };
 
   environment.systemPackages = [
+    exclusiveScript
     consolidateScript
     embedScript
     dreamScript
+    exclusiveCliScript
   ];
 
   system.activationScripts.hermes-memory-manifest = lib.stringAfter [ "hermes-agent-setup" ] ''
@@ -207,6 +223,10 @@ in
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
     install -m 0755 -o root -g hermes ${lib.getExe consolidateInnerScript} \
       /var/lib/hermes/bin/hermes-gbrain-consolidate-inner
+    # Exclusive CLI guard: refuse if hermes-agent or gbrain serve holds PGLite.
+    # Force-managed (not seed-once) so prevention logic stays current.
+    install -m 0755 -o root -g hermes ${lib.getExe exclusiveCliScript} \
+      /var/lib/hermes/bin/gbrain-exclusive-cli
 
     # ── Always managed (memory contract / registry) ──
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/memory
