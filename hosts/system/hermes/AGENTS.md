@@ -102,7 +102,7 @@ Maintenance: gbrain MCP ops / Hermes cron via MCP — never shell gbrain
 ```
 
 - CLI install (bootstrap only): `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
-- Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env`.
+- Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env` → agent process → MCP `gbrain serve` (wrapper inherits env; do not mkForce MCP env to PATH-only).
 - **PGLite single-writer:** only `gbrain serve` while agent is up. Ambient reflex uses serve’s **`.gbrain-resolve.sock`** (no second writer). **Never** agent shell to `gbrain`.
 - Prefer gbrain’s own maintenance surface (MCP onboard; future cooperative serve — #677).
 - Missing MCP tools while gbrain “enabled” ≈ crash-loop / single-writer class. Soft stop/start first; never auto-reinit.

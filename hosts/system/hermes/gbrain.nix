@@ -9,7 +9,12 @@
 #   - op: MCP volunteer_context (agent/skill multi-turn window)
 # No host static pointer JSON.
 #
+# MCP child must INHERIT agent env (ZEROENTROPY_API_KEY from /run/hermes.env).
+# Do not mkForce env={HOME,PATH} only — that strips embeddings keys from serve.
+# PATH is fixed via a thin wrapper instead.
+#
 # Maintenance: gbrain MCP surfaces; Hermes cron via MCP tools only.
+# Do NOT reintroduce exclusive consolidate/dream host wrappers.
 {
   lib,
   pkgs,
@@ -21,20 +26,27 @@ let
   registryFile = "${memoryDir}/registry.json";
   schemaFile = "${memoryDir}/export-schema.json";
   agentsManifest = "${memoryDir}/AGENTS.md";
+
+  # Preserve parent env (secrets); only pin PATH for bun-global gbrain.
+  # Installed to /var/lib/hermes/bin → container /data/bin (not a bare nix-store
+  # path in mcp config — MCP child runs inside the container).
+  gbrainMcpServeScript = pkgs.writeShellScript "gbrain-mcp-serve" ''
+    export HOME="''${HOME:-/home/hermes}"
+    export PATH="/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin''${PATH:+:$PATH}"
+    exec gbrain serve "$@"
+  '';
+  # Container-visible path (stateDir bind).
+  gbrainMcpServeCmd = "/data/bin/gbrain-mcp-serve";
 in
 {
   services.hermes-agent = {
-    # Bare `gbrain`. Explicit PATH so MCP child resolution does not depend on
-    # filtered/stale env (deep-merge used to keep a bad PATH with .local/bin).
     mcpServers.gbrain = {
-      command = "gbrain";
-      args = [ "serve" ];
+      command = gbrainMcpServeCmd;
+      args = [ ];
       connect_timeout = 120;
       timeout = 120;
-      env = lib.mkForce {
-        HOME = "/home/hermes";
-        PATH = "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin";
-      };
+      # Intentionally no env mkForce — inherit ZEROENTROPY_API_KEY and friends
+      # from the hermes-agent process (environmentFiles → /run/hermes.env).
     };
 
     environment = {
@@ -65,6 +77,9 @@ in
     }
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
+    # MCP serve wrapper: inherits agent env (ZEROENTROPY_*), fixes PATH for bun gbrain.
+    install -m 0755 -o hermes -g hermes ${gbrainMcpServeScript} \
+      /var/lib/hermes/bin/gbrain-mcp-serve
     # Purge agent-visible exclusive CLI + host static-pointer workaround.
     rm -f /var/lib/hermes/bin/gbrain-exclusive-cli \
       /var/lib/hermes/bin/hermes-gbrain-consolidate-inner \
@@ -165,18 +180,20 @@ data = yaml.safe_load(path.read_text()) or {}
 changed = False
 
 mcp = data.setdefault("mcp_servers", {})
+# Match Nix mcpServers.gbrain: /data/bin wrapper inherits agent env.
 desired_mcp = {
-    "command": "gbrain",
-    "args": ["serve"],
+    "command": "${gbrainMcpServeCmd}",
+    "args": [],
     "connect_timeout": 120,
     "timeout": 120,
     "enabled": True,
-    "env": {
-        "HOME": "/home/hermes",
-        "PATH": "/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin",
-    },
 }
-if mcp.get("gbrain") != desired_mcp:
+# Drop legacy bare command + env strip if still present.
+cur = mcp.get("gbrain") or {}
+if cur.get("command") != desired_mcp["command"] or cur.get("args") != [] or "env" in cur:
+    mcp["gbrain"] = desired_mcp
+    changed = True
+elif not cur.get("enabled", True):
     mcp["gbrain"] = desired_mcp
     changed = True
 
