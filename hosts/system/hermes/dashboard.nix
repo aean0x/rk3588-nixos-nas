@@ -23,10 +23,10 @@
       User = "hermes";
       # Systemd's default PATH omits /run/current-system/sw/bin; hermes needs docker on PATH.
       Environment = [ "PATH=${config.virtualisation.docker.package}/bin:/run/current-system/sw/bin:/run/wrappers/bin" ];
-      # --host 0.0.0.0 --insecure: hermes-agent container uses --network=host, so
-      # this binds on the host namespace; Caddy proxies hermes.<domain> → :9119.
+      # Loopback only: hermes-agent ≥0.20 refuses unauthenticated non-loopback
+      # binds (even with --insecure). Caddy proxies hermes.<domain> → 127.0.0.1:9119.
       # --tui: in-browser Chat tab (ptyprocess is core; no separate pty extra).
-      ExecStart = "/run/current-system/sw/bin/hermes dashboard --no-open --host 0.0.0.0 --insecure --port 9119 --tui";
+      ExecStart = "/run/current-system/sw/bin/hermes dashboard --no-open --host 127.0.0.1 --port 9119 --tui";
       Restart = "on-failure";
       RestartSec = 15;
     };
