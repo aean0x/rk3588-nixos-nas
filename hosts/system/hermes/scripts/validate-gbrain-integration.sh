@@ -54,18 +54,37 @@ for f in /var/lib/hermes/bin/gbrain-exclusive-cli \
   fi
 done
 
-echo "=== 3. hermes-agent + MCP gbrain ==="
+echo "=== 3. gbrain-mcp-http (sole owner) + hermes-agent ==="
+if systemctl is-active --quiet gbrain-mcp-http.service 2>/dev/null; then
+  ok "gbrain-mcp-http active"
+else
+  bad "gbrain-mcp-http not active (sole PGLite owner)"
+fi
 if systemctl is-active --quiet hermes-agent.service 2>/dev/null; then
   ok "hermes-agent active"
 else
   bad "hermes-agent not active"
 fi
-
-if docker exec "$CONTAINER" test -x /home/hermes/.bun/bin/gbrain 2>/dev/null \
-  || docker exec "$CONTAINER" sh -c 'command -v gbrain' >/dev/null 2>&1; then
-  ok "gbrain CLI present in container (MCP child only)"
+# Prefer one long-lived serve; warn on many.
+nserve=$(pgrep -fc 'gbrain serve' 2>/dev/null || echo 0)
+if [ "${nserve:-0}" -eq 1 ]; then
+  ok "exactly one gbrain serve process"
+elif [ "${nserve:-0}" -eq 0 ]; then
+  bad "no gbrain serve process"
 else
-  warn "gbrain not on container PATH yet (bootstrap: bun install -g github:garrytan/gbrain)"
+  warn "multiple gbrain serve processes ($nserve) — dual-writer risk; pkill orphans"
+fi
+if ss -ltn 2>/dev/null | grep -q ':3131'; then
+  ok "gbrain HTTP listening :3131"
+else
+  warn "nothing listening on :3131"
+fi
+
+if [ -x /var/lib/hermes/home/.bun/bin/gbrain ] \
+  || docker exec "$CONTAINER" test -x /home/hermes/.bun/bin/gbrain 2>/dev/null; then
+  ok "gbrain CLI present (bun global)"
+else
+  warn "gbrain not installed (bootstrap: bun install -g github:garrytan/gbrain)"
 fi
 
 if [ -e /var/lib/hermes/workspace/gbrain-pointer-index.json ] \
@@ -113,12 +132,15 @@ else
 fi
 
 echo "=== 5. Policy smoke (docs) ==="
-if grep -q 'Never shell' /var/lib/hermes/workspace/GBRAIN.md 2>/dev/null \
-  || grep -q 'MCP only' /var/lib/hermes/workspace/GBRAIN.md 2>/dev/null \
-  || grep -q 'never shell' /var/lib/hermes/memory/AGENTS.md 2>/dev/null; then
-  ok "MCP-only policy present in workspace/manifest"
+if grep -qiE 'never shell|MCP only|HTTP' /var/lib/hermes/memory/AGENTS.md 2>/dev/null; then
+  ok "MCP policy present in memory AGENTS.md"
 else
-  warn "workspace GBRAIN.md may be Hermes-owned pre-policy seed — update via agent"
+  warn "memory AGENTS.md missing MCP policy wording"
+fi
+if [ -e /var/lib/hermes/workspace/GBRAIN.md ] || [ -e /var/lib/hermes/workspace/HERMES-WEBUI.md ]; then
+  warn "stale host docs still under live workspace (should live in repo reference/ only)"
+else
+  ok "live workspace has no host GBRAIN/HERMES-WEBUI.md"
 fi
 
 echo "=== summary ==="

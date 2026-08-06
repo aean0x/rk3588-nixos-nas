@@ -36,7 +36,8 @@ hosts/system/hermes/
 ├── memory/              # declarative memory plane
 ├── scripts/
 ├── BOOTSTRAP.md
-└── workspace/           # GBRAIN.md, HERMES-WEBUI.md, pointer index, soul draft
+├── reference/           # Operator docs (GBRAIN.md, HERMES-WEBUI.md) — not live workspace
+└── workspace/           # soul draft only (not activated); live content Hermes-owned
 ```
 
 ## Hermes WebUI
@@ -45,7 +46,7 @@ hosts/system/hermes/
 Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
 Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes-webui.env` and `/run/hermes.env`.
 Flake SoT TTS: `settings.tts.provider=elevenlabs` (`eleven_flash_v2_5`, voice `pNInz6obpgDQGcFmaJgB`).
-Runbook: `workspace/HERMES-WEBUI.md`.
+Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace).
 
 ## Token lean + plugins (0.19)
 
@@ -91,21 +92,22 @@ Unpinned to `github:NousResearch/hermes-agent` (tracking main / current lock).
 Telegram / hermes chat / dashboard / webui
         │
         ▼
-hermes-agent (docker) ── MCP stdio ──► gbrain serve  (bun global; sole PGLite owner)
+hermes-agent / webui / CLI ── MCP HTTP ──► gbrain-mcp-http.service
+        │                    url http://127.0.0.1:3131/mcp
         │                                  │
-        │ Hermes MEMORY.md (working only)  ├── ~/brain (optional git mirror)
-        │ gbrain-retrieval-reflex (resolve IPC) └── ~/.gbrain/brain.pglite
-        │   + skill retrieval-reflex / MCP volunteer_context
+        │ MEMORY (working)     gbrain serve --http (sole PGLite owner)
+        │ gbrain-retrieval-reflex (resolve IPC on that process)
         ▼
-Day path: ambient IPC pointers + MCP put_page / query / get_page / volunteer_context
-Maintenance: gbrain MCP ops / Hermes cron via MCP — never shell gbrain
+Day path: shared HTTP MCP + two plugins (retrieval-reflex, memory-flush)
 ```
 
-- CLI install (bootstrap only): `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
-- Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env` → agent process → MCP `gbrain serve` (wrapper inherits env; do not mkForce MCP env to PATH-only).
-- **PGLite single-writer:** only `gbrain serve` while agent is up. Ambient reflex uses serve’s **`.gbrain-resolve.sock`** (no second writer). **Never** agent shell to `gbrain`.
-- Prefer gbrain’s own maintenance surface (MCP onboard; future cooperative serve — #677).
-- Missing MCP tools while gbrain “enabled” ≈ crash-loop / single-writer class. Soft stop/start first; never auto-reinit.
+- CLI install (bootstrap only): `~/.bun/bin/gbrain` under hermes HOME.
+- Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env` → **gbrain-mcp-http** EnvironmentFile.
+- **PGLite single-writer:** one long-lived HTTP serve (not per-agent stdio). Fixes WebUI+gateway dual spawn / lock orphans (hermes-agent#72887). **Never** shell concurrent `gbrain serve` stdio.
+- **HTTP Bearer:** token in `~/.gbrain/hermes-mcp.token` (mint once with `gbrain auth create …` while serve can auth). Activation re-applies `Authorization` headers into config.yaml from that file / `GBRAIN_REMOTE_TOKEN`.
+- If MCP 401: re-check token file + headers; restart hermes-agent/webui so sessions reload config.
+- If MCP stuck “connecting”: `systemctl status gbrain-mcp-http`; `./deploy sudo pkill -9 -f gbrain` only if orphans remain, then restart the unit.
+- **Resolve sock:** optional ambient path on some gbrain builds; day path is HTTP MCP tools + skill `volunteer_context` if sock absent.
 
 ### Maintenance / “autopilot” (MCP + Hermes cron only)
 
