@@ -24,14 +24,14 @@ hosts/system/hermes/
 ├── default.nix          # module import, model, plugins, maton MCP, no SOUL activation
 ├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
 ├── package-fix.nix     # silence-marker only (drop when upstream _is_token fixed)
-├── gbrain.nix           # MCP gbrain, timers, gbrain-reflex, host CLIs
+├── gbrain.nix           # MCP gbrain + reflex plugins (no exclusive CLI)
 ├── context-manager.nix  # hermes-context-manager (HMC) pin + config
 ├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
 ├── browser.nix          # Brave sticky profile + CDP + cookie import
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
-├── plugins/             # gbrain-reflex, memory-flush, tool-call-coherency (HMC from GitHub)
+├── plugins/             # gbrain-retrieval-reflex (IPC), memory-flush, tool-call-coherency, HMC
 ├── skills/              # retrieval-reflex + workstation
 ├── memory/              # declarative memory plane
 ├── scripts/
@@ -50,7 +50,7 @@ Runbook: `workspace/HERMES-WEBUI.md`.
 ## Token lean + plugins (0.19)
 
 - `tool_output` + compression prune/idle in `default.nix`
-- `plugins.enabled`: `hermes-context-manager`, `gbrain-reflex`, `gbrain-memory-flush`, `tool-call-coherency`
+- `plugins.enabled`: `hermes-context-manager`, `gbrain-retrieval-reflex`, `gbrain-memory-flush`, `tool-call-coherency`
 - After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)
@@ -72,43 +72,77 @@ Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 | Module enablement, ports, Caddy/tunnel, secrets wiring | SOUL / persona, USER.md, MEMORY.md body |
 | Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
 | MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
-| Host timers (consolidate/embed/dream), exclusive CLI wrappers | Cron job prompts/`jobs.json`, skills content after seed |
-| Plugin **code** install (gbrain-reflex, memory-flush, tool-call-coherency, HMC pin+overlay) | `workspace/GBRAIN.md`, retrieval-reflex skill text (seed-once) |
+| Force-disable of legacy exclusive timers (no new host gbrain CLI) | Cron job prompts/`jobs.json` (MCP-only hygiene), skills after seed |
+| Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
 | Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
 | Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
 
 If a request would put operational content into Nix, or environment policy only into agent memory, **refuse and restate this table**.  
 If Hermes asks a coding agent for patchy flake edits to fix day-to-day ops (brain pages, gbrain CLI pin, sync path, SOUL, cron prompts), **push back** — fix under Hermes custody or document the host limitation (e.g. import not `gbrain sync`).
 
-### hermes-agent pin (UNPIN-LATER)
+### hermes-agent pin
 
-`flake.nix` pins `hermes-agent` to `cc4cab2` (v0.19.1). Not permanent.  
-**Unpin when:** unpinned main builds `hermes-web`/`hermes-tui` offline (no ENOTCACHED on `@nous-research/ui`) and/or garnix serves the package.  
-**How:** `hermes-agent.url = "github:NousResearch/hermes-agent";` then lock + `remote-switch`.  
-`package-fix.nix` is **only** the silence-marker PYTHONPATH wrap — not lockfile scaffolding. Drop it when `_is_token` uses `_canonical_silence_candidates`.
+Unpinned to `github:NousResearch/hermes-agent` (tracking main / current lock).  
+`package-fix.nix` is **only** the silence-marker PYTHONPATH wrap — drop when upstream `_is_token` uses `_canonical_silence_candidates`.
 
 ## GBrain (summary)
 
 ```
-Telegram / hermes chat / dashboard
+Telegram / hermes chat / dashboard / webui
         │
         ▼
-hermes-agent (docker) ── MCP stdio ──► gbrain serve  (bun global in container)
+hermes-agent (docker) ── MCP stdio ──► gbrain serve  (bun global; sole PGLite owner)
         │                                  │
-        │ Hermes MEMORY.md / USER.md       ├── ~/brain (git)
-        │ export/inbox + snapshots         └── ~/.gbrain/brain.pglite
+        │ Hermes MEMORY.md (working only)  ├── ~/brain (optional git mirror)
+        │ gbrain-retrieval-reflex (resolve IPC) └── ~/.gbrain/brain.pglite
+        │   + skill retrieval-reflex / MCP volunteer_context
         ▼
-hermes-gbrain-consolidate (daily) → gbrain put + dream
-gbrain-embed (Sun 05:00)          → gbrain embed --stale
-gbrain-dream (04:30)              → gbrain dream
+Day path: ambient IPC pointers + MCP put_page / query / get_page / volunteer_context
+Maintenance: gbrain MCP ops / Hermes cron via MCP — never shell gbrain
 ```
 
-- CLI expected at `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
+- CLI install (bootstrap only): `~/.bun/bin/gbrain` (host: `/var/lib/hermes/home/.bun/…`).
 - Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env`.
-- **PGLite single-writer:** host jobs share `hermes-gbrain-exclusive` (flock + stop agent + wait + restart). Timers use systemd `Conflicts=`. Ad-hoc: `/var/lib/hermes/bin/gbrain-exclusive-cli` (refuses if agent/serve up). Full runbook: `workspace/GBRAIN.md`.
-- Exclusive CLI must run with **cwd under hermes HOME** (bun inherits invoker cwd).
-- PGLite `sources.default.local_path` must be `/home/hermes/brain` (not only `config.json`). consolidate pins it.
-- Missing MCP tools while gbrain “enabled” ≈ crash-loop / single-writer class (mcp-stderr WASM), not a config typo. Soft stop/start first; reinit only if doctor confirms damage — never auto-reinit.
+- **PGLite single-writer:** only `gbrain serve` while agent is up. Ambient reflex uses serve’s **`.gbrain-resolve.sock`** (no second writer). **Never** agent shell to `gbrain`.
+- Prefer gbrain’s own maintenance surface (MCP onboard; future cooperative serve — #677).
+- Missing MCP tools while gbrain “enabled” ≈ crash-loop / single-writer class. Soft stop/start first; never auto-reinit.
+
+### Maintenance / “autopilot” (MCP + Hermes cron only)
+
+Host exclusive CLI stack is **gone**. Do not reintroduce `hermes-gbrain-*` timers or
+`gbrain autopilot --install` alongside MCP serve (second PGLite owner).
+
+```bash
+# ── Hermes cron hygiene (agent owns jobs.json; MCP tools only) ──
+# Chat (inside Hermes):
+#   /cron add "0 2 * * *" "GBrain hygiene via MCP only: use gbrain MCP tools
+#     (query / get_page / put_page; run_onboard if listed). Promote durable
+#     signals from MEMORY.md with put_page. Never shell gbrain or terminal gbrain." \
+#     --name "gbrain-mcp-hygiene"
+# List / inspect:
+#   ./deploy hermes cron list
+#   # or: /cron list in chat
+
+# ── gbrain native surfaces (prefer MCP when available) ──
+# Live agent: MCP ops only (put_page, query, get_page, run_onboard, …).
+# Operator with hermes-agent STOPPED (disaster recovery only):
+#   sudo systemctl stop hermes-agent
+#   sudo -u hermes env HOME=/var/lib/hermes/home \
+#     PATH=/var/lib/hermes/home/.bun/bin:$PATH \
+#     bash -lc 'cd ~ && gbrain onboard --check --json'
+#   # optional unattended auto-eligible only:
+#   # gbrain onboard --auto --max-usd 5
+#   sudo systemctl start hermes-agent
+
+# ── NEVER (races PGLite with gbrain serve) ──
+#   gbrain autopilot --install
+#   gbrain dream | embed | doctor | sync   # while hermes-agent is up
+#   sudo hermes-gbrain-consolidate|nightly|dream|embed   # removed
+#   /var/lib/hermes/bin/gbrain-exclusive-cli              # removed
+#
+# When upstream ships cooperative serve maintenance (garrytan/gbrain#677),
+# prefer that over any host stop/start choreography.
+```
 
 ## Secrets
 
@@ -151,7 +185,7 @@ release-workstation
 | Method | Command / URL |
 |--------|----------------|
 | CLI | `./deploy hermes chat` / `./deploy hermes doctor` / `./deploy hermes mcp list` |
-| GBrain ops | `./deploy validate-gbrain`, `./deploy gbrain-consolidate` |
+| GBrain ops | `./deploy validate-gbrain` (MCP + reflex; no consolidate CLI) |
 | SSH | `./deploy ssh` (fallback; prefer named `./deploy` subcommands) |
 | Telegram | bot DM (allowlisted) |
 | Dashboard | `https://hermes.<domain>/` |
@@ -163,11 +197,9 @@ Bootstrap prompts and gbrain install instructions: **`BOOTSTRAP.md`**. After `re
 
 ```bash
 systemctl status hermes-agent
-hermes-gbrain-consolidate          # after remote-switch
-hermes-gbrain-embed
-systemctl list-timers | grep gbrain
+./deploy validate-gbrain           # MCP + reflex; asserts exclusive CLI gone
 # Soft reset agent state, keep gbrain install + brain:
-sudo bash hosts/system/hermes/scripts/clean-hermes-state.sh
+./deploy clean-hermes-state
 ```
 
 ## Lessons (short)

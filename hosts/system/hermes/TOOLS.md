@@ -68,7 +68,7 @@ netcat-gnu, socat, chromium→chrome/google-chrome aliases.
 | sudo NOPASSWD | hermes-cli + hermes | same |
 | Dotenv PATH | stripped (host-safe); container via service/docker env | same — strip PATH/HERMES_PY/AGENT_BROWSER from `.env`; host CLI uses hermes-cli PATH |
 
-Intentional rocknas extras: host sticky Brave CDP (`browser.nix`), OneDrive sync, gbrain consolidate/embed/dream timers, Open WebUI, HMC + gbrain-reflex plugins.
+Intentional rocknas extras: host sticky Brave CDP (`browser.nix`), OneDrive sync, HMC + gbrain-retrieval-reflex (resolve IPC) + memory-flush, hermes-webui. GBrain: MCP + native push-context (no exclusive CLI, no static pointer JSON).
 
 ## Host CLI routing note
 

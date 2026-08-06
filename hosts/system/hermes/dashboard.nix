@@ -33,5 +33,8 @@
   };
 
   # LAN-only by default (not in caddy.externalHosts).
+  # Host rewrite: dashboard binds 127.0.0.1 and rejects Host: hermes.<domain>
+  # (GHSA-ppp5-vxwm-4cf7). Caddy presents the loopback Host to the backend.
   services.caddy.proxyServices."hermes.${settings.domain}" = 9119;
+  services.caddy.proxyUpstreamHost."hermes.${settings.domain}" = "127.0.0.1:9119";
 }

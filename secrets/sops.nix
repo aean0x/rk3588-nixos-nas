@@ -77,6 +77,8 @@ let
     API_SERVER_KEY = "hermes_api_server_key";
     # Hermes WebUI / agent TTS (server-side ElevenLabs).
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
+    # Native DeepSeek provider (delegation/aux can use provider=deepseek).
+    DEEPSEEK_API_KEY = "deepseek_api_key";
   };
 in
 {
@@ -127,6 +129,8 @@ in
         hermes_api_server_key = { };
         # ElevenLabs TTS for Hermes WebUI (and agent when it uses the same env).
         elevenlabs_api_key = { };
+        # Native DeepSeek API key → DEEPSEEK_API_KEY in /run/hermes.env.
+        deepseek_api_key = { };
         # Hermes → workstation agent SSH private key (/run/secrets/…).
         # Used only by ssh-workstation wrappers (IdentityFile). Do not copy into
         # hermes HOME — keep out of the model’s normal workspace tree.

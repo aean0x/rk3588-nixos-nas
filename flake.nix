@@ -1,12 +1,8 @@
 {
   description = "NixOS configuration for ROCK 5 ITX";
 
-  nixConfig = {
-    extra-substituters = [ "https://cache.garnix.io" ];
-    extra-trusted-public-keys = [
-      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
-    ];
-  };
+  # Garnix hosted cache shut down 2026-07-15 — do not re-add cache.garnix.io.
+  # Default cache.nixos.org is enough; optional private caches via Cachix/Attic.
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

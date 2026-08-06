@@ -69,7 +69,7 @@ sudo grep -q '^ELEVENLABS_API_KEY=.' /run/hermes-webui.env && echo elevenlabs_en
 | Chat fails / missing models | Confirm `hermesHome` = `/var/lib/hermes/.hermes` and service user is `hermes` |
 | ElevenLabs TTS 503 | Ensure `ELEVENLABS_API_KEY` in `/run/hermes-webui.env` and restart `hermes-webui` |
 | Tunnel 502 | `systemctl status cloudflared`; confirm `proxyServices."archimedes…"` = 8787 |
-| Old open-webui still answering | Disable was declarative — `systemctl stop open-webui` / rebuild if a leftover unit exists |
+| Old open-webui still answering | Unit removed; stop leftover if any: `systemctl stop open-webui` then rebuild |
 
 ## Out of scope / retired
 

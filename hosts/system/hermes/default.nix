@@ -142,8 +142,8 @@ in
       # Sub-agent fleet (delegate_task). Parent stays on main model.
       # Per-task overrides on delegate_task still escalate individual children.
       delegation = {
-        model = "deepseek/deepseek-v4-flash";
-        provider = "openrouter";
+        model = "deepseek-v4-flash";
+        provider = "deepseek";
       };
 
       # Auxiliary slots (DEFAULT_CONFIG keys). reasoning_effort=none: Flash
@@ -151,8 +151,8 @@ in
       auxiliary =
         let
           flash = {
-            model = "deepseek/deepseek-v4-flash";
-            provider = "openrouter";
+            model = "deepseek-v4-flash";
+            provider = "deepseek";
             reasoning_effort = "none";
           };
         in
@@ -188,8 +188,8 @@ in
       # Cron fleet default: unpinned jobs must NOT inherit model.default=grok-4.5.
       # Resolution at fire: job.model > cron.model > HERMES_MODEL > model.default
       cron = {
-        model = "deepseek/deepseek-v4-flash";
-        model_provider = "openrouter";
+        model = "deepseek-v4-flash";
+        model_provider = "deepseek";
         model_drift_guard = true;
         # Mobile noty: raw agent text (no Cronjob Response header/footer).
         wrap_response = false;
@@ -219,8 +219,8 @@ in
         "/data/skills"
         "/var/lib/hermes/skills"
       ];
-      # 0.19 opt-in allow-list for user plugins (HMC + gbrain-reflex + thrash heal).
-      # Discovery uses $HERMES_HOME/plugins; external_dirs also scanned.
+      # 0.19 opt-in allow-list. gbrain-retrieval-reflex = native resolve IPC
+      # (not static pointer JSON). Discovery uses $HERMES_HOME/plugins.
       plugins = {
         external_dirs = [
           "/data/plugins"
@@ -228,7 +228,7 @@ in
         ];
         enabled = [
           "hermes-context-manager"
-          "gbrain-reflex"
+          "gbrain-retrieval-reflex"
           "gbrain-memory-flush"
           "tool-call-coherency"
           "projects-auto-commit"

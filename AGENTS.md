@@ -12,7 +12,7 @@ Agents working this repo are **expected to drive `./deploy` themselves** to comp
 
 - Prefer **`./deploy …` over raw `ssh`/`scp`/`docker`** so discovery, SSH opts, and command wrapping stay consistent.
 - Prefer **`remote-test` while iterating**; use **`remote-switch`** (or `remote-upgrade` when inputs must move) for durable activation. Reboot recovers the previous generation after a bad `remote-test`.
-- Use **`./deploy hermes <cmd>`**, **`./deploy validate-gbrain`**, **`./deploy gbrain-consolidate`**, **`./deploy journal hermes-agent`**, **`./deploy logs hermes-agent`** for Hermes/GBrain work without waiting on the user to run them.
+- Use **`./deploy hermes <cmd>`**, **`./deploy validate-gbrain`**, **`./deploy journal hermes-agent`**, **`./deploy logs hermes-agent`** for Hermes/GBrain work without waiting on the user to run them.
 - Cap log pulls (`-n 100` / `--tail 100`). The NAS is ARM64 with limited RAM — build on the workstation via `remote-*`, not on-device, unless the user asks otherwise.
 - Only pause for the user when something is truly blocked (missing secret value, physical USB, irreversible product choice with no default). Long builds are not a reason to stop: monitor, then resume.
 
@@ -24,7 +24,7 @@ Key subcommands:
 - `./deploy remote-upgrade` — same as remote-switch + update flake inputs (long; may rebuild kernel)
 - `./deploy logs <container>` — tail a Docker container's logs
 - `./deploy hermes <cmd>` — Hermes CLI on the device (chat, doctor, gateway, …)
-- `./deploy validate-gbrain` / `gbrain-consolidate` / `clean-hermes-state` — GBrain ops
+- `./deploy validate-gbrain` / `clean-hermes-state` — GBrain ops (MCP + reflex; no exclusive CLI)
 - `./deploy <container>` — exec into a container
 
 ## Architecture Overview
@@ -93,7 +93,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `wifi_psk` — WiFi password (conditional on `settings.enableWifi`)
 - `openclaw_gateway_token`, `openclaw_gateway_password` — (legacy, kept for transition; Hermes uses its own curated set from the same sops keys)
 - `xai_api_key` — xAI/Grok model API key
-- `openrouter_api_key`, `anthropic_api_key` — LLM provider keys
+- `openrouter_api_key`, `anthropic_api_key`, `deepseek_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
 - `browserless_api_token` — Remote browser CDP service (Browserless cloud; good for soft CF, weak alone on AXS-class ticketing)
 - Local browser: `hosts/system/hermes/browser.nix` — host Chromium + Xvfb, sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **noVNC on :6080** for phone captcha handoff (`hermes-browser-status`). Primary for checkout; Browserless is secondary scraping only.
@@ -116,7 +116,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | Docker engine | Native | `containers.nix` | Auto-prune, unified refresh timer |
 | Home Assistant + Matter + OTBR | Docker | `containers/home-assistant.nix` | Host network for mDNS/Thread |
 | FileBrowser | Docker | `containers/filebrowser.nix` | Web file manager (now points at Hermes workspace or legacy paths; review usage) |
-| Hermes Agent + GBrain | NixOS module + container | `hermes/` (imported from `containers.nix`) | xAI OAuth / Grok, GBrain MCP + consolidate timers, dashboard; SOUL not declarative |
+| Hermes Agent + GBrain | NixOS module + container | `hermes/` (imported from `containers.nix`) | xAI OAuth / Grok, GBrain MCP + reflex, dashboard/webui; SOUL not declarative |
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
@@ -148,12 +148,12 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the offici
 - **Deployment mode**: `container.enable = true` (Ubuntu 24.04, module `--network=host`). State under `/var/lib/hermes`.
 - **Model**: `settings.model.provider = "xai-oauth"`, `default = "grok-4.5"`. One-time `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: **No declarative SOUL.md** — activation does not install persona docs. Agent owns identity.
-- **GBrain**: `gbrain.nix` — `mcpServers.gbrain` (`gbrain serve`), memory registry under `hermes/memory/`, timers for consolidate/dream/embed, host CLIs `hermes-gbrain-consolidate` / `hermes-gbrain-embed`. CLI install is bun-global (agent bootstrap), not a Nix package.
+- **GBrain**: `gbrain.nix` — MCP `gbrain serve` only + reflex plugins; memory registry under `hermes/memory/`. **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI routing**: `addToSystemPackages = true`; host `hermes` routes into the container.
-- **Caddy**: dashboard on 9119 → `hermes.${domain}` (LAN-only by default).
+- **Caddy**: dashboard on 9119 → `hermes.${domain}` (LAN-only by default; Host rewrite for loopback DNS-rebinding guard).
 - **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/memory/AGENTS.md`.
-- **Deploy helpers**: `./deploy validate-gbrain`, `./deploy gbrain-consolidate`, `./deploy clean-hermes-state`.
+- **Deploy helpers**: `./deploy validate-gbrain`, `./deploy clean-hermes-state`.
 
 The old `hosts/system/openclaw/` (multi-agent gateway, openclaw.json, custom Docker images, sandbox spawning, sub-agent delegation protocol, lobster workflows) is no longer imported or active. The files remain for reference but are not evaluated.
 
@@ -217,7 +217,7 @@ Container wrapper scripts are auto-generated from `config.virtualisation.oci-con
 
 All subsequent ssh/scp/rsync calls use `$TARGET` and `$SSH_OPTS` — no redundant resolution.
 
-**Remote interaction policy:** agents **must** prefer `./deploy` for all server work (discovery, SSH options, command wrapping). Direct `ssh` only when `./deploy` cannot express the action. Drive rebuilds, log inspection, Hermes chat/doctor, and GBrain validate/consolidate **autonomously** until the goal succeeds or a true user-only blocker remains. Server is ARM64 with limited resources — prefer workstation `remote-*` builds. Cap log pulls (`--tail 100` / `-n 100`).
+**Remote interaction policy:** agents **must** prefer `./deploy` for all server work (discovery, SSH options, command wrapping). Direct `ssh` only when `./deploy` cannot express the action. Drive rebuilds, log inspection, Hermes chat/doctor, and `./deploy validate-gbrain` **autonomously** until the goal succeeds or a true user-only blocker remains. Server is ARM64 with limited resources — prefer workstation `remote-*` builds. Cap log pulls (`--tail 100` / `-n 100`).
 
 ### Installation Flow
 

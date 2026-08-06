@@ -1,43 +1,66 @@
 #!/usr/bin/env bash
-# Structural checks for GBrain integration in this repo (shipped sources).
+# Static checks: GBrain wiring is MCP + reflex only (no exclusive CLI timers).
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 H="$ROOT/hosts/system/hermes"
-FAIL=0
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; FAIL=1; }
+fail=0
+pass() { echo "PASS $*"; }
+fail_() { echo "FAIL $*"; fail=1; }
 
 for f in gbrain.nix memory/AGENTS.md memory/registry.json memory/export-schema.json \
-  scripts/hermes-gbrain-consolidate-inner.sh scripts/hermes-gbrain-embed-inner.sh \
-  BOOTSTRAP.md prompts/agents-gbrain.md; do
-  [[ -f "$H/$f" ]] && pass "exists $f" || fail "missing $f"
+  BOOTSTRAP.md prompts/agents-gbrain.md plugins/gbrain-retrieval-reflex/plugin.yaml \
+  plugins/gbrain-retrieval-reflex/__init__.py; do
+  [ -f "$H/$f" ] && pass "present $f" || fail_ "missing $f"
 done
 
-grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && pass "mcpServers.gbrain in gbrain.nix" || fail "no mcpServers.gbrain"
-grep -q 'ZEROENTROPY_API_KEY' "$ROOT/secrets/sops.nix" && pass "ZEROENTROPY in sops hermesSecrets" || fail "missing ZEROENTROPY"
-grep -q 'zeroentropy_api_key' "$ROOT/secrets/sops.nix" && pass "zeroentropy_api_key secret declared" || fail "secret not declared"
-grep -q 'zeroentropy_api_key' "$ROOT/secrets/secrets.yaml" && pass "zeroentropy in secrets.yaml" || fail "not in secrets.yaml"
-grep -q './gbrain.nix' "$H/default.nix" && pass "default.nix imports gbrain" || fail "gbrain not imported"
-# SOUL activation disabled (comment-only mentions of hermes-soul are OK)
-if grep -E '^\s*system\.activationScripts\.hermes-soul\s*=' "$H/default.nix" >/dev/null; then
-  fail "SOUL activation still present in default.nix"
+grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && pass "mcpServers.gbrain in gbrain.nix" || fail_ "no mcpServers.gbrain"
+grep -q 'args = \[ "serve" \]' "$H/gbrain.nix" && pass "gbrain serve args" || fail_ "no serve args"
+grep -q 'gbrain-retrieval-reflex' "$H/gbrain.nix" && pass "gbrain-retrieval-reflex install" || fail_ "no retrieval-reflex plugin"
+# Static pointer index must be gone
+if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/plugins/gbrain-reflex" ]; then
+  fail_ "static gbrain-reflex / pointer-index still in tree"
 else
-  pass "SOUL activation disabled"
+  pass "static pointer workaround removed from tree"
 fi
-if grep -q 'soulMd\|writeText "hermes-soul' "$H/default.nix"; then
-  fail "SOUL still packaged via soulMd writeText"
+if grep -q 'GBRAIN_POINTER_INDEX' "$H/gbrain.nix"; then
+  fail_ "GBRAIN_POINTER_INDEX still in gbrain.nix"
 else
-  pass "no soulMd packaging in default.nix"
+  pass "no GBRAIN_POINTER_INDEX"
 fi
-grep -q 'grok-4.5' "$H/default.nix" && pass "model default grok-4.5" || fail "missing grok-4.5"
-grep -q 'xai-oauth' "$H/default.nix" && pass "provider xai-oauth" || fail "missing xai-oauth"
-grep -q 'hermes-gbrain-consolidate' "$H/gbrain.nix" && pass "consolidate unit/script" || fail "no consolidate"
-grep -q 'gbrain-embed' "$H/gbrain.nix" && pass "embed timer" || fail "no embed"
-grep -q 'gbrain-dream' "$H/gbrain.nix" && pass "dream timer" || fail "no dream"
-grep -q 'rocknas' "$H/memory/registry.json" && pass "registry deployment_id rocknas" || fail "registry still hermes-01"
-grep -q 'validate-gbrain' "$ROOT/deploy" && pass "deploy validate-gbrain" || fail "deploy missing validate-gbrain"
-grep -q 'gbrain serve' "$H/BOOTSTRAP.md" && pass "BOOTSTRAP documents gbrain serve" || fail "BOOTSTRAP incomplete"
-grep -qi 'install.md\|install docs\|README install' "$H/BOOTSTRAP.md" && pass "BOOTSTRAP mentions upstream install docs" || fail "missing install.md prompt guidance"
 
-[[ "$FAIL" -eq 0 ]] && { echo; echo "GBRAIN STRUCTURAL CHECK OK"; exit 0; }
-echo; echo "GBRAIN STRUCTURAL CHECK FAILED"; exit 1
+# Must NOT package exclusive CLI / nightly dream.
+if grep -qE 'hermes-gbrain-nightly|hermes-gbrain-exclusive|hermes-gbrain-consolidate|hermes-gbrain-dream|hermes-gbrain-embed' "$H/gbrain.nix"; then
+  # Allow only in enable=false / rm -f purge lines
+  if grep -E 'writeShellApplication|ExecStart.*gbrain-nightly|environment.systemPackages' "$H/gbrain.nix" | grep -qE 'gbrain|exclusive|nightly|consolidate'; then
+    fail_ "gbrain.nix still packages exclusive CLI surface"
+  else
+    pass "gbrain.nix mentions legacy names only for disable/purge"
+  fi
+else
+  pass "no exclusive script names in gbrain.nix"
+fi
+
+grep -q './gbrain.nix' "$H/default.nix" && pass "default.nix imports gbrain" || fail_ "gbrain not imported"
+grep -q 'validate-gbrain' "$ROOT/deploy" && pass "deploy validate-gbrain" || fail_ "deploy missing validate-gbrain"
+if grep -qE 'gbrain-consolidate|hermes-gbrain-consolidate' "$ROOT/deploy"; then
+  fail_ "deploy still references gbrain-consolidate"
+else
+  pass "deploy has no gbrain-consolidate"
+fi
+# Obsolete exclusive scripts must not exist in tree
+for dead in gbrain-exclusive-cli.sh hermes-gbrain-exclusive.sh hermes-gbrain-consolidate.sh \
+  hermes-gbrain-dream.sh hermes-gbrain-embed.sh hermes-gbrain-nightly.sh; do
+  if [ -e "$H/scripts/$dead" ]; then
+    fail_ "obsolete script still present: scripts/$dead"
+  fi
+done
+pass "exclusive CLI scripts removed from tree"
+
+grep -q 'gbrain serve' "$H/BOOTSTRAP.md" && pass "BOOTSTRAP documents gbrain serve" || fail_ "BOOTSTRAP incomplete"
+grep -qiE 'never shell|MCP only|MCP-only' "$H/memory/AGENTS.md" && pass "memory AGENTS MCP-only policy" || fail_ "memory AGENTS missing MCP-only"
+
+if [ "$fail" -ne 0 ]; then
+  echo "check-gbrain FAILED ($fail)"
+  exit 1
+fi
+echo "check-gbrain OK"

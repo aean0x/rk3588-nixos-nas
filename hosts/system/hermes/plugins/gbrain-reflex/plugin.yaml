@@ -1,9 +1,0 @@
-name: gbrain-reflex
-version: 0.1.0
-description: >
-  Inject compact GBrain page pointers into each turn from a static alias index
-  (Hermes-native pre_llm_call). Complements MCP gbrain tools + retrieval-reflex skill.
-author: aean0x
-kind: standalone
-provides_hooks:
-  - pre_llm_call
