@@ -24,7 +24,7 @@ Key subcommands:
 - `./deploy remote-upgrade` — same as remote-switch + update flake inputs (long; may rebuild kernel)
 - `./deploy logs <container>` — tail a Docker container's logs
 - `./deploy hermes <cmd>` — Hermes CLI on the device (chat, doctor, gateway, …)
-- `./deploy validate-gbrain` / `clean-hermes-state` — GBrain ops (MCP + reflex; no exclusive CLI)
+- `./deploy validate-gbrain` / `gbrain-setup` / `clean-hermes-state` — GBrain ops (HTTP sole-owner + two plugins; no exclusive CLI)
 - `./deploy <container>` — exec into a container
 
 ## Architecture Overview

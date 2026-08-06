@@ -32,6 +32,7 @@ usage() {
     echo "  hermes <cmd>         Hermes Agent CLI (hermes doctor, hermes chat, hermes gateway, ...)"
     echo "  onedrive-sync        Trigger OneDrive sync now (feeds /var/lib/hermes/workspace)"
     echo "  validate-gbrain      Run GBrain integration checks (MCP + reflex)"
+    echo "  gbrain-setup         Post-install GBrain (CLI, token, import, embed, HTTP)"
     echo "  clean-hermes-state   Soft-reset Hermes (keeps gbrain CLI + brain)"
     echo ""
     echo "Troubleshooting:"
@@ -87,6 +88,14 @@ case "$CMD" in
         scp ${SSH_OPTS} "${REPO_ROOT}/hosts/system/hermes/scripts/validate-gbrain-integration.sh" \
             "$TARGET:/tmp/validate-gbrain-integration.sh"
         ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/validate-gbrain-integration.sh"
+        ;;
+
+    gbrain-setup)
+        check_ssh
+        info "Uploading and running GBrain post-install setup..."
+        scp ${SSH_OPTS} "${REPO_ROOT}/hosts/system/hermes/scripts/gbrain-setup.sh" \
+            "$TARGET:/tmp/gbrain-setup.sh"
+        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/gbrain-setup.sh"
         ;;
 
     clean-hermes-state)

@@ -8,10 +8,12 @@ pass() { echo "PASS $*"; }
 fail_() { echo "FAIL $*"; fail=1; }
 
 for f in gbrain.nix memory/AGENTS.md memory/registry.json memory/export-schema.json \
-  BOOTSTRAP.md prompts/agents-gbrain.md plugins/gbrain-retrieval-reflex/plugin.yaml \
-  plugins/gbrain-retrieval-reflex/__init__.py; do
+  BOOTSTRAP.md prompts/agents-gbrain.md prompts/gbrain-bootstrap-query.txt \
+  scripts/gbrain-setup.sh plugins/gbrain-retrieval-reflex/plugin.yaml \
+  plugins/gbrain-retrieval-reflex/__init__.py reference/GBRAIN.md; do
   [ -f "$H/$f" ] && pass "present $f" || fail_ "missing $f"
 done
+grep -q 'gbrain-setup' "$ROOT/deploy" && pass "deploy gbrain-setup" || fail_ "deploy missing gbrain-setup"
 
 grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && pass "mcpServers.gbrain in gbrain.nix" || fail_ "no mcpServers.gbrain"
 grep -q 'gbrain-mcp-http' "$H/gbrain.nix" && pass "gbrain-mcp-http unit" || fail_ "no gbrain-mcp-http"

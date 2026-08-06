@@ -1,7 +1,10 @@
-# GBrain (host stub)
+# GBrain (operator reference)
 
 **Canonical SoT:** GBrain page `ops/gbrain-protocol` (MCP `get_page`).  
-Infra policy (Nix reinstalls). Hermes owns **brain pages**, not host pointer JSON.
+Repo-only doc (not installed into live workspace). Hermes owns **brain pages**.
+
+**Fresh-host setup:** `./deploy gbrain-setup` → `scripts/gbrain-setup.sh`  
+**Agent bootstrap prompt:** `prompts/gbrain-bootstrap-query.txt`
 
 ## Rules
 
