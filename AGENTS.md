@@ -172,7 +172,7 @@ Starlink CGNAT: inbound 443 and orange-cloud→origin both fail. Public HTTPS us
 
 ```nix
 # Same shape as caddy.proxyServices — declare in the service module:
-services.cloudflareTunnel.proxyServices."open-webui.${settings.domain}" = 8080;
+services.cloudflareTunnel.proxyServices."archimedes.${settings.domain}" = 8787;
 services.cloudflareTunnel.proxyServices."homeassistant.${settings.domain}" = 8123;
 ```
 

@@ -47,7 +47,7 @@ in
       );
       default = { };
       example = {
-        "open-webui.example.io" = 8080;
+        "archimedes.example.io" = 8787;
         "homeassistant.example.io" = 8123;
       };
     };

@@ -3,12 +3,14 @@
 ## Scope
 
 - **Runtime:** official `hermes-agent` NixOS module, container mode (`ubuntu:24.04`, `--network=host`).
-- **Model routing:** explicit config axes (no automatic task classifier):
-  - **Main / orchestration:** `model.provider=xai-oauth`, `model.default=grok-4.5` (Telegram chat, interactive).
-  - **Delegation:** `delegation` → OpenRouter `deepseek/deepseek-v4-flash` (child agents only).
-  - **Auxiliary:** compression, titles, approvals, monitor, background_review, … → DeepSeek Flash.
-  - **Cron fleet:** `cron.model` + `cron.model_provider` → DeepSeek Flash (unpinned jobs; beats chat model).
-  - Per-job `jobs.json` `model`/`provider` still wins for a single schedule.
+- **Model routing (80/20):** explicit axes (no automatic task classifier):
+  - **Main / orchestration:** `model.provider=xai-oauth`, `model.default=grok-4.5` (chat, tool loops, judgment).
+  - **Delegation:** OpenRouter `deepseek/deepseek-v4-flash` for the subagent fleet (`delegate_task`).
+  - **Auxiliary → Flash:** title_generation, compression, approval, web_extract, skills_hub, mcp, triage_specifier, kanban_decomposer, profile_describer, curator, background_review, monitor, memory_query_rewrite (`reasoning_effort=none`).
+  - **Vision:** left on main (Grok native vision; override only if volume/pricing hurts).
+  - **Cron fleet:** `cron.model` + `cron.model_provider` → DeepSeek Flash (unpinned jobs).
+  - Per-job `jobs.json` / per-`delegate_task` model still wins when set.
+  - Official ref: hermes-agent docs *Configuring Models*.
 - **Identity:** declarative **SOUL.md is disabled**. Fresh agent; no forced persona from Nix.
 - **Long-term memory:** **GBrain** — this is the primary integration focus.
 
@@ -24,7 +26,7 @@ hosts/system/hermes/
 ├── package-fix.nix     # silence-marker only (drop when upstream _is_token fixed)
 ├── gbrain.nix           # MCP gbrain, timers, gbrain-reflex, host CLIs
 ├── context-manager.nix  # hermes-context-manager (HMC) pin + config
-├── open-webui.nix       # Open WebUI :8080 → Hermes API :8642 (loopback) + Caddy
+├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
 ├── browser.nix          # Brave sticky profile + CDP + cookie import
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
@@ -34,14 +36,15 @@ hosts/system/hermes/
 ├── memory/              # declarative memory plane
 ├── scripts/
 ├── BOOTSTRAP.md
-└── workspace/           # GBRAIN.md, OPEN-WEBUI.md, pointer index, soul draft
+└── workspace/           # GBRAIN.md, HERMES-WEBUI.md, pointer index, soul draft
 ```
 
-## Open WebUI
+## Hermes WebUI
 
-`https://open-webui.<domain>/` — LAN via Caddy, WAN via `services.cloudflareTunnel.proxyServices` (CGNAT tunnel).
-Shared sops `hermes_api_server_key` → `API_SERVER_KEY` + Open WebUI `OPENAI_API_KEY`.
-Runbook: `workspace/OPEN-WEBUI.md`.
+`https://archimedes.<domain>/` — LAN via Caddy, WAN via `services.cloudflareTunnel.proxyServices` (CGNAT tunnel).
+Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
+Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes-webui.env` and `/run/hermes.env`.
+Runbook: `workspace/HERMES-WEBUI.md`.
 
 ## Token lean + plugins (0.19)
 

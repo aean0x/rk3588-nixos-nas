@@ -72,9 +72,11 @@ let
     ZEROENTROPY_API_KEY = "zeroentropy_api_key";
     # Firecrawl (Hermes web_extract / scrape backend).
     FIRECRAWL_API_KEY = "firecrawl_api_key";
-    # Hermes OpenAI-compatible API server (Open WebUI / loopback clients).
+    # Hermes OpenAI-compatible API server (loopback clients).
     # Distinct from OPENAI_API_KEY above (that one is OpenRouter for LLM routing).
     API_SERVER_KEY = "hermes_api_server_key";
+    # Hermes WebUI / agent TTS (server-side ElevenLabs).
+    ELEVENLABS_API_KEY = "elevenlabs_api_key";
   };
 in
 {
@@ -120,9 +122,11 @@ in
         x_bearer_token = { };
         github_pat = { };
         btc_wallet_key = { };
-        # Shared bearer for Hermes API_SERVER_KEY + Open WebUI OPENAI_API_KEY.
+        # Shared bearer for Hermes API_SERVER_KEY (loopback OpenAI-compatible API).
         # Generate: openssl rand -hex 32
         hermes_api_server_key = { };
+        # ElevenLabs TTS for Hermes WebUI (and agent when it uses the same env).
+        elevenlabs_api_key = { };
         # Hermes → workstation agent SSH private key (/run/secrets/…).
         # Used only by ssh-workstation wrappers (IdentityFile). Do not copy into
         # hermes HOME — keep out of the model’s normal workspace tree.
@@ -168,7 +172,7 @@ in
             ) hermesSecrets)
             ++ [
               ""
-              "# Hermes OpenAI-compatible API server (Open WebUI / loopback clients)"
+              "# Hermes OpenAI-compatible API server (loopback clients)"
               "API_SERVER_ENABLED=true"
               "API_SERVER_HOST=127.0.0.1"
               "API_SERVER_PORT=8642"
@@ -176,13 +180,14 @@ in
             ]
           );
         };
-        # Open WebUI OPENAI_API_KEY must match Hermes API_SERVER_KEY.
-        openWebuiEnv = {
-          owner = "root";
-          group = "root";
+        # Hermes WebUI process env (ELEVENLABS_API_KEY for server-side TTS).
+        # Also mirrored into /run/hermes.env via hermesSecrets for HERMES_HOME/.env.
+        hermesWebuiEnv = {
+          owner = "hermes";
+          group = "hermes";
           mode = "0400";
-          path = "/run/open-webui.env";
-          content = "OPENAI_API_KEY=${config.sops.placeholder.hermes_api_server_key}";
+          path = "/run/hermes-webui.env";
+          content = "ELEVENLABS_API_KEY=${config.sops.placeholder.elevenlabs_api_key}";
         };
       }
       (lib.mkIf wifiEnabled {
