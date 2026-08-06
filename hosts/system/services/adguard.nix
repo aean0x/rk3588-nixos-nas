@@ -30,8 +30,11 @@ in
       http.address = "0.0.0.0:${toString port}";
 
       dns = {
+        # Bind all IPv4 (incl. loopback). Host resolv uses 127.0.0.1 so hermes
+        # and other local services hit this cache instead of public DNS direct.
         bind_hosts = [ "0.0.0.0" ];
         port = 53;
+        # Upstream = public recursive only. Never 127.0.0.1 (recursion loop).
         upstream_dns = [
           settings.network.dnsPrimary
           settings.network.dnsSecondary
@@ -39,6 +42,16 @@ in
         bootstrap_dns = [
           "1.1.1.3"
           "1.0.0.3"
+        ];
+        # Real cache (nsncd hosts TTL is forced 0 — AGH is the only useful layer).
+        cache_size = 64 * 1024 * 1024; # 64 MiB
+        cache_ttl_min = 30;
+        cache_optimistic = true;
+        # Cron / agent storms can exceed default ~20 rps/client; don't 429 localhost/LAN.
+        ratelimit = 0;
+        ratelimit_whitelist = [
+          "127.0.0.1"
+          "192.168.1.0/24"
         ];
       };
 
@@ -138,8 +151,15 @@ in
     };
   };
 
-  # systemd-resolved conflicts with port 53
+  # systemd-resolved conflicts with port 53 — AGH owns :53 on this host.
   services.resolved.enable = false;
+
+  # Agent gateway does many concurrent LLM DNS lookups at cron boundaries.
+  # Prefer AGH up first so early ticks don't race an empty cache/cold start.
+  systemd.services.hermes-agent = {
+    after = [ "adguardhome.service" ];
+    wants = [ "adguardhome.service" ];
+  };
 
   networking.firewall = {
     allowedTCPPorts = [

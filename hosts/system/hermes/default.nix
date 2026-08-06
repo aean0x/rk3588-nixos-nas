@@ -241,6 +241,9 @@ in
       max_turns = 120;
       agent = {
         max_turns = 80;
+        # Ride out brief local DNS blips (EAI_AGAIN) without killing the whole
+        # cron tick. Default 3 was too tight when public resolv had no cache.
+        api_max_retries = 8;
         # Safe platform toolset prune only (HA/cron/web/browser/etc. stay enabled).
         disabled_toolsets = [
           "video"
