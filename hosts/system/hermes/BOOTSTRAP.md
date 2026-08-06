@@ -152,7 +152,7 @@ Expect: MCP gbrain present, reflex plugins installed, **no** exclusive CLI bins/
 **Policy:** MCP + reflex only. Host exclusive consolidate/dream/embed/nightly **removed**. Do not run `gbrain` CLI while hermes-agent is up (PGLite single-writer). Operator CLI only with agent **stopped** for disaster recovery.
 
 **PGLite WASM Aborted:** data dir damage (not “MEMORY full”).  
-See `workspace/GBRAIN.md` → recovery: stop agent → rotate DB if needed → reimport `~/brain` → **start agent** before trusting MCP.
+See `reference/GBRAIN.md` → recovery: ensure `gbrain-mcp-http` sole owner; reimport `~/brain` only if needed.
 
 ---
 
@@ -184,7 +184,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
 | Model provider `xai-oauth` + default `grok-4.5` | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
-| `GBRAIN.md` policy stub | Yes (always managed; MCP-only policy) |
+| Operator refs (`reference/GBRAIN.md`, `HERMES-WEBUI.md`) | Repo only — not live workspace |
 | retrieval-reflex skill | Yes (always managed; gbrain-native policy) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
@@ -232,7 +232,7 @@ LAN: Caddy `archimedes.<domain>`. WAN: Cloudflare Tunnel (`services.cloudflareTu
 WebUI runs the agent **in-process** against `HERMES_HOME` (`/var/lib/hermes/.hermes`).
 Optional loopback API still on **:8642** for scripts. Dashboard (`hermes.<domain>`) is LAN-only.
 
-Full runbook: **`workspace/HERMES-WEBUI.md`**.
+Full runbook: **`reference/HERMES-WEBUI.md`**.
 
 | Path | Role |
 |------|------|

@@ -90,7 +90,7 @@ in
       tts = {
         provider = "elevenlabs";
         elevenlabs = {
-          voice_id = "pNInz6obpgDQGcFmaJgB";
+          voice_id = "2LslKNCAKrrgSuf8fLbc";
           model_id = "eleven_flash_v2_5";
         };
       };

@@ -83,7 +83,7 @@ All inbox JSON must validate against `export-schema.json` (required: `record_id`
 
 - MCP: `gbrain serve` — **only** agent path for brain I/O
 - CLI: bootstrap / disaster recovery **with agent stopped** (operator only)
-- Protocol: `/data/workspace/GBRAIN.md` (stub); SoT page `ops/gbrain-protocol`
+- Protocol SoT: GBrain page `ops/gbrain-protocol` (MCP). Host operator ref: repo `reference/GBRAIN.md` (not in live workspace).
 
 ### Config vs agent
 

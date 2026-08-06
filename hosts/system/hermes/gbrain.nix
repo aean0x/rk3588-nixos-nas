@@ -1,20 +1,15 @@
-# Hermes ↔ G-Brain: registry, MCP serve, native retrieval-reflex plugin.
+# Hermes ↔ G-Brain: registry, shared HTTP MCP, retrieval-reflex + memory-flush.
 #
-# Agent path: MCP `gbrain serve` (put_page / query / get_page /
-# volunteer_context / …). Never shell `gbrain` CLI — PGLite single-writer.
+# PGLite is single-writer. Hermes binds MCP to *each agent process* (stdio
+# spawn). Gateway + WebUI + CLI ⇒ multiple stdio `gbrain serve` children ⇒
+# lock orphans (NousResearch/hermes-agent#72887). Durable fix: one supervised
+# `gbrain serve --http` owns PGLite; all clients use HTTP MCP URL.
 #
-# Push/reflex (docs/guides/push-context.md + resolve-ipc.ts):
-#   - ambient: plugin gbrain-retrieval-reflex → unix resolve socket owned by
-#     live `gbrain serve` (candidates in, pointers out; no second PGLite)
-#   - op: MCP volunteer_context (agent/skill multi-turn window)
-# No host static pointer JSON.
+# See gbrain docs/mcp/DEPLOY.md and push-context.md (resolve IPC still on the
+# single HTTP serve process).
 #
-# MCP child must INHERIT agent env (ZEROENTROPY_API_KEY from /run/hermes.env).
-# Do not mkForce env={HOME,PATH} only — that strips embeddings keys from serve.
-# PATH is fixed via a thin wrapper instead.
-#
-# Maintenance: gbrain MCP surfaces; Hermes cron via MCP tools only.
-# Do NOT reintroduce exclusive consolidate/dream host wrappers.
+# Hermes additions: gbrain-retrieval-reflex, gbrain-memory-flush only.
+# No exclusive consolidate/dream host wrappers. No static pointer JSON.
 {
   lib,
   pkgs,
@@ -27,32 +22,79 @@ let
   schemaFile = "${memoryDir}/export-schema.json";
   agentsManifest = "${memoryDir}/AGENTS.md";
 
-  # Preserve parent env (secrets); only pin PATH for bun-global gbrain.
-  # Installed to /var/lib/hermes/bin → container /data/bin (not a bare nix-store
-  # path in mcp config — MCP child runs inside the container).
-  gbrainMcpServeScript = pkgs.writeShellScript "gbrain-mcp-serve" ''
-    export HOME="''${HOME:-/home/hermes}"
-    export PATH="/home/hermes/.npm-global/bin:/home/hermes/.bun/bin:/data/toolbox/bin:/usr/local/bin:/usr/bin:/bin''${PATH:+:$PATH}"
-    exec gbrain serve "$@"
+  gbrainHttpPort = 3131;
+  gbrainMcpUrl = "http://127.0.0.1:${toString gbrainHttpPort}/mcp";
+
+  hermesHome = "/var/lib/hermes/home";
+  gbrainBin = "${hermesHome}/.bun/bin/gbrain";
+
+  # Host-side long-lived serve (sole PGLite owner). Bun global under hermes HOME.
+  gbrainHttpScript = pkgs.writeShellScript "gbrain-mcp-http" ''
+    set -euo pipefail
+    export HOME="${hermesHome}"
+    export PATH="${hermesHome}/.bun/bin:${hermesHome}/.npm-global/bin:/var/lib/hermes/toolbox/bin:/run/current-system/sw/bin:/usr/bin:/bin"
+    if [ ! -x "${gbrainBin}" ] && ! command -v gbrain >/dev/null 2>&1; then
+      echo "gbrain-mcp-http: gbrain not installed under ${hermesHome}/.bun/bin (bootstrap first)" >&2
+      exit 1
+    fi
+    cd "$HOME"
+    exec gbrain serve --http --port ${toString gbrainHttpPort} --bind 127.0.0.1
   '';
-  # Container-visible path (stateDir bind).
-  gbrainMcpServeCmd = "/data/bin/gbrain-mcp-serve";
 in
 {
   services.hermes-agent = {
+    # Shared HTTP MCP — no per-agent stdio spawn of gbrain.
     mcpServers.gbrain = {
-      command = gbrainMcpServeCmd;
-      args = [ ];
+      url = gbrainMcpUrl;
       connect_timeout = 120;
       timeout = 120;
-      # Intentionally no env mkForce — inherit ZEROENTROPY_API_KEY and friends
-      # from the hermes-agent process (environmentFiles → /run/hermes.env).
     };
 
     environment = {
       HERMES_MEMORY_REGISTRY = "/data/memory/registry.json";
       GBRAIN_AUDIT_DIR = "/home/hermes/.gbrain/audit";
     };
+  };
+
+  # Sole PGLite owner for multi-client Hermes (gateway + WebUI + CLI).
+  systemd.services.gbrain-mcp-http = {
+    description = "GBrain MCP HTTP (loopback; sole PGLite writer)";
+    after = [
+      "network-online.target"
+      "hermes-agent-setup.service"
+    ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "simple";
+      User = "hermes";
+      Group = "hermes";
+      # ZEROENTROPY_API_KEY and other keys for embeddings.
+      EnvironmentFile = [ "-/run/hermes.env" ];
+      Environment = [
+        "HOME=${hermesHome}"
+        "PATH=${hermesHome}/.bun/bin:${hermesHome}/.npm-global/bin:/var/lib/hermes/toolbox/bin:/run/current-system/sw/bin"
+      ];
+      WorkingDirectory = hermesHome;
+      ExecStart = "${gbrainHttpScript}";
+      Restart = "on-failure";
+      RestartSec = 10;
+      # Avoid tight crash loops when PGLite is locked/damaged.
+      StartLimitIntervalSec = 120;
+      StartLimitBurst = 5;
+      TimeoutStartSec = "120";
+    };
+  };
+
+  # Agents attach after HTTP serve is up (best-effort; they retry connect).
+  systemd.services.hermes-agent = {
+    after = [ "gbrain-mcp-http.service" ];
+    wants = [ "gbrain-mcp-http.service" ];
+  };
+  # Safe even if webui module is disabled (empty merge).
+  systemd.services.hermes-webui = {
+    after = [ "gbrain-mcp-http.service" ];
+    wants = [ "gbrain-mcp-http.service" ];
   };
 
   # Purge former exclusive-CLI surface (one generation of explicit disable is
@@ -77,11 +119,9 @@ in
     }
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
-    # MCP serve wrapper: inherits agent env (ZEROENTROPY_*), fixes PATH for bun gbrain.
-    install -m 0755 -o hermes -g hermes ${gbrainMcpServeScript} \
-      /var/lib/hermes/bin/gbrain-mcp-serve
-    # Purge agent-visible exclusive CLI + host static-pointer workaround.
-    rm -f /var/lib/hermes/bin/gbrain-exclusive-cli \
+    # Purge exclusive CLI + retired stdio serve wrapper (HTTP unit owns serve).
+    rm -f /var/lib/hermes/bin/gbrain-mcp-serve \
+      /var/lib/hermes/bin/gbrain-exclusive-cli \
       /var/lib/hermes/bin/hermes-gbrain-consolidate-inner \
       /var/lib/hermes/bin/hermes-gbrain-embed-inner \
       /var/lib/hermes/bin/hermes-gbrain-consolidate \
@@ -90,7 +130,6 @@ in
       /var/lib/hermes/bin/hermes-gbrain-nightly \
       /var/lib/hermes/bin/hermes-gbrain-exclusive
     rm -f /var/lib/hermes/workspace/gbrain-pointer-index.json
-    # Retire static-index plugin; install native IPC plugin below.
     rm -rf /var/lib/hermes/.hermes/plugins/gbrain-reflex \
       /var/lib/hermes/plugins/gbrain-reflex
 
@@ -117,10 +156,12 @@ in
       chmod 0640 /var/lib/hermes/.hermes/memories/MEMORY.md
     fi
 
-    # ── Workspace: GBRAIN.md is infra policy (always managed) ──
+    # Workspace is Hermes content only (no host GBRAIN.md / HERMES-WEBUI.md).
+    # Operator refs: hosts/system/hermes/reference/{GBRAIN,HERMES-WEBUI}.md
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
-    install -m 0640 -o hermes -g hermes ${./workspace/GBRAIN.md} \
-      /var/lib/hermes/workspace/GBRAIN.md
+    rm -f /var/lib/hermes/workspace/GBRAIN.md \
+      /var/lib/hermes/workspace/HERMES-WEBUI.md \
+      /var/lib/hermes/workspace/OPEN-WEBUI.md
 
     # ── Infra plugins (force-managed code; not agent content) ──
     install_plugin_tree() {
@@ -180,20 +221,52 @@ data = yaml.safe_load(path.read_text()) or {}
 changed = False
 
 mcp = data.setdefault("mcp_servers", {})
-# Match Nix mcpServers.gbrain: /data/bin wrapper inherits agent env.
+# Shared HTTP MCP (sole gbrain process). Drop stdio command/args/env.
+# Bearer: gbrain HTTP requires auth. Prefer token file minted once by operator
+# (`gbrain auth create hermes-agents` → ~/.gbrain/hermes-mcp.token); preserve
+# existing headers if file missing so deploy does not wipe live auth.
 desired_mcp = {
-    "command": "${gbrainMcpServeCmd}",
-    "args": [],
+    "url": "${gbrainMcpUrl}",
     "connect_timeout": 120,
     "timeout": 120,
     "enabled": True,
 }
-# Drop legacy bare command + env strip if still present.
+token = ""
+for tp in (
+    Path("/var/lib/hermes/home/.gbrain/hermes-mcp.token"),
+    Path("/home/hermes/.gbrain/hermes-mcp.token"),
+):
+    try:
+        if tp.is_file():
+            token = tp.read_text(encoding="utf-8").strip()
+            if token:
+                break
+    except OSError:
+        pass
+if not token:
+    # Optional: GBRAIN_REMOTE_TOKEN=... in hermes .env (Hermes-owned)
+    for ep in (
+        Path("/var/lib/hermes/.hermes/.env"),
+        Path("/home/hermes/.hermes/.env"),
+    ):
+        try:
+            if not ep.is_file():
+                continue
+            for line in ep.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.startswith("GBRAIN_REMOTE_TOKEN="):
+                    token = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+        except OSError:
+            pass
+        if token:
+            break
 cur = mcp.get("gbrain") or {}
-if cur.get("command") != desired_mcp["command"] or cur.get("args") != [] or "env" in cur:
-    mcp["gbrain"] = desired_mcp
-    changed = True
-elif not cur.get("enabled", True):
+if token:
+    desired_mcp["headers"] = {"Authorization": f"Bearer {token}"}
+elif isinstance(cur.get("headers"), dict) and cur.get("headers"):
+    desired_mcp["headers"] = cur["headers"]
+# Normalize: never keep stdio fields on gbrain entry
+if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
     changed = True
 

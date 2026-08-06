@@ -14,14 +14,14 @@ for f in gbrain.nix memory/AGENTS.md memory/registry.json memory/export-schema.j
 done
 
 grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && pass "mcpServers.gbrain in gbrain.nix" || fail_ "no mcpServers.gbrain"
-grep -q 'gbrain-mcp-serve\|gbrain serve' "$H/gbrain.nix" && pass "gbrain serve wrapper/path" || fail_ "no gbrain serve"
-# Must not strip MCP child env to HOME/PATH only (kills ZEROENTROPY_API_KEY).
-if grep -n 'env = lib.mkForce' "$H/gbrain.nix" | grep -q .; then
-  fail_ "gbrain.nix still has env = lib.mkForce (strips embeddings keys from MCP child)"
+grep -q 'gbrain-mcp-http' "$H/gbrain.nix" && pass "gbrain-mcp-http unit" || fail_ "no gbrain-mcp-http"
+grep -q 'url = gbrainMcpUrl\|3131/mcp' "$H/gbrain.nix" && pass "HTTP MCP url" || fail_ "no HTTP MCP url"
+# Must not use per-agent stdio gbrain as primary (dual-writer class).
+if grep -A15 'mcpServers.gbrain' "$H/gbrain.nix" | grep -qE 'command\s*='; then
+  fail_ "mcpServers.gbrain still uses stdio command (use HTTP url)"
 else
-  pass "no env = lib.mkForce in gbrain.nix"
+  pass "mcpServers.gbrain is HTTP (no stdio command)"
 fi
-grep -q 'gbrain-mcp-serve\|/data/bin/gbrain-mcp-serve' "$H/gbrain.nix" && pass "gbrain-mcp-serve wrapper path" || fail_ "no gbrain-mcp-serve"
 grep -q 'gbrain-retrieval-reflex' "$H/gbrain.nix" && pass "gbrain-retrieval-reflex install" || fail_ "no retrieval-reflex plugin"
 # Static pointer index must be gone
 if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/plugins/gbrain-reflex" ]; then
