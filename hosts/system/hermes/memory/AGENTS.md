@@ -79,9 +79,10 @@ All inbox JSON must validate against `export-schema.json` (required: `record_id`
 ### PGLite single-writer (infra)
 
 - MCP `gbrain serve` holds PGLite exclusively while the gateway is up.
-- Concurrent CLI fails with “database already open”.
-- Host timers (`hermes-gbrain-consolidate`, `gbrain-dream`, `gbrain-embed`) **stop hermes-agent**, run host CLI as `hermes`, then **start** hermes again. No docker-exec race.
-- Operator: `sudo hermes-gbrain-consolidate`
+- Concurrent CLI fails with “database already open” / WASM init abort — **prevention over reinit** (markdown `~/brain` is SoT).
+- Host timers share **`hermes-gbrain-exclusive`**: flock `/run/hermes-gbrain-exclusive.lock` → stop hermes-agent → wait (no serve / no `.gbrain-lock`) → CLI → restart. systemd `Conflicts=` across consolidate/dream/embed.
+- Ad-hoc: `/var/lib/hermes/bin/gbrain-exclusive-cli` refuses if agent or serve is up (does not stop agent).
+- Operator: `sudo hermes-gbrain-consolidate` (same exclusive path). Runbook: `workspace/GBRAIN.md`.
 
 ### Surfaces
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host-only GBrain embed --stale (stops hermes-agent for exclusive PGLite).
+# Host-only GBrain embed --stale (exclusive via hermes-gbrain-exclusive).
 set -euo pipefail
 
 LOG_TAG="hermes-gbrain-embed"
@@ -12,15 +12,7 @@ if [[ ! -e /home/hermes ]]; then
   ln -sfn "$HOME_DIR" /home/hermes 2>/dev/null || true
 fi
 
-log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",\"msg\":$1}"; }
-
-started=0
-cleanup() {
-  if [[ "$started" -eq 1 ]]; then
-    systemctl start hermes-agent.service 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT
+log() { echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"component\":\"$LOG_TAG\",$1}"; }
 
 for f in /run/hermes.env "$STATE/.env"; do
   [[ -f "$f" ]] || continue
@@ -35,19 +27,28 @@ if [[ -z "${ZEROENTROPY_API_KEY:-}" && -z "${OPENAI_API_KEY:-}" ]]; then
   exit 0
 fi
 
-log '"event":"stopping_hermes_for_pglite"'
-systemctl stop hermes-agent.service
-started=1
-sleep 2
-rm -rf "$HOME_DIR/.gbrain/brain.pglite/.gbrain-lock" 2>/dev/null || true
+# Re-exec under exclusive runner unless already held.
+if [[ "${HERMES_GBRAIN_EXCLUSIVE:-}" != 1 ]]; then
+  EXCL="${HERMES_GBRAIN_EXCLUSIVE_BIN:-hermes-gbrain-exclusive}"
+  if ! command -v "$EXCL" >/dev/null 2>&1; then
+    log '"error":"exclusive_runner_missing"'
+    exit 2
+  fi
+  log '"event":"delegating_to_exclusive_runner"'
+  exec "$EXCL" -- env HERMES_GBRAIN_EXCLUSIVE=1 \
+    ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" \
+    OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+    "$0" "$@"
+fi
 
-# cwd under hermes HOME so bun can posix_spawn (see consolidate.sh)
+# Payload runs as hermes (exclusive default) with cwd under HOME.
 set +e
-runuser -u hermes -- env HOME="$HOME_DIR" PATH="$PATH" \
-  ZEROENTROPY_API_KEY="${ZEROENTROPY_API_KEY:-}" OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
-  bash -c 'cd "$HOME" && exec gbrain embed --stale'
+gbrain embed --stale 2> >(tee /tmp/gbrain-embed.err >&2)
 ec=$?
 set -e
+if [[ "$ec" -ne 0 ]] && grep -qiE 'WASM|Aborted|already (instantiated|open)|multiple PGLite|failed to initialize' /tmp/gbrain-embed.err 2>/dev/null; then
+  log '"error":"pglite_wasm_or_lock","hint":"exclusive gbrain doctor; backup brain.pglite; reinit only if doctor confirms — never auto-reinit (see workspace/GBRAIN.md)"'
+fi
 echo "{\"embed\":$([[ $ec -eq 0 ]] && echo true || echo false)}"
 log '"status":"complete"'
 exit "$ec"
