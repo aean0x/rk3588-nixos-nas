@@ -102,8 +102,8 @@ Optional API-key fallback (already in sops as `XAI_API_KEY`): set provider to `x
 | 1 | Install **bun** + **gbrain CLI** (`bun install -g github:garrytan/gbrain`) under hermes HOME |
 | 2 | `gbrain init --pglite` if no `~/.gbrain/brain.pglite` |
 | 3 | `~/brain` git tree; `gbrain config set search.mode balanced` |
-| 4 | Mint HTTP bearer: `gbrain auth create hermes-agents` → `~/.gbrain/hermes-mcp.token` + `GBRAIN_REMOTE_TOKEN` in `.hermes/.env` |
-| 5 | Wire `config.yaml` headers (setup script / activation) |
+| 4 | Mint HTTP bearer: `gbrain auth create hermes-agents` → token file + `GBRAIN_REMOTE_TOKEN` in `.hermes/.env` (Hermes env, **not** sops) |
+| 5 | Wire `config.yaml` with **literal** `Bearer <token>` (never `${GBRAIN_REMOTE_TOKEN}`) — skill `gbrain-http-auth` / `gbrain-setup` |
 | 6 | Import markdown: stop serve → `gbrain import ~/brain --no-embed` |
 | 7 | Embed: `gbrain embed --stale` with ZE (serve still stopped) |
 | 8 | Start `gbrain-mcp-http`, restart `hermes-agent` (+ webui) |

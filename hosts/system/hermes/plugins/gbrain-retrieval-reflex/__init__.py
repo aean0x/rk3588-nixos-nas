@@ -27,9 +27,13 @@ logger = logging.getLogger(__name__)
 
 _MAX_POINTERS = int(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_MAX_POINTERS", "3"))
 _IPC_TIMEOUT_S = float(os.environ.get("GBRAIN_RESOLVE_IPC_TIMEOUT_S", "0.25"))
-_HTTP_TIMEOUT_S = float(os.environ.get("GBRAIN_VOLUNTEER_HTTP_TIMEOUT_S", "2.5"))
-_MAX_CONTEXT_BYTES = 1500
+_HTTP_TIMEOUT_S = float(os.environ.get("GBRAIN_VOLUNTEER_HTTP_TIMEOUT_S", "8.0"))
+_MAX_CONTEXT_BYTES = 1200
 _MIN_MESSAGE_CHARS = 4
+_AUDIT_PATHS = (
+    Path("/var/lib/hermes/home/.gbrain/retrieval-reflex-last.json"),
+    Path("/tmp/gbrain-retrieval-reflex-last.json"),
+)
 
 _MCP_URL = os.environ.get("GBRAIN_MCP_URL", "http://127.0.0.1:3131/mcp").strip()
 _SOCK_NAME = ".gbrain-resolve.sock"
@@ -76,12 +80,20 @@ def on_pre_llm_call(*, user_message: Any = None, **kwargs: Any) -> Optional[Dict
         # After reimport, aliases may be thin — volunteer often returns [] while
         # hybrid query still finds pages (capitalization / confidence gate).
         pages = _volunteer_via_http(text)
+        source = "volunteer_context"
         if not pages:
             pages = _query_via_http(text)
+            source = "query"
         if pages:
             context = _format_pages(pages)
             if context:
-                return {"context": context}
+                _audit({"ok": True, "source": source, "n": len(pages), "slugs": [p.get("slug") for p in pages if isinstance(p, dict)]})
+                logger.warning(
+                    "gbrain-retrieval-reflex: inject source=%s slugs=%s",
+                    source,
+                    [p.get("slug") for p in pages if isinstance(p, dict)][:5],
+                )
+                return {"context": context, "target": "user_message"}
 
         # Optional IPC if sock exists (stdio serve builds only).
         sock = _resolve_socket_path()
@@ -90,12 +102,32 @@ def on_pre_llm_call(*, user_message: Any = None, **kwargs: Any) -> Optional[Dict
             if block:
                 context = _format_block(block)
                 if context:
-                    return {"context": context}
+                    _audit({"ok": True, "source": "ipc", "n": 1})
+                    return {"context": context, "target": "user_message"}
 
+        _audit({"ok": False, "reason": "no_pages", "text_len": len(text)})
         return None
     except Exception as exc:
-        logger.debug("gbrain-retrieval-reflex: fail-open: %s", exc, exc_info=True)
+        logger.warning("gbrain-retrieval-reflex: fail-open: %s", exc, exc_info=True)
+        _audit({"ok": False, "reason": "exception", "error": str(exc)[:200]})
         return None
+
+
+def _audit(payload: Dict[str, Any]) -> None:
+    """Best-effort last-inject marker for live troubleshooting."""
+    payload = {**payload, "ts": __import__("time").time()}
+    raw = json.dumps(payload, ensure_ascii=False)
+    for p in _AUDIT_PATHS:
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(raw + "\n", encoding="utf-8")
+            try:
+                p.chmod(0o644)
+            except OSError:
+                pass
+            return
+        except OSError:
+            continue
 
 
 def _normalize_user_message(user_message: Any) -> str:
@@ -287,10 +319,10 @@ def _query_via_http(user_text: str) -> List[Dict[str, Any]]:
 def _format_pages(pages: List[Dict[str, Any]]) -> str:
     if not pages:
         return ""
+    # Keep synopses short so inject stays compact and visible.
     lines = [
         "## Brain pages (ambient push)",
-        "GBrain surface for this turn (volunteer_context and/or query). "
-        "Open with MCP `get_page` before relying on details — do not answer from MEMORY alone.",
+        "Open with MCP get_page before relying on details.",
         "",
     ]
     for p in pages[:_MAX_POINTERS]:
@@ -298,20 +330,16 @@ def _format_pages(pages: List[Dict[str, Any]]) -> str:
             continue
         display = p.get("display") or p.get("slug") or "?"
         slug = p.get("slug") or ""
-        syn = p.get("synopsis") or p.get("rationale") or ""
-        conf = p.get("confidence")
-        conf_s = f" conf={conf}" if conf is not None else ""
+        syn = (p.get("synopsis") or p.get("rationale") or "").replace("\n", " ").strip()
+        if len(syn) > 80:
+            syn = syn[:77] + "…"
         syn_s = f" — {syn}" if syn else ""
-        lines.append(f"- **{display}** → `{slug}`{syn_s}{conf_s}")
-    lines.append("Use MCP `get_page` on salient slugs; never shell `gbrain` CLI.")
+        lines.append(f"- **{display}** → `{slug}`{syn_s}")
+    lines.append("Never shell gbrain CLI while serve is up.")
     context = "\n".join(lines)
-    raw = context.encode("utf-8")
-    if len(raw) <= _MAX_CONTEXT_BYTES:
+    if len(context.encode("utf-8")) <= _MAX_CONTEXT_BYTES:
         return context
-    body = lines[3:-1]
-    while body and len("\n".join(lines[:3] + body + lines[-1:]).encode("utf-8")) > _MAX_CONTEXT_BYTES:
-        body.pop()
-    return "\n".join(lines[:3] + body + [lines[-1]])
+    return "\n".join(lines[: 3 + _MAX_POINTERS] + [lines[-1]])
 
 
 # ── Optional resolve IPC (stdio serve only) ───────────────────────────────
