@@ -90,7 +90,7 @@ in
       tts = {
         provider = "elevenlabs";
         elevenlabs = {
-          voice_id = "2LslKNCAKrrgSuf8fLbc";
+          voice_id = "DfE5EkknFF950NR6OMui";
           model_id = "eleven_flash_v2_5";
         };
       };
@@ -233,6 +233,13 @@ in
           "tool-call-coherency"
           "projects-auto-commit"
         ];
+      };
+
+      # Needs HERMES_BUNDLED_PLUGINS (package-fix + WebUI extraEnvironment)
+      # so discovery finds share/…/plugins/web/*/plugin.yaml.
+      web = {
+        search_backend = "xai";
+        extract_backend = "firecrawl";
       };
 
       # Match host timezone so cron schedules and session timestamps are correct.

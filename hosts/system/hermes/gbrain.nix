@@ -131,7 +131,9 @@ in
       /var/lib/hermes/bin/hermes-gbrain-exclusive
     rm -f /var/lib/hermes/workspace/gbrain-pointer-index.json
     rm -rf /var/lib/hermes/.hermes/plugins/gbrain-reflex \
-      /var/lib/hermes/plugins/gbrain-reflex
+      /var/lib/hermes/plugins/gbrain-reflex \
+      /var/lib/hermes/.hermes/plugins/web-backends-fix \
+      /var/lib/hermes/plugins/web-backends-fix
 
     # ── Always managed (memory contract / registry) ──
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/memory
@@ -292,10 +294,11 @@ desired_plugins = [
     "tool-call-coherency",
     "projects-auto-commit",
 ]
-# Drop retired static-index plugin if still listed.
-if "gbrain-reflex" in enabled:
-    enabled[:] = [n for n in enabled if n != "gbrain-reflex"]
-    changed = True
+# Drop retired plugins (static index; packaging workaround superseded by HERMES_BUNDLED_PLUGINS).
+for retired in ("gbrain-reflex", "web-backends-fix"):
+    if retired in enabled:
+        enabled[:] = [n for n in enabled if n != retired]
+        changed = True
 for name in desired_plugins:
     if name not in enabled:
         enabled.append(name)

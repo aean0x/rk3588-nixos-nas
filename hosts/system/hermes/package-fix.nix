@@ -6,10 +6,18 @@
 #
 # Outer package is a thin wrapper (bin/ + share/); Python lives in hermesVenv.
 # Drop silence patch when upstream uses _canonical_silence_candidates in _is_token.
+#
+# Bundled plugins: upstream Nix intentionally keeps plugin.yaml trees under
+# $out/share/hermes-agent/plugins and sets HERMES_BUNDLED_PLUGINS on the *wrapped*
+# hermes binary. The container module runs hermes-agent-env/bin/hermes (venv
+# entrypoint) without that wrapper, so discovery falls back to site-packages
+# plugins/ (code only, no manifests) → empty web/image_gen registries.
+# Inject the share path into the service + container env for both runtimes.
 {
   lib,
   pkgs,
   inputs,
+  config,
   ...
 }:
 
@@ -68,14 +76,42 @@ let
       };
     }
   ) { };
+
+  # Same package-data env the upstream $out/bin/hermes makeWrapper sets
+  # (share/ has plugin.yaml; site-packages does not). Single map for agent
+  # service + container + WebUI (see hermes-webui.nix).
+  pkg = hermesAgentFixed;
+  share = "${pkg}/share/hermes-agent";
+  hermesPackageDataEnv = {
+    HERMES_BUNDLED_PLUGINS = "${share}/plugins";
+    HERMES_BUNDLED_SKILLS = "${share}/skills";
+    HERMES_OPTIONAL_SKILLS = "${share}/optional-skills";
+    HERMES_BUNDLED_LOCALES = "${share}/locales";
+    HERMES_OPTIONAL_MCPS = "${share}/optional-mcps";
+    HERMES_WEB_DIST = "${share}/web_dist";
+    HERMES_TUI_DIR = "${pkg}/ui-tui";
+  };
 in
 {
   services.hermes-agent.package = lib.mkForce hermesAgentFixed;
 
-  services.hermes-agent.environment.PYTHONPATH = "${silenceFixedGateway}/${siteRel}";
+  # Expose for hermes-webui.nix (and any other second agent process).
+  _module.args.hermesPackageDataEnv = hermesPackageDataEnv;
 
-  services.hermes-agent.container.extraOptions = [
-    "--env"
-    "PYTHONPATH=${silenceFixedGateway}/${siteRel}"
-  ];
+  services.hermes-agent.environment = hermesPackageDataEnv // {
+    PYTHONPATH = "${silenceFixedGateway}/${siteRel}";
+  };
+
+  services.hermes-agent.container.extraOptions = lib.flatten (
+    [
+      [
+        "--env"
+        "PYTHONPATH=${silenceFixedGateway}/${siteRel}"
+      ]
+    ]
+    ++ lib.mapAttrsToList (k: v: [
+      "--env"
+      "${k}=${v}"
+    ]) hermesPackageDataEnv
+  );
 }

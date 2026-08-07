@@ -45,7 +45,9 @@ hosts/system/hermes/
 `https://archimedes.<domain>/` — LAN via Caddy, WAN via `services.cloudflareTunnel.proxyServices` (CGNAT tunnel).
 Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
 Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes-webui.env` and `/run/hermes.env`.
+WebUI also loads `/run/hermes.env` (full agent secrets) so in-process search/tools match the gateway.
 Flake SoT TTS: `settings.tts.provider=elevenlabs` (`eleven_flash_v2_5`, voice `pNInz6obpgDQGcFmaJgB`).
+Web search: `HERMES_BUNDLED_*` package-data env (from hermes wrapper / package-fix) must reach gateway + WebUI; pin `web.search_backend=xai`.
 Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace).
 
 ## Token lean + plugins (0.19)
