@@ -37,7 +37,8 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 | Path | Env var |
 |------|---------|
 | `/run/hermes.env` | `ELEVENLABS_API_KEY`, `API_SERVER_KEY`, … |
-| `/run/hermes-webui.env` | `ELEVENLABS_API_KEY` |
+| `/run/hermes.env` | Full agent secrets (BRAVE/XAI/FIRECRAWL/…) — required; WebUI is a second in-process agent |
+| `/run/hermes-webui.env` | `ELEVENLABS_API_KEY` (overlay) |
 
 ```bash
 cd secrets && ./decrypt

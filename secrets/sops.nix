@@ -48,6 +48,8 @@ let
     OPENAI_API_KEY = "openrouter_api_key";
     ANTHROPIC_API_KEY = "anthropic_api_key";
     BRAVE_API_KEY = "brave_search_api_key";
+    # Hermes brave_free web backend reads BRAVE_SEARCH_API_KEY (not BRAVE_API_KEY).
+    BRAVE_SEARCH_API_KEY = "brave_search_api_key";
     TELEGRAM_BOT_TOKEN = "telegram_bot_token";
     # Pre-authorizes the admin so the gateway allows access on first boot without DM pairing.
     TELEGRAM_ALLOWED_USERS = "telegram_admin_id";
