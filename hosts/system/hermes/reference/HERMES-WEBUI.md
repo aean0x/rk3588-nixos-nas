@@ -22,6 +22,7 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 - Hermes dashboard (`hermes.<domain>` :9119) remains LAN-only.
 - Port **8787** (WebUI default); state under `/var/lib/hermes-webui`; runs as `hermes:hermes`.
 - Optional loopback API server still on **:8642** for scripts/tools (not used by WebUI chat).
+- **Model Router extension:** `HERMES_WEBUI_EXTENSION_DIR` → flake `plugins/model-router/webui` (store path). Injects `/auto` `/t1` `/t2` `/t3` composer buttons. No WebUI source patches.
 
 ## URL
 

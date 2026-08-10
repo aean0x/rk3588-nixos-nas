@@ -91,7 +91,7 @@ Optional API-key fallback (already in sops as `XAI_API_KEY`): set provider to `x
 | HTTP sole PGLite owner | `gbrain-mcp-http.service` (`gbrain serve --http :3131`) |
 | Hermes MCP client | `mcpServers.gbrain.url = http://127.0.0.1:3131/mcp` |
 | Bearer re-apply on activation | token file `~/.gbrain/hermes-mcp.token` or `GBRAIN_REMOTE_TOKEN` |
-| Plugins | `gbrain-retrieval-reflex`, `gbrain-memory-flush` |
+| Plugins | `gbrain-retrieval-reflex`, `gbrain-memory-flush`, `model-router` |
 | Memory contract | `memory/AGENTS.md`, registry, export schema |
 | `ZEROENTROPY_API_KEY` | sops → `/run/hermes.env` → HTTP unit + agents |
 

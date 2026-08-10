@@ -181,6 +181,7 @@ in
     install_plugin_tree gbrain-memory-flush ${./plugins/gbrain-memory-flush}
     install_plugin_tree tool-call-coherency ${./plugins/tool-call-coherency}
     install_plugin_tree projects-auto-commit ${./plugins/projects-auto-commit}
+    install_plugin_tree model-router ${./plugins/model-router}
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/scripts
     install -m 0755 -o hermes -g hermes ${./scripts/projects_auto_commit.py} \
@@ -293,6 +294,7 @@ desired_plugins = [
     "gbrain-memory-flush",
     "tool-call-coherency",
     "projects-auto-commit",
+    "model-router",
 ]
 # Drop retired plugins (static index; packaging workaround superseded by HERMES_BUNDLED_PLUGINS).
 for retired in ("gbrain-reflex", "web-backends-fix"):

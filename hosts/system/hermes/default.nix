@@ -131,13 +131,13 @@ in
         idle_compact_after_seconds = 1800;
       };
 
-      # ── Model routing (80/20 — official Configuring Models guidance) ──
-      # Main (Grok 4.5): planning, tool loops, high-stakes judgment.
-      # Cheap fleet (DeepSeek V4 Flash via OpenRouter): high-frequency /
-      # low-stakes side work + subagent fleet + unpinned cron.
+      # ── Model routing ──
+      # Per-turn chat: plugin `model-router` (T1 Flash / T2 Pro / T3 Grok).
+      # Native providers — not OpenRouter slugs. See plugins/model-router/.
+      # Cheap fleet (DeepSeek V4 Flash, provider=deepseek): aux + delegate +
+      # unpinned cron. Vision stays on main (Grok native). `provider: auto`
+      # would inherit main for any unset aux slot — every volume task is pinned.
       # Docs: https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
-      # Vision stays on main (Grok has native vision). `provider: auto` would
-      # inherit main for any unset aux slot — every volume task is pinned.
 
       # Sub-agent fleet (delegate_task). Parent stays on main model.
       # Per-task overrides on delegate_task still escalate individual children.
@@ -232,6 +232,7 @@ in
           "gbrain-memory-flush"
           "tool-call-coherency"
           "projects-auto-commit"
+          "model-router"
         ];
       };
 
