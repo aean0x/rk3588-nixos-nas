@@ -3,14 +3,17 @@
 ## Scope
 
 - **Runtime:** official `hermes-agent` NixOS module, container mode (`ubuntu:24.04`, `--network=host`).
-- **Model routing (80/20):** explicit axes (no automatic task classifier):
-  - **Main / orchestration:** `model.provider=xai-oauth`, `model.default=grok-4.5` (chat, tool loops, judgment).
-  - **Delegation:** OpenRouter `deepseek/deepseek-v4-flash` for the subagent fleet (`delegate_task`).
-  - **Auxiliary → Flash:** title_generation, compression, approval, web_extract, skills_hub, mcp, triage_specifier, kanban_decomposer, profile_describer, curator, background_review, monitor, memory_query_rewrite (`reasoning_effort=none`).
-  - **Vision:** left on main (Grok native vision; override only if volume/pricing hurts).
-  - **Cron fleet:** `cron.model` + `cron.model_provider` → DeepSeek Flash (unpinned jobs).
-  - Per-job `jobs.json` / per-`delegate_task` model still wins when set.
-  - Official ref: hermes-agent docs *Configuring Models*.
+- **Model routing:** plugin `model-router` classifies each main-agent turn (native providers, not OpenRouter):
+  - **T1** `deepseek` / `deepseek-v4-flash` — acks + daily driver (old T1+T2).
+  - **T2** `deepseek` / `deepseek-v4-pro` — debug/review/architecture (old T3+T4).
+  - **T3** `xai-oauth` / `grok-4.5` — high-stakes only (old T5). Auto-escalate never reaches T3.
+  - Pins: `/t1` `/t2` `/t3` `/auto` via `ctx.register_command` (CLI + gateway).
+  - Classifier uses existing `auxiliary.triage_specifier` (Flash). No SOUL.md writes.
+  - Cron + `delegate_task` children are skipped (stay on their declared fleet).
+  - **Delegation / aux / cron** still pin Flash: `provider=deepseek`, `model=deepseek-v4-flash`.
+  - **Vision:** left on main (Grok native vision).
+  - Live switch uses `AIAgent.switch_model` + `hermes_cli.model_switch` (same as `/model`). If the agent is not bound yet, the first API call of that turn may still be Grok; later calls apply the classified tier.
+  - WebUI UX is an official extension sidecar (`HERMES_WEBUI_EXTENSION_DIR`), not a core patch.
 - **Identity:** declarative **SOUL.md is disabled**. Fresh agent; no forced persona from Nix.
 - **Long-term memory:** **GBrain** — this is the primary integration focus.
 
@@ -31,7 +34,7 @@ hosts/system/hermes/
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
-├── plugins/             # gbrain-retrieval-reflex (IPC), memory-flush, tool-call-coherency, HMC
+├── plugins/             # gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC, model-router
 ├── skills/              # retrieval-reflex + workstation
 ├── memory/              # declarative memory plane
 ├── scripts/
@@ -53,7 +56,7 @@ Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace
 ## Token lean + plugins (0.19)
 
 - `tool_output` + compression prune/idle in `default.nix`
-- `plugins.enabled`: `hermes-context-manager`, `gbrain-retrieval-reflex`, `gbrain-memory-flush`, `tool-call-coherency`
+- `plugins.enabled`: `hermes-context-manager`, `gbrain-retrieval-reflex`, `gbrain-memory-flush`, `tool-call-coherency`, `projects-auto-commit`, `model-router`
 - After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)
@@ -76,7 +79,7 @@ Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 | Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
 | MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
 | Force-disable of legacy exclusive timers (no new host gbrain CLI) | Cron job prompts/`jobs.json` (MCP-only hygiene), skills after seed |
-| Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
+| Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC, model-router) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
 | Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
 | Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
 
