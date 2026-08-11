@@ -1,14 +1,23 @@
 """model-router — 3-tier cost routing for rocknas Hermes.
 
-T1  deepseek / deepseek-v4-flash   cheap daily driver (old T1+T2)
-T2  deepseek / deepseek-v4-pro     coding, review, design (old T3+T4)
-T3  xai-oauth / grok-4.5           high-stakes only (old T5)
+Collapsed from upstream open-world-project/model-router 5-tier map:
+  old T1+light T2 → T1 Flash
+  old T2+T3       → T2 Pro   (day-to-day coding/review/docs)
+  old T4+T5       → T3 Grok  (architecture, high-stakes, final voice)
+
+Policy:
+  • Work loop runs on classified T1/T2 (or T3 when classified).
+  • Tool-error escalation may climb through T3 Grok and de-escalate back.
+  • After any tool use this turn, subsequent API calls switch to Grok
+    (synthesis / potential final).
+  • If the turn still ends off-Grok (no-tool path), transform_llm_output
+    polishes the draft once via Grok so the user-facing reply is Grok.
+  • Manual /t1 /t2 /t3 pins win over auto final-voice.
 
 No Hermes/WebUI core file edits. Live switch uses AIAgent.switch_model via
 the same hermes_cli.model_switch resolver as /model (native providers, not
-OpenRouter slugs). Agent capture is a register()-time monkeypatch so
-gateway/WebUI have a live handle — same class of workaround as
-tool-call-coherency.
+OpenRouter slugs). Agent capture is deferred so register() cannot circular-
+import run_agent.
 
 Does not write SOUL.md.
 """
@@ -48,25 +57,52 @@ TIERS: dict[int, dict[str, Any]] = {
         "label": "T1 Flash",
         "model": "deepseek-v4-flash",
         "provider": "deepseek",
-        "role": "cheap daily driver",
+        "role": "fast triage + cheap helper",
+        "best_for": [
+            "Short acknowledgements",
+            "Intent classification",
+            "Status checks",
+            "Title generation",
+            "Trivial Q&A / look-ups",
+        ],
     },
     2: {
         "label": "T2 Pro",
         "model": "deepseek-v4-pro",
         "provider": "deepseek",
-        "role": "coding, review, architecture",
+        "role": "default workhorse — coding, review, docs",
+        "best_for": [
+            "Default day-to-day work",
+            "Documentation and drafting",
+            "Standard coding and research",
+            "Debugging",
+            "Code review",
+            "Large-document synthesis",
+            "Complex analysis",
+        ],
     },
     3: {
         "label": "T3 Grok",
         "model": "grok-4.5",
         "provider": "xai-oauth",
-        "role": "high-stakes reasoning only",
+        "role": "high-stakes + final user-facing voice",
+        "best_for": [
+            "Architecture",
+            "Migration planning",
+            "Complex multi-step design",
+            "Nuanced code review",
+            "Security-sensitive analysis",
+            "Algorithmic optimization",
+            "High-stakes reasoning",
+            "Final user-facing response",
+        ],
     },
 }
 
-# Never auto-escalate onto Grok. Classification can still pick T3.
-_ESCALATE_MAX = 2
+# Escalation may climb onto Grok; post_llm_call de-escalates back to base.
+_ESCALATE_MAX = 3
 _ESCALATION_ERROR_THRESHOLD = 2
+_FINAL_TIER = 3
 
 _SKIP_PLATFORMS = frozenset({"cron"})
 
@@ -80,16 +116,31 @@ _ACK_RE = re.compile(
 )
 
 _CLASSIFIER = """\
-You assign a single routing tier (1-3) for the user's message.
+You assign a single WORK routing tier (1-3) for the user's message.
+(The final user-facing reply may still be polished by Grok separately.)
 
-1 = Flash: short acks, status, titles, day-to-day Q&A, docs, file ops, standard coding/research
-2 = Pro: debugging, code review, large-doc synthesis, architecture, migration, multi-step design
-3 = Grok: security/crypto, algorithmic optimization, financial modelling, high-stakes work with many interacting constraints
+1 = Flash — short acks, status, titles, trivial look-ups, pure routing/triage
+2 = Pro — day-to-day work: docs, standard coding/research, debugging, code review,
+    large-doc synthesis, complex analysis, multi-file implementation
+3 = Grok — old T4+T5 territory ONLY: architecture, migration planning, complex
+    multi-step design, nuanced review with subtle failure modes, security/crypto,
+    algorithmic optimization, financial modelling, high-stakes work with many
+    interacting constraints. Also use 3 when the task is primarily judgment/
+    synthesis with no clear cheap tool loop.
 
 Rules:
-- When unsure between two tiers, pick the LOWER one
-- Tier 3 is rare. Do not use it for ordinary planning or coding.
+- When unsure between 1 and 2, pick 2 for real work; pick 1 only for trivial turns.
+- When unsure between 2 and 3, pick 2 unless architecture/security/high-stakes fits.
+- Tier 3 is uncommon but not vanishingly rare — use it when T4/T5 of a 5-tier
+  ladder would have been correct.
 - Respond with ONLY a digit: 1, 2, or 3.
+"""
+
+_FINAL_VOICE_SYSTEM = """\
+You are Archimedes' final voice (Grok). Rewrite the draft assistant reply for the user.
+Preserve every fact, path, command, URL, code block, number, and decision exactly.
+Improve clarity, structure, and voice. Do not invent new claims. Do not mention
+models, tiers, routing, or that a draft existed. Output ONLY the final reply.
 """
 
 _lock = threading.Lock()
@@ -102,6 +153,9 @@ _last_msg: dict[str, tuple[str, int]] = {}
 _tool_errors: dict[str, int] = {}
 _escalated: dict[str, bool] = {}
 _pending: dict[str, int] = {}  # classified but not yet applied
+_tools_this_turn: dict[str, int] = {}
+_user_msg: dict[str, str] = {}  # original user message for final-voice polish
+_ack_turn: dict[str, bool] = {}
 _manager = None
 _patched = False
 
@@ -421,11 +475,15 @@ def _target_tier(session_id: str, msg: str, history: list) -> int:
     with _lock:
         _tool_errors[session_id] = 0
         _escalated[session_id] = False
+        _tools_this_turn[session_id] = 0
+        _user_msg[session_id] = msg
+        _ack_turn[session_id] = False
 
+    is_ack = bool(_ACK_RE.match(msg.strip()) and len(msg.split()) <= 6)
     explicit = _detect_explicit_tier(msg)
     if explicit is not None:
         tier = explicit
-    elif _ACK_RE.match(msg.strip()) and len(msg.split()) <= 6:
+    elif is_ack:
         tier = 1
     else:
         tier = _classify(msg, history)
@@ -435,7 +493,135 @@ def _target_tier(session_id: str, msg: str, history: list) -> int:
         _base_tier[session_id] = tier
         _last_tier[session_id] = tier
         _pending[session_id] = tier
+        _ack_turn[session_id] = is_ack and explicit is None
     return tier
+
+
+def _is_grok_model(model: str | None) -> bool:
+    m = _norm(model or "")
+    return "grok" in m
+
+
+def _messages_after_tools(messages: list | None) -> bool:
+    if not messages:
+        return False
+    for msg in reversed(messages):
+        if not isinstance(msg, dict):
+            continue
+        role = _norm(str(msg.get("role") or ""))
+        if role in ("tool", "function"):
+            return True
+        if role in ("user", "assistant", "system"):
+            return False
+    return False
+
+
+def _force_tier(session_id: str, tier: int, reason: str) -> None:
+    """Apply tier and bookkeep; mark escalated when climbing above base."""
+    with _lock:
+        base = _base_tier.get(session_id, tier)
+        prev = _last_tier.get(session_id, base)
+        if tier > base:
+            _escalated[session_id] = True
+        _last_tier[session_id] = tier
+        _pending[session_id] = tier
+    if tier != prev:
+        logger.info(
+            "model-router: force %s (was T%d → T%d) — %s",
+            TIERS[tier]["label"],
+            prev,
+            tier,
+            reason,
+        )
+    agent = _get_agent(session_id)
+    if agent is not None and _apply_tier(agent, tier):
+        with _lock:
+            _pending.pop(session_id, None)
+
+
+def _extract_call_llm_text(response: Any) -> str:
+    try:
+        choices = getattr(response, "choices", None) or []
+        if choices:
+            msg = getattr(choices[0], "message", None)
+            content = getattr(msg, "content", None) if msg is not None else None
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        parts.append(str(block.get("text") or ""))
+                    elif isinstance(block, str):
+                        parts.append(block)
+                joined = "".join(parts).strip()
+                if joined:
+                    return joined
+    except Exception:
+        pass
+    if isinstance(response, dict):
+        try:
+            return (
+                response["choices"][0]["message"]["content"] or ""
+            ).strip()
+        except Exception:
+            pass
+    return ""
+
+
+def _grok_final_voice(session_id: str, draft: str) -> str | None:
+    """One-shot Grok rewrite so the user-facing reply is always Grok voice."""
+    draft = (draft or "").strip()
+    if not draft:
+        return None
+    with _lock:
+        user_msg = _user_msg.get(session_id, "")
+        is_ack = _ack_turn.get(session_id, False)
+        pinned = _pinned.get(session_id, False)
+        last = _last_tier.get(session_id, 1)
+    if pinned and last < _FINAL_TIER:
+        return None
+    if is_ack:
+        return None
+    # Already produced by Grok — don't double-bill.
+    agent = _agent_for(session_id)
+    live_model = getattr(agent, "model", "") if agent is not None else ""
+    if _is_grok_model(live_model) or last >= _FINAL_TIER:
+        return None
+
+    try:
+        from agent.auxiliary_client import call_llm
+
+        meta = TIERS[_FINAL_TIER]
+        response = call_llm(
+            provider=meta["provider"],
+            model=meta["model"],
+            messages=[
+                {"role": "system", "content": _FINAL_VOICE_SYSTEM},
+                {
+                    "role": "user",
+                    "content": (
+                        f"User request:\n{(user_msg or '')[:2000]}\n\n"
+                        f"Draft reply:\n{draft[:12000]}"
+                    ),
+                },
+            ],
+            temperature=0.2,
+            max_tokens=min(8192, max(512, len(draft) // 2 + 800)),
+        )
+        polished = _extract_call_llm_text(response)
+        if polished and polished != draft:
+            logger.info(
+                "model-router: final voice Grok polish (%d→%d chars)",
+                len(draft),
+                len(polished),
+            )
+            with _lock:
+                _last_tier[session_id] = _FINAL_TIER
+            return polished
+    except Exception as exc:
+        logger.warning("model-router: final voice Grok polish failed: %s", exc)
+    return None
 
 
 def _should_skip(platform: str, kwargs: dict) -> bool:
@@ -504,6 +690,15 @@ def on_pre_api_request(*, session_id: str = "", platform: str = "", **kwargs: An
             return
         pending = _pending.get(sid)
         current = _last_tier.get(sid)
+        tools_n = _tools_this_turn.get(sid, 0)
+
+    # Post-tool API calls: always Grok for synthesis / final.
+    msgs = kwargs.get("request_messages") or kwargs.get("conversation_history")
+    after_tools = tools_n > 0 or _messages_after_tools(msgs if isinstance(msgs, list) else None)
+    if after_tools:
+        _force_tier(sid, _FINAL_TIER, "post-tool synthesis → Grok")
+        return
+
     target = pending or current
     if not target:
         return
@@ -528,6 +723,7 @@ def on_post_tool_call(
     with _lock:
         if _pinned.get(sid, False):
             return
+        _tools_this_turn[sid] = _tools_this_turn.get(sid, 0) + 1
 
     is_error = False
     if result is not None:
@@ -548,19 +744,37 @@ def on_post_tool_call(
         count = _tool_errors.get(sid, 0)
         current = _last_tier.get(sid, 1)
 
+    # Tool-error escalation may climb onto Grok.
     if is_error and count >= _ESCALATION_ERROR_THRESHOLD and current < _ESCALATE_MAX:
         new_tier = min(current + 1, _ESCALATE_MAX)
+        _force_tier(sid, new_tier, f"auto-escalate after {count} tool errors")
         with _lock:
-            _last_tier[sid] = new_tier
-            _pending[sid] = new_tier
             _tool_errors[sid] = 0
-            _escalated[sid] = True
-        agent = _get_agent(sid)
-        if agent is not None:
-            _apply_tier(agent, new_tier)
-            with _lock:
-                _pending.pop(sid, None)
         logger.info("model-router: auto-escalate T%d→T%d after tool errors", current, new_tier)
+        return
+
+    # Even without errors: next API call after tools is Grok (final voice path).
+    if current < _FINAL_TIER:
+        _force_tier(sid, _FINAL_TIER, f"after tool {tool_name or '?'} → Grok final")
+
+
+def on_transform_llm_output(
+    *,
+    response_text: str = "",
+    session_id: str = "",
+    model: str = "",
+    platform: str = "",
+    **kwargs: Any,
+) -> str | None:
+    """If the turn still ends off-Grok, polish once so the user always hears Grok."""
+    if _should_skip(platform, kwargs):
+        return None
+    sid = session_id or ""
+    if not sid or not (response_text or "").strip():
+        return None
+    if _is_grok_model(model):
+        return None
+    return _grok_final_voice(sid, response_text)
 
 
 def on_post_llm_call(*, session_id: str = "", model: str = "", **kwargs: Any) -> None:
@@ -570,16 +784,32 @@ def on_post_llm_call(*, session_id: str = "", model: str = "", **kwargs: Any) ->
         return
     with _lock:
         if _pinned.get(sid, False):
+            # Leave pin alone; clear per-turn counters.
+            _tools_this_turn[sid] = 0
             return
         was = _escalated.get(sid, False)
         base = _base_tier.get(sid, 1)
         current = _last_tier.get(sid, 1)
+        _tools_this_turn[sid] = 0
+
+    # De-escalate bookkeeping back to work base, then rest on Grok (soul).
     if was and current > base:
         with _lock:
             _escalated[sid] = False
             _last_tier[sid] = base
             _pending[sid] = base
-        _apply_tier(agent, base)
+        logger.info(
+            "model-router: de-escalate T%d→T%d (base), then rest on Grok",
+            current,
+            base,
+        )
+
+    # Resting state is always Grok so the lineage/default remains Grok between turns.
+    # Next pre_llm_call re-classifies and downgrades for work.
+    with _lock:
+        _last_tier[sid] = _FINAL_TIER
+        _pending[sid] = _FINAL_TIER
+    if _apply_tier(agent, _FINAL_TIER):
         with _lock:
             _pending.pop(sid, None)
 
@@ -601,6 +831,7 @@ def _cmd_pin(raw_args: str, tier: int) -> str:
         _last_tier[sid] = tier
         _base_tier[sid] = tier
         _pending[sid] = tier
+        _ack_turn[sid] = False
     if agent is not None and _apply_tier(agent, tier):
         with _lock:
             _pending.pop(sid, None)
@@ -618,6 +849,8 @@ def _cmd_auto(raw_args: str) -> str:
     with _lock:
         was = _pinned.pop(sid, False)
         _last_msg.pop(sid, None)
+        _ack_turn.pop(sid, None)
+        _tools_this_turn.pop(sid, None)
     if was:
         return "Auto routing resumed. Next turn is classified on Flash."
     return "Auto routing already active."
@@ -646,11 +879,13 @@ def register(ctx: Any) -> None:
     ctx.register_hook("pre_llm_call", on_pre_llm_call)
     ctx.register_hook("pre_api_request", on_pre_api_request)
     ctx.register_hook("post_tool_call", on_post_tool_call)
+    ctx.register_hook("transform_llm_output", on_transform_llm_output)
     ctx.register_hook("post_llm_call", on_post_llm_call)
     ctx.register_command("t1", lambda args: _cmd_pin(args, 1), "Pin session to T1 DeepSeek Flash")
     ctx.register_command("t2", lambda args: _cmd_pin(args, 2), "Pin session to T2 DeepSeek Pro")
     ctx.register_command("t3", lambda args: _cmd_pin(args, 3), "Pin session to T3 Grok 4.5")
     ctx.register_command("auto", _cmd_auto, "Resume model-router auto routing")
     logger.info(
-        "model-router: T1 flash / T2 pro / T3 grok | /t1 /t2 /t3 /auto | no SOUL writes"
+        "model-router: T1 flash / T2 pro / T3 grok | final=Grok | escalate≤T3 | "
+        "/t1 /t2 /t3 /auto | no SOUL writes"
     )
