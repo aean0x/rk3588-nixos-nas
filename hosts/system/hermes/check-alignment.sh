@@ -100,6 +100,21 @@ else
   pass "SOUL activation disabled (fresh agent)"
 fi
 
+if [[ -f "$HERMES/plugins/model-router/__init__.py" ]]; then
+  if grep -q 'SOUL.md' "$HERMES/plugins/model-router/__init__.py"; then
+    fail "model-router must not write SOUL.md"
+  else
+    pass "model-router does not touch SOUL.md"
+  fi
+  if grep -q 'model-router' "$DEFAULT" && grep -q 'HERMES_WEBUI_EXTENSION_DIR' "$HERMES/hermes-webui.nix"; then
+    pass "model-router enabled + WebUI extension sidecar declared"
+  else
+    fail "model-router missing from plugins.enabled or WebUI extension env"
+  fi
+else
+  fail "missing hosts/system/hermes/plugins/model-router/__init__.py"
+fi
+
 # --- project path docs: no stale services/hermes.nix ---
 if grep -n 'services/hermes\.nix' "$ROOT_AGENTS" "$HERMES_AGENTS" 2>/dev/null; then
   fail "docs still reference stale path services/hermes.nix"

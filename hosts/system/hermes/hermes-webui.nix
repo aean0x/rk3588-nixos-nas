@@ -85,6 +85,10 @@ in
       # Behind Caddy / Cloudflare Tunnel HTTPS.
       HERMES_WEBUI_TRUST_FORWARDED_PROTO = "true";
       HERMES_WEBUI_SECURE = "true";
+      # Official WebUI extension sidecar (no core/static patches).
+      # Store path is read-only and exists before the unit starts.
+      HERMES_WEBUI_EXTENSION_DIR = "${./plugins/model-router/webui}";
+      HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
     };
   };
 
