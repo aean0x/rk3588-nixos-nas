@@ -230,11 +230,18 @@ def _apply_tier(agent: Any, tier: int) -> bool:
 
     try:
         cfg = load_config() or {}
+        # When half-switched (DeepSeek name on xAI host), pass a neutral
+        # current_base_url so resolve does not inherit the wrong host.
+        cur_base = getattr(agent, "base_url", "") or ""
+        cur_prov = getattr(agent, "provider", "") or ""
+        if not _base_url_matches_provider(cur_base, provider):
+            cur_base = ""
+            cur_prov = provider
         result = resolve_switch(
             raw_input=model,
-            current_provider=getattr(agent, "provider", "") or "",
+            current_provider=cur_prov,
             current_model=getattr(agent, "model", "") or "",
-            current_base_url=getattr(agent, "base_url", "") or "",
+            current_base_url=cur_base,
             current_api_key=getattr(agent, "api_key", "") or "",
             is_global=False,
             explicit_provider=provider,
@@ -253,12 +260,31 @@ def _apply_tier(agent: Any, tier: int) -> bool:
         )
         return False
 
+    resolved_base = (getattr(result, "base_url", None) or "").strip()
+    resolved_prov = getattr(result, "target_provider", None) or provider
+    if not resolved_base:
+        logger.warning(
+            "model-router: resolve T%d returned empty base_url for %s/%s",
+            tier,
+            resolved_prov,
+            getattr(result, "new_model", model),
+        )
+        return False
+    if not _base_url_matches_provider(resolved_base, resolved_prov):
+        logger.warning(
+            "model-router: resolve T%d host mismatch provider=%s base_url=%s",
+            tier,
+            resolved_prov,
+            resolved_base,
+        )
+        return False
+
     try:
         agent.switch_model(
             result.new_model,
-            result.target_provider,
+            resolved_prov,
             result.api_key or "",
-            result.base_url or "",
+            resolved_base,
             result.api_mode or "",
         )
     except Exception as exc:
@@ -270,12 +296,35 @@ def _apply_tier(agent: Any, tier: int) -> bool:
     if tier in (1, 2):
         agent.reasoning_config = None
 
-    live_base = getattr(agent, "base_url", "") or result.base_url or ""
-    if not _base_url_matches_provider(live_base, result.target_provider or provider):
+    # Prefer agent attributes; fall back to what we just applied.
+    live_model = getattr(agent, "model", "") or result.new_model
+    live_prov = getattr(agent, "provider", "") or resolved_prov
+    live_base = getattr(agent, "base_url", "") or resolved_base
+    # Some hermes builds keep a nested client; best-effort read.
+    try:
+        client = getattr(agent, "client", None) or getattr(agent, "_client", None)
+        client_base = getattr(client, "base_url", None) if client is not None else None
+        if client_base is not None:
+            live_base = str(client_base) or live_base
+    except Exception:
+        pass
+
+    if _norm(live_model) != _norm(result.new_model) or _norm(live_prov) != _norm(
+        resolved_prov
+    ):
+        logger.warning(
+            "model-router: post-switch attrs mismatch want=%s/%s got=%s/%s",
+            resolved_prov,
+            result.new_model,
+            live_prov,
+            live_model,
+        )
+        return False
+    if not _base_url_matches_provider(live_base, resolved_prov):
         logger.warning(
             "model-router: post-switch base_url still wrong for T%d: provider=%s base_url=%s",
             tier,
-            result.target_provider,
+            resolved_prov,
             live_base,
         )
         return False
@@ -283,7 +332,7 @@ def _apply_tier(agent: Any, tier: int) -> bool:
     logger.info(
         "model-router: applied %s → %s / %s (base=%s)",
         meta["label"],
-        result.target_provider,
+        resolved_prov,
         result.new_model,
         live_base or "-",
     )
