@@ -80,10 +80,8 @@ in
     '') managedPluginNames}
 
     # Drop retired plugin dirs (static index; superseded).
-    rm -rf /var/lib/hermes/.hermes/plugins/gbrain-reflex \
-      /var/lib/hermes/plugins/gbrain-reflex \
-      /var/lib/hermes/.hermes/plugins/web-backends-fix \
-      /var/lib/hermes/plugins/web-backends-fix
+    # Removed gbrain-reflex + web-backends-fix cleanup (2026-08-11) — stale
+    # after 2+ months; all live hosts have already been cleaned.
 
     cfg=/var/lib/hermes/.hermes/config.yaml
     if [ -f "$cfg" ]; then
@@ -111,10 +109,6 @@ if not isinstance(enabled, list):
     plugins["enabled"] = enabled
     changed = True
 desired = json.loads(${lib.strings.escapeShellArg enabledPluginsJson})
-for retired in ("gbrain-reflex", "web-backends-fix"):
-    if retired in enabled:
-        enabled[:] = [n for n in enabled if n != retired]
-        changed = True
 for name in desired:
     if name not in enabled:
         enabled.append(name)
