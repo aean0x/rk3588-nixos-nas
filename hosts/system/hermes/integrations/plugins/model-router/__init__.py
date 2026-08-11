@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 from typing import Any
 
 logger = logging.getLogger("plugins.model-router")
@@ -601,10 +602,25 @@ def _cmd_auto(raw_args: str) -> str:
     return "Auto routing already active."
 
 
+def _deferred_install_capture() -> None:
+    """Install the AIAgent capture once run_agent finishes importing."""
+    for _ in range(10):
+        try:
+            _install_agent_capture()
+            logger.info("model-router: AIAgent capture installed (attempt %d)", _ + 1)
+            return
+        except AttributeError:  # run_agent still initializing
+            time.sleep(1.0)
+        except Exception as exc:
+            logger.warning("model-router: AIAgent capture install failed: %s", exc)
+            return
+    logger.warning("model-router: AIAgent capture NOT installed after retries (run_agent never ready)")
+
+
 def register(ctx: Any) -> None:
     global _manager
     _manager = getattr(ctx, "_manager", None)
-    _install_agent_capture()
+    threading.Thread(target=_deferred_install_capture, daemon=True).start()
     ctx.register_hook("pre_llm_call", on_pre_llm_call)
     ctx.register_hook("pre_api_request", on_pre_api_request)
     ctx.register_hook("post_tool_call", on_post_tool_call)
