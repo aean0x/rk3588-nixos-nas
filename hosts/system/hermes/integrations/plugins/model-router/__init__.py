@@ -666,7 +666,7 @@ def _grok_final_voice(session_id: str, draft: str) -> str | None:
     if is_ack:
         return None
     # Already produced by Grok — don't double-bill.
-    agent = _agent_for(session_id)
+    agent = _get_agent(session_id)
     live_model = getattr(agent, "model", "") if agent is not None else ""
     if _is_grok_model(live_model) or last >= _FINAL_TIER:
         return None
