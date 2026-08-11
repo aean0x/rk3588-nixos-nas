@@ -15,6 +15,8 @@
     # hermes-web/tui package-lock ENOTCACHED issue; unpinned after v0.20.0.
     hermes-agent.url = "github:NousResearch/hermes-agent";
     hermes-webui.url = "github:nesquena/hermes-webui";
+    # Media stack: Sonarr/Radarr (+ optional others) with declarative settings-sync
+    nixarr.url = "github:nix-media-server/nixarr";
   };
 
   outputs =
@@ -23,6 +25,7 @@
       nixpkgs,
       nixpkgs-stable,
       sops-nix,
+      nixarr,
       ...
     }@inputs:
     let
@@ -55,6 +58,7 @@
         modules = [
           { nixpkgs.overlays = overlays; }
           sops-nix.nixosModules.sops
+          nixarr.nixosModules.default
           ./hardware-configuration.nix
           ./hosts/system/default.nix
           ./secrets/sops.nix

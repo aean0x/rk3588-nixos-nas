@@ -29,6 +29,7 @@ in
     ./browser.nix # persistent Brave + loopback CDP for agent automation
     ./hermes-webui.nix # Hermes WebUI (archimedes.<domain>) + ElevenLabs TTS
     ./context-manager.nix # hermes-context-manager (HMC) plugin pin + config
+    ./integrations # first-party plugins + MCP clients (see integrations/AGENTS.md)
   ];
 
   _module.args.hermes = hermes;
@@ -133,7 +134,7 @@ in
 
       # ── Model routing ──
       # Per-turn chat: plugin `model-router` (T1 Flash / T2 Pro / T3 Grok).
-      # Native providers — not OpenRouter slugs. See plugins/model-router/.
+      # Native providers — not OpenRouter slugs. See integrations/plugins/model-router/.
       # Cheap fleet (DeepSeek V4 Flash, provider=deepseek): aux + delegate +
       # unpinned cron. Vision stays on main (Grok native). `provider: auto`
       # would inherit main for any unset aux slot — every volume task is pinned.
@@ -214,27 +215,12 @@ in
         cron_mode = "deny";
       };
 
-      # Skills / plugins dirs on the hermes volume (see toolbox + gbrain activation).
+      # Skills dirs on the hermes volume (see toolbox + gbrain activation).
+      # Plugins enabled list + install: ./integrations (single source of truth).
       skills.external_dirs = [
         "/data/skills"
         "/var/lib/hermes/skills"
       ];
-      # 0.19 opt-in allow-list. gbrain-retrieval-reflex = native resolve IPC
-      # (not static pointer JSON). Discovery uses $HERMES_HOME/plugins.
-      plugins = {
-        external_dirs = [
-          "/data/plugins"
-          "/var/lib/hermes/plugins"
-        ];
-        enabled = [
-          "hermes-context-manager"
-          "gbrain-retrieval-reflex"
-          "gbrain-memory-flush"
-          "tool-call-coherency"
-          "projects-auto-commit"
-          "model-router"
-        ];
-      };
 
       # Needs HERMES_BUNDLED_PLUGINS (package-fix + WebUI extraEnvironment)
       # so discovery finds share/…/plugins/web/*/plugin.yaml.
@@ -263,16 +249,7 @@ in
       };
     };
 
-    mcpServers = {
-      maton = {
-        command = "npx";
-        args = [
-          "-y"
-          "@maton/mcp"
-        ];
-      };
-      # gbrain MCP is declared in ./gbrain.nix (mcpServers.gbrain).
-    };
+    # mcpServers: integrations/mcp/* (maton) + gbrain.nix (HTTP gbrain).
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
     # - messaging: Telegram/Discord/Slack — removed from `[all]` (2026-05-12); required for gateway.

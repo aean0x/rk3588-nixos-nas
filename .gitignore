@@ -18,6 +18,8 @@ bsp
 __pycache__/
 *.py[cod]
 
+# Personal names / UIDs for file shares (not for public forks)
+
 # Editor files
 .vscode/
 .idea/

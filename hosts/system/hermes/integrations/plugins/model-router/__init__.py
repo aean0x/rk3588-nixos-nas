@@ -88,10 +88,48 @@ def _norm(s: str) -> str:
     return (s or "").strip().lower()
 
 
+def _base_url_matches_provider(base_url: str, provider: str) -> bool:
+    """Detect half-switched agents (model name set, still on previous API host).
+
+    Session 5db7c7178b08: model=deepseek-v4-flash + provider=deepseek but
+    base_url still https://api.x.ai/v1 → non-retryable 404 from xAI.
+    """
+    base = _norm(base_url)
+    prov = _norm(provider)
+    if not base or not prov:
+        return True  # unknown — let switch_model decide
+    if prov in {"deepseek", "deepseek-chat"}:
+        # Native DeepSeek must not ride the xAI host (or OpenRouter-only hosts).
+        if "x.ai" in base or "xai" in base:
+            return False
+        if "deepseek" in base:
+            return True
+        # Other bases (custom proxy) — don't force reswitch.
+        return True
+    if prov in {"xai", "xai-oauth", "x-ai"}:
+        if "deepseek.com" in base:
+            return False
+        if "x.ai" in base or "xai" in base:
+            return True
+        return True
+    return True
+
+
 def _same_route(agent: Any, model: str, provider: str) -> bool:
-    return _norm(getattr(agent, "model", "")) == _norm(model) and _norm(
-        getattr(agent, "provider", "")
-    ) == _norm(provider)
+    if _norm(getattr(agent, "model", "")) != _norm(model):
+        return False
+    if _norm(getattr(agent, "provider", "")) != _norm(provider):
+        return False
+    base = getattr(agent, "base_url", "") or ""
+    if not _base_url_matches_provider(base, provider):
+        logger.warning(
+            "model-router: half-switch detected model=%s provider=%s base_url=%s — re-applying",
+            getattr(agent, "model", ""),
+            getattr(agent, "provider", ""),
+            base,
+        )
+        return False
+    return True
 
 
 def bind_agent(session_id: str, agent: Any) -> None:
@@ -232,11 +270,22 @@ def _apply_tier(agent: Any, tier: int) -> bool:
     if tier in (1, 2):
         agent.reasoning_config = None
 
+    live_base = getattr(agent, "base_url", "") or result.base_url or ""
+    if not _base_url_matches_provider(live_base, result.target_provider or provider):
+        logger.warning(
+            "model-router: post-switch base_url still wrong for T%d: provider=%s base_url=%s",
+            tier,
+            result.target_provider,
+            live_base,
+        )
+        return False
+
     logger.info(
-        "model-router: applied %s → %s / %s",
+        "model-router: applied %s → %s / %s (base=%s)",
         meta["label"],
         result.target_provider,
         result.new_model,
+        live_base or "-",
     )
     return True
 

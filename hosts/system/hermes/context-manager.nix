@@ -7,7 +7,7 @@
 #
 # After deploy: restart the gateway so hooks load (`hermes gateway restart` or
 # `systemctl restart hermes-agent`), then `/hmc status` in chat.
-# Overlay under plugins/hermes-context-manager-overlay fixes live mutation hooks.
+# Overlay under integrations/plugins/hermes-context-manager-overlay fixes live mutation hooks.
 {
   lib,
   pkgs,
@@ -112,7 +112,7 @@ in
     # Overlay: real live-mutation hooks (transform_tool_result + pre_api_request)
     # and CompressConfig.max_context_tokens. Upstream post_tool_call is observational
     # only — without this overlay HMC reports ~1% context and 0 tokens saved.
-    overlay=${./plugins/hermes-context-manager-overlay}
+    overlay=${./integrations/plugins/hermes-context-manager-overlay}
     if [ -f "$overlay/plugin.py" ]; then
       install -m 0640 -o hermes -g hermes "$overlay/plugin.py" \
         "$dest/hermes_context_manager/plugin.py"

@@ -24,18 +24,20 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 
 ```
 hosts/system/hermes/
-├── default.nix          # module import, model, plugins, maton MCP, no SOUL activation
+├── default.nix          # module import, model routing settings, no SOUL activation
 ├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
 ├── package-fix.nix     # silence-marker only (drop when upstream _is_token fixed)
-├── gbrain.nix           # MCP gbrain + reflex plugins (no exclusive CLI)
-├── context-manager.nix  # hermes-context-manager (HMC) pin + config
+├── gbrain.nix           # gbrain-mcp-http + HTTP MCP client + memory registry
+├── context-manager.nix  # hermes-context-manager (HMC) upstream pin + overlay
 ├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
 ├── browser.nix          # Brave sticky profile + CDP + cookie import
 ├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
-├── plugins/             # gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC, model-router
-├── skills/              # retrieval-reflex + workstation
+├── integrations/        # first-party plugins + MCP clients (see integrations/AGENTS.md)
+│   ├── plugins/         # model-router, gbrain-*, tool-call-coherency, …
+│   └── mcp/             # maton wrapper + mcpServers.*
+├── skills/              # retrieval-reflex + workstation + gbrain-http-auth
 ├── memory/              # declarative memory plane
 ├── scripts/
 ├── BOOTSTRAP.md
@@ -56,7 +58,7 @@ Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace
 ## Token lean + plugins (0.19)
 
 - `tool_output` + compression prune/idle in `default.nix`
-- `plugins.enabled`: `hermes-context-manager`, `gbrain-retrieval-reflex`, `gbrain-memory-flush`, `tool-call-coherency`, `projects-auto-commit`, `model-router`
+- Plugin allow-list + install: **`integrations/default.nix`** (catalog: `integrations/AGENTS.md`)
 - After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)
@@ -79,7 +81,7 @@ Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 | Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
 | MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
 | Force-disable of legacy exclusive timers (no new host gbrain CLI) | Cron job prompts/`jobs.json` (MCP-only hygiene), skills after seed |
-| Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC, model-router) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
+| Plugin **code** under `integrations/plugins/` (+ HMC pin) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
 | Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
 | Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
 

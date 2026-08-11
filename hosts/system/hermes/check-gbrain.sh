@@ -9,8 +9,8 @@ fail_() { echo "FAIL $*"; fail=1; }
 
 for f in gbrain.nix memory/AGENTS.md memory/registry.json memory/export-schema.json \
   BOOTSTRAP.md prompts/agents-gbrain.md prompts/gbrain-bootstrap-query.txt \
-  scripts/gbrain-setup.sh plugins/gbrain-retrieval-reflex/plugin.yaml \
-  plugins/gbrain-retrieval-reflex/__init__.py reference/GBRAIN.md; do
+  scripts/gbrain-setup.sh integrations/plugins/gbrain-retrieval-reflex/plugin.yaml \
+  integrations/plugins/gbrain-retrieval-reflex/__init__.py reference/GBRAIN.md; do
   [ -f "$H/$f" ] && pass "present $f" || fail_ "missing $f"
 done
 grep -q 'gbrain-setup' "$ROOT/deploy" && pass "deploy gbrain-setup" || fail_ "deploy missing gbrain-setup"
@@ -26,7 +26,7 @@ else
 fi
 grep -q 'gbrain-retrieval-reflex' "$H/gbrain.nix" && pass "gbrain-retrieval-reflex install" || fail_ "no retrieval-reflex plugin"
 # Static pointer index must be gone
-if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/plugins/gbrain-reflex" ]; then
+if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/integrations/plugins/gbrain-reflex" ]; then
   fail_ "static gbrain-reflex / pointer-index still in tree"
 else
   pass "static pointer workaround removed from tree"

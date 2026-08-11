@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -26,6 +28,21 @@ def _disabled() -> bool:
     return raw in {"0", "false", "no", "off", ""}
 
 
+def _python_bin() -> str:
+    """Gateway process PATH often lacks `python3`; prefer the interpreter running Hermes."""
+    for candidate in (
+        sys.executable,
+        os.environ.get("HERMES_PYTHON"),
+        os.environ.get("HERMES_PY"),
+        "/data/toolbox/bin/python3",
+        "/var/lib/hermes/toolbox/bin/python3",
+    ):
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    found = shutil.which("python3")
+    return found or "python3"
+
+
 def _run_auto_commit(source: str) -> None:
     if _disabled():
         return
@@ -38,10 +55,23 @@ def _run_auto_commit(source: str) -> None:
     # Tag message origin lightly without forcing a fixed subject
     if not env.get("PROJECTS_AUTO_COMMIT_MSG"):
         env["PROJECTS_AUTO_COMMIT_SOURCE"] = source
+    # Ensure child can resolve git/python even if gateway PATH is minimal.
+    path_bits = [
+        "/data/toolbox/bin",
+        "/var/lib/hermes/toolbox/bin",
+        "/home/hermes/.bun/bin",
+        "/run/current-system/sw/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    ]
+    cur = env.get("PATH", "")
+    env["PATH"] = ":".join(path_bits + ([cur] if cur else []))
 
+    py = _python_bin()
     try:
         proc = subprocess.Popen(
-            ["python3", str(_SCRIPT)],
+            [py, str(_SCRIPT)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -49,7 +79,7 @@ def _run_auto_commit(source: str) -> None:
             start_new_session=True,
         )
     except Exception:
-        log.exception("projects-auto-commit: spawn failed (%s)", source)
+        log.exception("projects-auto-commit: spawn failed (%s) py=%s", source, py)
         return
 
     def _finish() -> None:

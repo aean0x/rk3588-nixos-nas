@@ -50,10 +50,12 @@ netcat-gnu, socat, chromium→chrome/google-chrome aliases.
 
 ## MCP
 
-| Server | Command | Notes |
-|--------|---------|--------|
-| gbrain | `gbrain serve` | Bare name; PATH must include `~/.bun/bin` |
-| maton | `npx -y @maton/mcp` | Needs npm + network |
+Declarative clients: `integrations/mcp/` (+ `gbrain.nix` for HTTP gbrain).
+
+| Server | Command / URL | Notes |
+|--------|---------------|--------|
+| gbrain | HTTP `http://127.0.0.1:3131/mcp` | Sole serve: `gbrain-mcp-http` |
+| maton | `/data/bin/maton-mcp` | Wrapper sources `.env`; see `integrations/mcp/maton.nix` |
 
 ## Gaps vs Hetzner (closed)
 

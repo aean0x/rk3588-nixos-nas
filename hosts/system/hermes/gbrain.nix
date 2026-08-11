@@ -1,14 +1,9 @@
-# Hermes ↔ G-Brain: registry, shared HTTP MCP, retrieval-reflex + memory-flush.
+# Hermes ↔ G-Brain: registry, shared HTTP MCP client, gbrain-mcp-http unit.
 #
-# PGLite is single-writer. Hermes binds MCP to *each agent process* (stdio
-# spawn). Gateway + WebUI + CLI ⇒ multiple stdio `gbrain serve` children ⇒
-# lock orphans (NousResearch/hermes-agent#72887). Durable fix: one supervised
-# `gbrain serve --http` owns PGLite; all clients use HTTP MCP URL.
+# PGLite is single-writer. One supervised `gbrain serve --http` owns PGLite;
+# all clients use HTTP MCP URL (gateway + WebUI + CLI).
 #
-# See gbrain docs/mcp/DEPLOY.md and push-context.md (resolve IPC still on the
-# single HTTP serve process).
-#
-# Hermes additions: gbrain-retrieval-reflex, gbrain-memory-flush only.
+# Plugins (gbrain-retrieval-reflex, memory-flush, …): integrations/
 # No exclusive consolidate/dream host wrappers. No static pointer JSON.
 {
   lib,
@@ -130,10 +125,6 @@ in
       /var/lib/hermes/bin/hermes-gbrain-nightly \
       /var/lib/hermes/bin/hermes-gbrain-exclusive
     rm -f /var/lib/hermes/workspace/gbrain-pointer-index.json
-    rm -rf /var/lib/hermes/.hermes/plugins/gbrain-reflex \
-      /var/lib/hermes/plugins/gbrain-reflex \
-      /var/lib/hermes/.hermes/plugins/web-backends-fix \
-      /var/lib/hermes/plugins/web-backends-fix
 
     # ── Always managed (memory contract / registry) ──
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/memory
@@ -165,23 +156,7 @@ in
       /var/lib/hermes/workspace/HERMES-WEBUI.md \
       /var/lib/hermes/workspace/OPEN-WEBUI.md
 
-    # ── Infra plugins (force-managed code; not agent content) ──
-    install_plugin_tree() {
-      name="$1"; src_dir="$2"
-      for base in /var/lib/hermes/.hermes/plugins /var/lib/hermes/plugins; do
-        [ -d "$(dirname "$base")" ] || continue
-        install -d -m 0755 -o hermes -g hermes "$base/$name"
-        install -m 0644 -o hermes -g hermes "$src_dir/plugin.yaml" \
-          "$base/$name/plugin.yaml"
-        install -m 0644 -o hermes -g hermes "$src_dir/__init__.py" \
-          "$base/$name/__init__.py"
-      done
-    }
-    install_plugin_tree gbrain-retrieval-reflex ${./plugins/gbrain-retrieval-reflex}
-    install_plugin_tree gbrain-memory-flush ${./plugins/gbrain-memory-flush}
-    install_plugin_tree tool-call-coherency ${./plugins/tool-call-coherency}
-    install_plugin_tree projects-auto-commit ${./plugins/projects-auto-commit}
-    install_plugin_tree model-router ${./plugins/model-router}
+    # Plugins: hosts/system/hermes/integrations (install + plugins.enabled).
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/scripts
     install -m 0755 -o hermes -g hermes ${./scripts/projects_auto_commit.py} \
@@ -280,40 +255,7 @@ if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
     changed = True
 
-plugins = data.setdefault("plugins", {})
-if not isinstance(plugins, dict):
-    plugins = {}
-    data["plugins"] = plugins
-enabled = plugins.get("enabled")
-if not isinstance(enabled, list):
-    enabled = []
-    plugins["enabled"] = enabled
-desired_plugins = [
-    "hermes-context-manager",
-    "gbrain-retrieval-reflex",
-    "gbrain-memory-flush",
-    "tool-call-coherency",
-    "projects-auto-commit",
-    "model-router",
-]
-# Drop retired plugins (static index; packaging workaround superseded by HERMES_BUNDLED_PLUGINS).
-for retired in ("gbrain-reflex", "web-backends-fix"):
-    if retired in enabled:
-        enabled[:] = [n for n in enabled if n != retired]
-        changed = True
-for name in desired_plugins:
-    if name not in enabled:
-        enabled.append(name)
-        changed = True
-ext = plugins.get("external_dirs")
-if not isinstance(ext, list):
-    plugins["external_dirs"] = ["/data/plugins", "/var/lib/hermes/plugins"]
-    changed = True
-else:
-    for d in ("/data/plugins", "/var/lib/hermes/plugins"):
-        if d not in ext:
-            ext.append(d)
-            changed = True
+# plugins.enabled / external_dirs: integrations/default.nix
 
 if changed:
     path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
