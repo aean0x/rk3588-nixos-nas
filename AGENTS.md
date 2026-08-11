@@ -52,7 +52,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   ├── containers.nix   # Docker engine, refresh timer, imports containers/*
 │   │   ├── containers/      # Docker container modules
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
-│   │   │   ├── filebrowser.nix    # Web-based file manager (SOPS-managed admin password)
+│   │   │   ├── filebrowser.nix    # (disabled) legacy web file manager
 │   │   │   └── crowdsec.nix       # CrowdSec IDS/IPS engine + native nftables bouncer
 │   │   ├── hermes/          # Hermes Agent + GBrain (container, dashboard, memory plane, OneDrive)
 │   │   └── services/        # Native service modules
@@ -91,7 +91,6 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `user_hashedPassword` — Login password
 - `tailscale_authKey` — Tailscale auth key
 - `wifi_psk` — WiFi password (conditional on `settings.enableWifi`)
-- `openclaw_gateway_token`, `openclaw_gateway_password` — (legacy, kept for transition; Hermes uses its own curated set from the same sops keys)
 - `xai_api_key` — xAI/Grok model API key
 - `openrouter_api_key`, `anthropic_api_key`, `deepseek_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
@@ -115,7 +114,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 |---------|------|--------|-------|
 | Docker engine | Native | `containers.nix` | Auto-prune, unified refresh timer |
 | Home Assistant + Matter + OTBR | Docker | `containers/home-assistant.nix` | Host network for mDNS/Thread |
-| FileBrowser | Docker | `containers/filebrowser.nix` | Web file manager (now points at Hermes workspace or legacy paths; review usage) |
+| Files (NFS+SMB) | Native | `services/filesharing.nix` | Guest-only drop zone `/media/Files/Share` |
 | Hermes Agent + GBrain | NixOS module + container | `hermes/` (imported from `containers.nix`) | xAI OAuth / Grok, Flash/Pro router plugin, GBrain MCP + reflex, dashboard/webui; SOUL not declarative |
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
@@ -155,7 +154,6 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the offici
 - **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/memory/AGENTS.md`.
 - **Deploy helpers**: `./deploy validate-gbrain`, `./deploy clean-hermes-state`.
 
-The old `hosts/system/openclaw/` (multi-agent gateway, openclaw.json, custom Docker images, sandbox spawning, sub-agent delegation protocol, lobster workflows) is no longer imported or active. The files remain for reference but are not evaluated.
 
 ### Caddy Reverse Proxy (LAN)
 

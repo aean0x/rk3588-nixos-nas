@@ -100,19 +100,30 @@ else
   pass "SOUL activation disabled (fresh agent)"
 fi
 
-if [[ -f "$HERMES/plugins/model-router/__init__.py" ]]; then
-  if grep -q 'SOUL.md' "$HERMES/plugins/model-router/__init__.py"; then
+MR="$HERMES/integrations/plugins/model-router/__init__.py"
+if [[ -f "$MR" ]]; then
+  # Fail only on actual write paths, not docstrings that say we don't touch SOUL.
+  if grep -nE 'SOUL\.md' "$MR" \
+    | grep -viE 'does not|must not|no .*SOUL|without.*SOUL|not (write|touch|edit)' \
+    | grep -qE 'write|open\(|Path\(|put_page|SOUL\.md["'\'']'; then
     fail "model-router must not write SOUL.md"
   else
     pass "model-router does not touch SOUL.md"
   fi
-  if grep -q 'model-router' "$DEFAULT" && grep -q 'HERMES_WEBUI_EXTENSION_DIR' "$HERMES/hermes-webui.nix"; then
-    pass "model-router enabled + WebUI extension sidecar declared"
+  if grep -q 'model-router' "$HERMES/integrations/default.nix" \
+    && grep -q 'HERMES_WEBUI_EXTENSION_DIR' "$HERMES/hermes-webui.nix" \
+    && grep -q 'integrations' "$DEFAULT"; then
+    pass "model-router in integrations + WebUI extension + default.nix import"
   else
-    fail "model-router missing from plugins.enabled or WebUI extension env"
+    fail "model-router missing from integrations or WebUI extension env"
+  fi
+  if [[ -f "$HERMES/integrations/mcp/maton.nix" ]] && [[ -f "$HERMES/integrations/mcp/maton-mcp.sh" ]]; then
+    pass "maton MCP client under integrations/mcp"
+  else
+    fail "missing integrations/mcp/maton.nix or maton-mcp.sh"
   fi
 else
-  fail "missing hosts/system/hermes/plugins/model-router/__init__.py"
+  fail "missing hosts/system/hermes/integrations/plugins/model-router/__init__.py"
 fi
 
 # --- project path docs: no stale services/hermes.nix ---

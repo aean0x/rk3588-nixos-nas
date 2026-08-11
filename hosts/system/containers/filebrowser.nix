@@ -9,8 +9,9 @@ let
   image = "filebrowser/filebrowser:latest";
   dataDir = "/var/lib/filebrowser";
 
-  # Folders to expose
-  openclawDir = "/var/lib/openclaw";
+  # Folders to expose (Hermes workspace + btrfs media library)
+  hermesWorkspace = "/var/lib/hermes/workspace";
+  videosRoot = "/media/Videos";
 in
 {
   # ===================
@@ -30,12 +31,13 @@ in
       volumes = [
         "${dataDir}:/database"
         "${dataDir}/config:/config"
-        "${openclawDir}:/srv/openclaw:rw"
+        "${hermesWorkspace}:/srv/hermes:rw"
+        "${videosRoot}:/srv/Videos:rw"
         # Secret mounted from pre-start copy
         "${dataDir}/admin_password:/run/secrets/admin_password:ro"
       ];
       networks = [ "host" ];
-      # Run as same user as OpenClaw (1000) to ensure read/write access
+      # Match common host media/hermes group access (uid 1000)
       user = "1000:1000";
 
       # Use a custom entrypoint to set the password before starting the server.

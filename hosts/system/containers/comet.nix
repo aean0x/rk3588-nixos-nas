@@ -1,6 +1,7 @@
-# Comet: Stremio addon (debrid/torrent streams)
+# Comet: Stremio addon (debrid/torrent streams) — DECOMMISSIONED (import commented out).
 # Uses g0ldyy/comet + dedicated PostgreSQL (matches upstream deployment/docker-compose.yml).
-# Public HTTPS via Caddy. Enable by uncommenting the import in containers.nix.
+# Re-enable: uncomment ./containers/comet.nix in containers.nix + secrets below.
+# Cleanup leftovers: scripts/oneshot/cleanup-comet.sh
 {
   config,
   lib,

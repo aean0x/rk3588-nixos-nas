@@ -247,6 +247,7 @@ in
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
     install -m 0755 ${hermesCliWrapper} /var/lib/hermes/bin/hermes-cli
+    # MCP wrappers (maton, …): integrations/mcp/*.nix
   '';
 
   # Run after setup merges environmentFiles into .env so we can strip PATH again.

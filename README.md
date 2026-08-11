@@ -157,7 +157,6 @@ Workstation remote-build (recommended for low-memory devices):
   remote-build         Build on workstation only (no push)
 
 Services:
-  openclaw <cmd>       OpenClaw CLI (openclaw doctor, openclaw agent, ...)
   onedrive-sync        Trigger OneDrive sync now
 
 Troubleshooting:
@@ -215,9 +214,9 @@ imports = [
 
 Docker containers are imported separately via `containers.nix`:
 - **Home Assistant** + Matter Server + OpenThread Border Router
-- **FileBrowser** - Web file manager at `files.<domain>`, backed by SOPS-managed admin password
-- **Comet** - Optional Stremio addon (enabled via `containers/comet.nix`) at `comet.<domain>`
-- **OpenClaw** - AI agent gateway with sandbox containers (see below)
+- **Files (NFS+SMB)** - native `services/filesharing.nix` (FileBrowser container disabled)
+- **Comet** - Optional Stremio addon (`containers/comet.nix`, currently disabled)
+- **ErsatzTV** - LAN IPTV (`tv.<domain>`, M3U `:8409`); see `hosts/system/containers/IPTV.md`
 
 ### Exposing a service (LAN + public)
 
@@ -241,28 +240,27 @@ Re-run the script after adding new `cloudflareTunnel.proxyServices` hostnames (s
 
 ### OneDrive Sync
 
-Bidirectional sync between OneDrive and the OpenClaw workspace via rclone. Runs every 15 minutes as UID 1000. Syncs `Shared` and `Documents` folders into `workspace/onedrive/`. Trigger manually with `./deploy onedrive-sync`.
+Bidirectional sync between OneDrive and the Hermes workspace via rclone. Runs every 15 minutes as UID 1000. Syncs `Shared` and `Documents` folders into `workspace/onedrive/`. Trigger manually with `./deploy onedrive-sync`.
 
-### Comet (Stremio Addon)
+### Comet (Stremio Addon) — disabled
 
-1. Add `comet_admin_dashboard_password` (and `torbox_api_key` if using TorBox) to `secrets/secrets.yaml.work` and re-encrypt with `./secrets/encrypt`.
+Module is present but **not imported** (decommissioned to free RAM). To re-enable:
+
+1. Add `comet_admin_dashboard_password` (and `torbox_api_key` if using TorBox) to secrets and re-encrypt.
 2. Uncomment `./containers/comet.nix` in `hosts/system/containers.nix`.
-3. Deploy with `./deploy remote-switch` (or `./deploy switch` on-device).
-4. Open `https://comet.<your-domain>/configure` (and `/admin` with the dashboard password) to finish setup.
+3. `./deploy remote-switch`
+4. Open `https://comet.<domain>/configure` (and `/admin`).
 
-The module provisions both `comet` and `comet-postgres` containers (following upstream `deployment/docker-compose.yml`), defaults to TorBox-first + PostgreSQL, and stores state in `/var/lib/comet` + `/var/lib/comet-postgres`. Edit environment defaults in `hosts/system/containers/comet.nix` to switch debrid providers. `ADMIN_DASHBOARD_PASSWORD` is mandatory for public exposure.
+State dirs (if recreated): `/var/lib/comet`, `/var/lib/comet-postgres`.  
+Cleanup after disable: `scripts/oneshot/cleanup-comet.sh` on the NAS.
 
-### OpenClaw
+### TorBox + ErsatzTV (LAN IPTV)
 
-Multi-agent AI system running as a Docker-based gateway that spawns sandbox containers for sub-agents. Custom Docker image built on-device adds Docker CLI, uv, git, and common tools. The `openclaw` command routes through the running gateway container:
+Zero-storage virtual library from TorBox (FUSE) + ErsatzTV channel scheduler. Management brief: **`hosts/system/containers/IPTV.md`**.
 
-```bash
-./deploy openclaw doctor --fix       # Fix config issues
-./deploy openclaw gateway status     # Check gateway health
-./deploy openclaw agent --agent scout --message "..."  # Prompt a sub-agent
-```
-
-Configuration lives in `openclaw.json` (committed with secret placeholders) and workspace dotfiles in `openclaw/workspace/`. See `AGENTS.md` for architecture details.
+- UI: `http://192.168.1.200:8409` or `https://tv.aean.io`
+- Playlist: `http://192.168.1.200:8409/iptv/channels.m3u`
+- Secret: existing SOPS `torbox_api_key` (shared with Comet)
 
 ## Notable Features
 
@@ -276,5 +274,5 @@ Configuration lives in `openclaw.json` (committed with secret placeholders) and 
 - **SOPS Secrets** - Encrypted at rest, decrypted at boot, safe to commit publicly
 - **Caddy + Cloudflare HTTPS** - Automatic TLS via DNS-01, subdomains declared per-service
 - **Container Refresh** - Weekly timer pulls latest images; `upgrade`/`remote-upgrade` triggers it on demand
-- **OneDrive Integration** - Bidirectional sync into OpenClaw workspace on a 15-minute timer
+- **OneDrive Integration** - Bidirectional sync into Hermes workspace on a 15-minute timer
 - **Auto-upgrade** - Weekly unattended rebuild (Sunday 3AM) with automatic reboot if needed

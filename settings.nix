@@ -1,5 +1,6 @@
 # System settings - edit for your fork
 # Secrets (passwords, WiFi PSK, API keys) go in secrets/secrets.yaml
+# Personal file-share usernames/dirnames: sops (files_home_*_username/dirname) — not here
 {
   # System identification
   hostName = "rocknas";

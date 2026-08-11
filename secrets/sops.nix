@@ -9,37 +9,7 @@
 let
   wifiEnabled = settings.enableWifi or false;
 
-  # ENV_VAR_NAME = "sops_secret_key"
-  # Add new OpenClaw secrets here — the template generates /run/openclaw.env automatically.
-  # prettier-ignore
-  openclawSecrets = {
-    OPENCLAW_GATEWAY_TOKEN = "openclaw_gateway_token";
-    OPENCLAW_GATEWAY_PASSWORD = "openclaw_gateway_password";
-    XAI_API_KEY = "xai_api_key";
-    OPENROUTER_API_KEY = "openrouter_api_key";
-    OPENAI_API_KEY = "openrouter_api_key";
-    ANTHROPIC_API_KEY = "anthropic_api_key";
-    BRAVE_API_KEY = "brave_search_api_key";
-    TELEGRAM_BOT_TOKEN = "telegram_bot_token";
-    GOOGLE_PLACES_API_KEY = "google_places_api_key";
-    BROWSERLESS_API_TOKEN = "browserless_api_token";
-    MATON_API_KEY = "maton_api_key";
-    HA_TOKEN = "ha_token";
-    HA_URL = "ha_url";
-    TELEGRAM_ADMIN_ID = "telegram_admin_id";
-    GOOGLE_API_KEY = "google_api_key";
-    GEMINI_API_KEY = "google_api_key";
-    CLAWHUB_TOKEN = "clawhub_token";
-    X_API_KEY = "x_api_key";
-    X_API_SECRET = "x_api_secret";
-    X_ACCESS_TOKEN = "x_access_token";
-    X_ACCESS_SECRET = "x_access_secret";
-    X_BEARER_TOKEN = "x_bearer_token";
-    GITHUB_PAT = "github_pat";
-    BTC_WALLET_KEY = "btc_wallet_key";
-  };
-
-  # Curated secrets for Hermes Agent (replaces OpenClaw-specific tokens).
+  # Curated secrets for Hermes Agent.
   # Hermes reads these from $HERMES_HOME/.env at startup.
   # prettier-ignore
   hermesSecrets = {
@@ -81,6 +51,7 @@ let
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
     DEEPSEEK_API_KEY = "deepseek_api_key";
+    COMPOSIO_API_KEY = "composio_api_key";
   };
 in
 {
@@ -92,8 +63,6 @@ in
       {
         user_hashedPassword = { };
         tailscale_authKey = { };
-        openclaw_gateway_token = { };
-        openclaw_gateway_password = { };
         openrouter_api_key = { };
         google_api_key = { };
         anthropic_api_key = { };
@@ -116,7 +85,11 @@ in
         xai_api_key = { };
         zeroentropy_api_key = { };
         firecrawl_api_key = { };
-        filebrowser_password = { };
+        filebrowser_password = { }; # legacy (filebrowser container commented out)
+        # Arr / RDT-Client (also declared with modes in services/arr-suite.nix)
+        torbox_api_key = { };
+        rdtclient_username = { };
+        rdtclient_password = { };
         crowdsec_bouncer_api_key = { };
         clawhub_token = { };
         x_api_key = { };
@@ -133,6 +106,7 @@ in
         elevenlabs_api_key = { };
         # Native DeepSeek API key → DEEPSEEK_API_KEY in /run/hermes.env.
         deepseek_api_key = { };
+        composio_api_key = { };
         # Hermes → workstation agent SSH private key (/run/secrets/…).
         # Used only by ssh-workstation wrappers (IdentityFile). Do not copy into
         # hermes HOME — keep out of the model’s normal workspace tree.
@@ -154,17 +128,6 @@ in
 
     templates = lib.mkMerge [
       {
-        openclawEnv = {
-          owner = "user";
-          group = "root";
-          mode = "0640";
-          path = "/run/openclaw.env";
-          content = lib.concatStringsSep "\n" (
-            lib.mapAttrsToList (
-              envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
-            ) openclawSecrets
-          );
-        };
         hermesEnv = {
           owner = "hermes";
           group = "hermes";
