@@ -196,6 +196,7 @@ in
     # Host hermes user profile (extraPackages); also helps doctor/CLI on host.
     extraPackages = with pkgs; [
       git
+      gh
       nodejs
       bun
       ripgrep
