@@ -7,12 +7,15 @@ Collapsed from upstream open-world-project/model-router 5-tier map:
 
 Policy:
   • Work loop runs on classified T1/T2 (or T3 when classified).
+  • Multi-sentence user messages floor at T2 (classifier + deterministic).
   • Tool-error escalation may climb through T3 Grok and de-escalate back.
   • After any tool use this turn, subsequent API calls switch to Grok
     (synthesis / potential final).
   • If the turn still ends off-Grok (no-tool path), transform_llm_output
     polishes the draft once via Grok so the user-facing reply is Grok.
   • Manual /t1 /t2 /t3 pins win over auto final-voice.
+  • Every pre_api_request re-heals half-switch (DeepSeek model on xAI host)
+    caused by WebUI webui_credential_refresh — hooks never raise.
 
 No Hermes/WebUI core file edits. Live switch uses AIAgent.switch_model via
 the same hermes_cli.model_switch resolver as /model (native providers, not
@@ -114,6 +117,18 @@ _ACK_RE = re.compile(
     r"[!?.]*$",
     re.IGNORECASE,
 )
+# WebUI prefixes every user turn; strip before ack/length/sentence heuristics.
+_WEBUI_WORKSPACE_RE = re.compile(
+    r"^\[Workspace::v1:\s*[^\]]+\]\s*",
+    re.IGNORECASE,
+)
+# Explicit pin-style requests only — bare "T1" inside a long critique is NOT a pin.
+_EXPLICIT_REQ_RE = re.compile(
+    r"(?:^|\s)(?:/t([1-3])\b|(?:use|pin|switch\s+to|run\s+(?:on|at)|please\s+use)\s+t([1-3])\b)",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT_RE = re.compile(r"[.!?]+\s+|\n+")
+
 
 _CLASSIFIER = """\
 You assign a single WORK routing tier (1-3) for the user's message.
@@ -133,6 +148,9 @@ Rules:
 - When unsure between 2 and 3, pick 2 unless architecture/security/high-stakes fits.
 - Tier 3 is uncommon but not vanishingly rare — use it when T4/T5 of a 5-tier
   ladder would have been correct.
+- if user message is >1 sentence, strongly consider T2.
+- Multi-sentence questions, critiques, and follow-ups are real work (T2+), not
+  triage — even when each sentence is short.
 - Respond with ONLY a digit: 1, 2, or 3.
 """
 
@@ -162,6 +180,31 @@ _patched = False
 
 def _norm(s: str) -> str:
     return (s or "").strip().lower()
+
+
+def _agent_base_url(agent: Any) -> str:
+    """Prefer live client kwargs base — WebUI credential refresh can desync attrs."""
+    if agent is None:
+        return ""
+    kw = getattr(agent, "_client_kwargs", None) or {}
+    if isinstance(kw, dict):
+        b = (kw.get("base_url") or "").strip()
+        if b:
+            return b
+    return (getattr(agent, "base_url", "") or "").strip()
+
+
+def _strip_platform_prefix(msg: str) -> str:
+    return _WEBUI_WORKSPACE_RE.sub("", (msg or "").strip()).strip()
+
+
+def _sentence_count(msg: str) -> int:
+    text = _strip_platform_prefix(msg)
+    if not text:
+        return 0
+    parts = [p.strip() for p in _SENTENCE_SPLIT_RE.split(text) if p.strip()]
+    # No terminator still counts as one sentence if there is content.
+    return max(1, len(parts)) if text else 0
 
 
 def _base_url_matches_provider(base_url: str, provider: str) -> bool:
@@ -196,7 +239,7 @@ def _same_route(agent: Any, model: str, provider: str) -> bool:
         return False
     if _norm(getattr(agent, "provider", "")) != _norm(provider):
         return False
-    base = getattr(agent, "base_url", "") or ""
+    base = _agent_base_url(agent)
     if not _base_url_matches_provider(base, provider):
         logger.warning(
             "model-router: half-switch detected model=%s provider=%s base_url=%s — re-applying",
@@ -308,7 +351,7 @@ def _apply_tier(agent: Any, tier: int) -> bool:
         cfg = load_config() or {}
         # When half-switched (DeepSeek name on xAI host), pass a neutral
         # current_base_url so resolve does not inherit the wrong host.
-        cur_base = getattr(agent, "base_url", "") or ""
+        cur_base = _agent_base_url(agent)
         cur_prov = getattr(agent, "provider", "") or ""
         if not _base_url_matches_provider(cur_base, provider):
             cur_base = ""
@@ -416,16 +459,29 @@ def _apply_tier(agent: Any, tier: int) -> bool:
 
 
 def _detect_explicit_tier(msg: str) -> int | None:
-    mentions = {int(m) for m in _TIER_RE.findall(msg)}
-    mentions |= {int(m) for m in _TIER_WORD_RE.findall(msg)}
-    if len(mentions) >= 3:
+    """Only honor pin-style or short single-tier requests — not meta discussion."""
+    text = _strip_platform_prefix(msg)
+    reqs: set[int] = set()
+    for m in _EXPLICIT_REQ_RE.finditer(text):
+        g = m.group(1) or m.group(2)
+        if g:
+            reqs.add(int(g))
+    if reqs:
+        return max(reqs)
+
+    mentions = {int(m) for m in _TIER_RE.findall(text)}
+    mentions |= {int(m) for m in _TIER_WORD_RE.findall(text)}
+    if len(mentions) != 1:
         return None
-    if mentions:
-        return max(mentions)
+    # Short messages like "t2 please" / "T3" only.
+    words = text.split()
+    if len(words) <= 6:
+        return next(iter(mentions))
     return None
 
 
 def _classify(user_message: str, history: list) -> int:
+    """Return 1-3. Fail-open to T2 (upstream default) — never silent T1 on errors."""
     try:
         from agent.auxiliary_client import call_llm
 
@@ -448,7 +504,8 @@ def _classify(user_message: str, history: list) -> int:
                 }
             )
             messages.append({"role": "assistant", "content": "Understood."})
-        messages.append({"role": "user", "content": user_message[:800]})
+        payload = _strip_platform_prefix(user_message)[:800] or user_message[:800]
+        messages.append({"role": "user", "content": payload})
         response = call_llm(
             task="triage_specifier",
             messages=messages,
@@ -459,9 +516,10 @@ def _classify(user_message: str, history: list) -> int:
         digit = re.search(r"[1-3]", raw)
         if digit:
             return int(digit.group())
+        logger.warning("model-router: classifier non-digit %r — default T2", raw[:40])
     except Exception as exc:
-        logger.warning("model-router: classifier failed (%s) — default T1", exc)
-    return 1
+        logger.warning("model-router: classifier failed (%s) — default T2", exc)
+    return 2
 
 
 def _target_tier(session_id: str, msg: str, history: list) -> int:
@@ -470,7 +528,7 @@ def _target_tier(session_id: str, msg: str, history: list) -> int:
         is_new = cached is None or cached[0] != msg
     if not is_new:
         with _lock:
-            return _last_tier.get(session_id, 1)
+            return _last_tier.get(session_id, 2)
 
     with _lock:
         _tool_errors[session_id] = 0
@@ -479,14 +537,37 @@ def _target_tier(session_id: str, msg: str, history: list) -> int:
         _user_msg[session_id] = msg
         _ack_turn[session_id] = False
 
-    is_ack = bool(_ACK_RE.match(msg.strip()) and len(msg.split()) <= 6)
+    body = _strip_platform_prefix(msg)
+    words = body.split()
+    n_sent = _sentence_count(body)
+    is_ack = bool(_ACK_RE.match(body) and len(words) <= 6)
     explicit = _detect_explicit_tier(msg)
+    reason = "classify"
     if explicit is not None:
         tier = explicit
+        reason = "explicit"
     elif is_ack:
         tier = 1
+        reason = "ack"
     else:
         tier = _classify(msg, history)
+        reason = "classify"
+        # Deterministic floor: multi-sentence work is never T1.
+        if tier < 2 and n_sent > 1:
+            tier = 2
+            reason = "classify+multi_sentence_floor"
+        elif tier < 2 and len(words) > 12:
+            tier = 2
+            reason = "classify+length_floor"
+
+    logger.info(
+        "model-router: route T%d (%s) words=%d sentences=%d preview=%r",
+        tier,
+        reason,
+        len(words),
+        n_sent,
+        body[:120],
+    )
 
     with _lock:
         _last_msg[session_id] = (msg, tier)
@@ -643,71 +724,111 @@ def on_pre_llm_call(
     platform: str = "",
     **kwargs: Any,
 ) -> None:
-    if _should_skip(platform, kwargs):
-        return
-    sid = session_id or ""
-    agent = _get_agent(sid)
-    if agent is not None and sid:
-        bind_agent(sid, agent)
+    try:
+        if _should_skip(platform, kwargs):
+            return
+        sid = session_id or ""
+        agent = _get_agent(sid)
+        if agent is not None and sid:
+            bind_agent(sid, agent)
 
-    with _lock:
-        pinned = _pinned.get(sid, False)
-    if pinned:
-        return
-
-    msg = (user_message or "").strip()
-    if not msg:
-        return
-
-    tier = _target_tier(sid, msg, conversation_history or [])
-    agent = _get_agent(sid)
-    if agent is None:
-        logger.warning(
-            "model-router: T%d classified, no live agent sid=%s — first call may be Grok",
-            tier,
-            sid or "-",
-        )
-        return
-    if _apply_tier(agent, tier):
         with _lock:
-            _pending.pop(sid, None)
-    else:
-        logger.warning(
-            "model-router: T%d apply failed sid=%s model=%s provider=%s",
-            tier,
-            sid or "-",
-            getattr(agent, "model", "") or "-",
-            getattr(agent, "provider", "") or "-",
-        )
+            pinned = _pinned.get(sid, False)
+        if pinned:
+            # Still heal half-switch on pinned sessions (WebUI credential refresh).
+            if agent is not None:
+                with _lock:
+                    tier = _last_tier.get(sid) or _base_tier.get(sid) or 3
+                _apply_tier(agent, tier)
+            return
+
+        msg = (user_message or "").strip()
+        if not msg:
+            # Empty hook payload still needs host/model coherence repair.
+            if agent is not None:
+                with _lock:
+                    tier = _pending.get(sid) or _last_tier.get(sid) or _FINAL_TIER
+                _apply_tier(agent, tier)
+            return
+
+        tier = _target_tier(sid, msg, conversation_history or [])
+        agent = _get_agent(sid)
+        if agent is None:
+            logger.warning(
+                "model-router: T%d classified, no live agent sid=%s — first call may be Grok",
+                tier,
+                sid or "-",
+            )
+            return
+        if _apply_tier(agent, tier):
+            with _lock:
+                _pending.pop(sid, None)
+        else:
+            logger.warning(
+                "model-router: T%d apply failed sid=%s model=%s provider=%s base=%s",
+                tier,
+                sid or "-",
+                getattr(agent, "model", "") or "-",
+                getattr(agent, "provider", "") or "-",
+                _agent_base_url(agent) or "-",
+            )
+    except Exception as exc:
+        logger.warning("model-router: on_pre_llm_call error: %s", exc, exc_info=True)
 
 
 def on_pre_api_request(*, session_id: str = "", platform: str = "", **kwargs: Any) -> None:
-    if _should_skip(platform, kwargs):
-        return
-    sid = session_id or ""
-    with _lock:
-        if _pinned.get(sid, False):
+    """Re-apply route every API call — WebUI credential_refresh half-switches mid-turn."""
+    try:
+        if _should_skip(platform, kwargs):
             return
-        pending = _pending.get(sid)
-        current = _last_tier.get(sid)
-        tools_n = _tools_this_turn.get(sid, 0)
-
-    # Post-tool API calls: always Grok for synthesis / final.
-    msgs = kwargs.get("request_messages") or kwargs.get("conversation_history")
-    after_tools = tools_n > 0 or _messages_after_tools(msgs if isinstance(msgs, list) else None)
-    if after_tools:
-        _force_tier(sid, _FINAL_TIER, "post-tool synthesis → Grok")
-        return
-
-    target = pending or current
-    if not target:
-        return
-    agent = _get_agent(sid)
-    if agent is None:
-        return
-    if _apply_tier(agent, target):
+        sid = session_id or ""
         with _lock:
-            _pending.pop(sid, None)
+            pinned = _pinned.get(sid, False)
+            pending = _pending.get(sid)
+            current = _last_tier.get(sid)
+            tools_n = _tools_this_turn.get(sid, 0)
+
+        agent = _get_agent(sid)
+        if agent is not None and sid:
+            bind_agent(sid, agent)
+
+        if pinned:
+            if agent is not None and current:
+                _apply_tier(agent, current)
+            return
+
+        # Post-tool API calls: always Grok for synthesis / final.
+        msgs = kwargs.get("request_messages") or kwargs.get("conversation_history")
+        after_tools = tools_n > 0 or _messages_after_tools(msgs if isinstance(msgs, list) else None)
+        if after_tools:
+            _force_tier(sid, _FINAL_TIER, "post-tool synthesis → Grok")
+            return
+
+        target = pending or current
+        if not target:
+            # No classification yet — still heal deepseek-on-xAI wreckage.
+            if agent is not None:
+                prov = _norm(getattr(agent, "provider", "") or "")
+                base = _agent_base_url(agent)
+                if prov and not _base_url_matches_provider(base, prov):
+                    # Prefer T2 heal for deepseek names, T3 for grok names.
+                    m = _norm(getattr(agent, "model", "") or "")
+                    heal = 3 if "grok" in m else 2 if "deepseek" in m else _FINAL_TIER
+                    logger.warning(
+                        "model-router: uncategorized half-switch heal→T%d model=%s base=%s",
+                        heal,
+                        m,
+                        base,
+                    )
+                    _apply_tier(agent, heal)
+            return
+        if agent is None:
+            return
+        if _apply_tier(agent, target):
+            with _lock:
+                _pending.pop(sid, None)
+    except Exception as exc:
+        logger.warning("model-router: on_pre_api_request error: %s", exc, exc_info=True)
 
 
 def on_post_tool_call(
@@ -717,45 +838,48 @@ def on_post_tool_call(
     session_id: str = "",
     **kwargs: Any,
 ) -> None:
-    sid = session_id or ""
-    if not sid:
-        return
-    with _lock:
-        if _pinned.get(sid, False):
+    try:
+        sid = session_id or ""
+        if not sid:
             return
-        _tools_this_turn[sid] = _tools_this_turn.get(sid, 0) + 1
-
-    is_error = False
-    if result is not None:
-        head = result[:500].lower()
-        if (
-            '"error"' in head
-            or '"failed"' in head
-            or result.startswith("Error")
-            or ('"exit_code": ' in head and '"exit_code": 0' not in head and '"exit_code": null' not in head)
-        ):
-            is_error = True
-
-    with _lock:
-        if is_error:
-            _tool_errors[sid] = _tool_errors.get(sid, 0) + 1
-        else:
-            _tool_errors[sid] = 0
-        count = _tool_errors.get(sid, 0)
-        current = _last_tier.get(sid, 1)
-
-    # Tool-error escalation may climb onto Grok.
-    if is_error and count >= _ESCALATION_ERROR_THRESHOLD and current < _ESCALATE_MAX:
-        new_tier = min(current + 1, _ESCALATE_MAX)
-        _force_tier(sid, new_tier, f"auto-escalate after {count} tool errors")
         with _lock:
-            _tool_errors[sid] = 0
-        logger.info("model-router: auto-escalate T%d→T%d after tool errors", current, new_tier)
-        return
+            if _pinned.get(sid, False):
+                return
+            _tools_this_turn[sid] = _tools_this_turn.get(sid, 0) + 1
 
-    # Even without errors: next API call after tools is Grok (final voice path).
-    if current < _FINAL_TIER:
-        _force_tier(sid, _FINAL_TIER, f"after tool {tool_name or '?'} → Grok final")
+        is_error = False
+        if result is not None:
+            head = result[:500].lower()
+            if (
+                '"error"' in head
+                or '"failed"' in head
+                or result.startswith("Error")
+                or ('"exit_code": ' in head and '"exit_code": 0' not in head and '"exit_code": null' not in head)
+            ):
+                is_error = True
+
+        with _lock:
+            if is_error:
+                _tool_errors[sid] = _tool_errors.get(sid, 0) + 1
+            else:
+                _tool_errors[sid] = 0
+            count = _tool_errors.get(sid, 0)
+            current = _last_tier.get(sid, 1)
+
+        # Tool-error escalation may climb onto Grok.
+        if is_error and count >= _ESCALATION_ERROR_THRESHOLD and current < _ESCALATE_MAX:
+            new_tier = min(current + 1, _ESCALATE_MAX)
+            _force_tier(sid, new_tier, f"auto-escalate after {count} tool errors")
+            with _lock:
+                _tool_errors[sid] = 0
+            logger.info("model-router: auto-escalate T%d→T%d after tool errors", current, new_tier)
+            return
+
+        # Even without errors: next API call after tools is Grok (final voice path).
+        if current < _FINAL_TIER:
+            _force_tier(sid, _FINAL_TIER, f"after tool {tool_name or '?'} → Grok final")
+    except Exception as exc:
+        logger.warning("model-router: on_post_tool_call error: %s", exc, exc_info=True)
 
 
 def on_transform_llm_output(
@@ -767,51 +891,58 @@ def on_transform_llm_output(
     **kwargs: Any,
 ) -> str | None:
     """If the turn still ends off-Grok, polish once so the user always hears Grok."""
-    if _should_skip(platform, kwargs):
+    try:
+        if _should_skip(platform, kwargs):
+            return None
+        sid = session_id or ""
+        if not sid or not (response_text or "").strip():
+            return None
+        if _is_grok_model(model):
+            return None
+        return _grok_final_voice(sid, response_text)
+    except Exception as exc:
+        logger.warning("model-router: on_transform_llm_output error: %s", exc, exc_info=True)
         return None
-    sid = session_id or ""
-    if not sid or not (response_text or "").strip():
-        return None
-    if _is_grok_model(model):
-        return None
-    return _grok_final_voice(sid, response_text)
 
 
 def on_post_llm_call(*, session_id: str = "", model: str = "", **kwargs: Any) -> None:
-    sid = session_id or ""
-    agent = _get_agent(sid)
-    if agent is None:
-        return
-    with _lock:
-        if _pinned.get(sid, False):
-            # Leave pin alone; clear per-turn counters.
-            _tools_this_turn[sid] = 0
+    try:
+        sid = session_id or ""
+        agent = _get_agent(sid)
+        if agent is None:
             return
-        was = _escalated.get(sid, False)
-        base = _base_tier.get(sid, 1)
-        current = _last_tier.get(sid, 1)
-        _tools_this_turn[sid] = 0
-
-    # De-escalate bookkeeping back to work base, then rest on Grok (soul).
-    if was and current > base:
         with _lock:
-            _escalated[sid] = False
-            _last_tier[sid] = base
-            _pending[sid] = base
-        logger.info(
-            "model-router: de-escalate T%d→T%d (base), then rest on Grok",
-            current,
-            base,
-        )
+            if _pinned.get(sid, False):
+                # Leave pin alone; clear per-turn counters.
+                _tools_this_turn[sid] = 0
+                return
+            was = _escalated.get(sid, False)
+            base = _base_tier.get(sid, 1)
+            current = _last_tier.get(sid, 1)
+            _tools_this_turn[sid] = 0
 
-    # Resting state is always Grok so the lineage/default remains Grok between turns.
-    # Next pre_llm_call re-classifies and downgrades for work.
-    with _lock:
-        _last_tier[sid] = _FINAL_TIER
-        _pending[sid] = _FINAL_TIER
-    if _apply_tier(agent, _FINAL_TIER):
+        # De-escalate bookkeeping back to work base, then rest on Grok (soul).
+        if was and current > base:
+            with _lock:
+                _escalated[sid] = False
+                _last_tier[sid] = base
+                _pending[sid] = base
+            logger.info(
+                "model-router: de-escalate T%d→T%d (base), then rest on Grok",
+                current,
+                base,
+            )
+
+        # Resting state is always Grok so the lineage/default remains Grok between turns.
+        # Next pre_llm_call re-classifies and downgrades for work.
         with _lock:
-            _pending.pop(sid, None)
+            _last_tier[sid] = _FINAL_TIER
+            _pending[sid] = _FINAL_TIER
+        if _apply_tier(agent, _FINAL_TIER):
+            with _lock:
+                _pending.pop(sid, None)
+    except Exception as exc:
+        logger.warning("model-router: on_post_llm_call error: %s", exc, exc_info=True)
 
 
 def _cmd_pin(raw_args: str, tier: int) -> str:
