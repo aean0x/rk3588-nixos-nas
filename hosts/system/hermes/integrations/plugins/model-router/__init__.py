@@ -15,12 +15,33 @@ Does not write SOUL.md.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 import time
 from typing import Any
 
 logger = logging.getLogger("plugins.model-router")
+
+
+def _attach_file_handler() -> None:
+    """Route routing decisions to their own file so they are greppable in one place.
+
+    Without this, INFO-level routing logs only reach agent.log (per-session) and
+    WARNING reaches errors.log; they never appear in gateway.log, which makes
+    "did the router actually switch" hard to answer from the container logs.
+    """
+    if any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+        return
+    hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
+    log_dir = os.path.join(hermes_home, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    handler = logging.FileHandler(os.path.join(log_dir, "model-router.log"))
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 TIERS: dict[int, dict[str, Any]] = {
     1: {
@@ -620,6 +641,7 @@ def _deferred_install_capture() -> None:
 def register(ctx: Any) -> None:
     global _manager
     _manager = getattr(ctx, "_manager", None)
+    _attach_file_handler()
     threading.Thread(target=_deferred_install_capture, daemon=True).start()
     ctx.register_hook("pre_llm_call", on_pre_llm_call)
     ctx.register_hook("pre_api_request", on_pre_api_request)
