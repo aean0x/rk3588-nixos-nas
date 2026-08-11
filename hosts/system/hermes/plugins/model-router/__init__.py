@@ -98,30 +98,47 @@ def bind_agent(session_id: str, agent: Any) -> None:
     if agent is None:
         return
     global _last_bound
+    sid = session_id or getattr(agent, "session_id", None) or ""
     with _lock:
-        if session_id:
-            _live_agents[session_id] = agent
-        _last_bound = (session_id or "", agent)
+        if sid:
+            _live_agents[sid] = agent
+        _last_bound = (sid, agent)
 
 
 def _get_agent(session_id: str = "") -> Any | None:
+    sid = session_id or ""
     with _lock:
-        if session_id and session_id in _live_agents:
-            return _live_agents[session_id]
+        if sid and sid in _live_agents:
+            return _live_agents[sid]
         bound = _last_bound
+        live_items = list(_live_agents.items())
+
+    def _ok(agent: Any) -> bool:
+        if agent is None:
+            return False
+        if not sid:
+            return True
+        agent_sid = getattr(agent, "session_id", "") or ""
+        return (not agent_sid) or agent_sid == sid
+
     if _manager is not None:
         try:
             cli = getattr(_manager, "_cli_ref", None)
             agent = getattr(cli, "agent", None) if cli else None
-            if agent is not None:
-                if not session_id:
-                    return agent
-                if (getattr(agent, "session_id", "") or "") == session_id:
-                    return agent
+            if _ok(agent):
+                bind_agent(sid, agent)
+                return agent
         except Exception:
             pass
-    if not session_id and bound is not None:
+
+    if bound is not None and _ok(bound[1]):
+        bind_agent(sid, bound[1])
         return bound[1]
+
+    for mapped_sid, agent in live_items:
+        if _ok(agent):
+            bind_agent(sid or mapped_sid, agent)
+            return agent
     return None
 
 
@@ -142,9 +159,7 @@ def _install_agent_capture() -> None:
 
     def wrapped_init(self, *args, **kwargs):
         orig_init(self, *args, **kwargs)
-        sid = getattr(self, "session_id", None) or ""
-        if sid:
-            bind_agent(sid, self)
+        bind_agent(getattr(self, "session_id", None) or "", self)
 
     wrapped_init._model_router_wrapped = True  # type: ignore[attr-defined]
     run_agent.AIAgent.__init__ = wrapped_init  # type: ignore[method-assign]
@@ -152,9 +167,7 @@ def _install_agent_capture() -> None:
     orig_run = run_agent.AIAgent.run_conversation
 
     def wrapped_run(self, *args, **kwargs):
-        sid = getattr(self, "session_id", None) or ""
-        if sid:
-            bind_agent(sid, self)
+        bind_agent(getattr(self, "session_id", None) or "", self)
         return orig_run(self, *args, **kwargs)
 
     run_agent.AIAgent.run_conversation = wrapped_run  # type: ignore[method-assign]
@@ -343,15 +356,23 @@ def on_pre_llm_call(
     tier = _target_tier(sid, msg, conversation_history or [])
     agent = _get_agent(sid)
     if agent is None:
-        # Concession: first API call of this turn may still be Grok.
-        logger.info(
-            "model-router: T%d classified, no live agent yet — will apply on next API call",
+        logger.warning(
+            "model-router: T%d classified, no live agent sid=%s — first call may be Grok",
             tier,
+            sid or "-",
         )
         return
     if _apply_tier(agent, tier):
         with _lock:
             _pending.pop(sid, None)
+    else:
+        logger.warning(
+            "model-router: T%d apply failed sid=%s model=%s provider=%s",
+            tier,
+            sid or "-",
+            getattr(agent, "model", "") or "-",
+            getattr(agent, "provider", "") or "-",
+        )
 
 
 def on_pre_api_request(*, session_id: str = "", platform: str = "", **kwargs: Any) -> None:
