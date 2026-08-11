@@ -97,6 +97,7 @@ TIERS: dict[int, dict[str, Any]] = {
             "Security-sensitive analysis",
             "Algorithmic optimization",
             "High-stakes reasoning",
+            "Monetary transactions",
             "Final user-facing response",
         ],
     },
