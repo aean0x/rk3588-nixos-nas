@@ -109,6 +109,11 @@ _ESCALATE_MAX = 3
 _ESCALATION_ERROR_THRESHOLD = 2
 _FINAL_TIER = 3
 
+# A real tool error has a non-empty "error" value or "failed": true.
+# Successful results carry "error": null / "" or "failed": false and must not
+# count toward escalation, otherwise two clean tool calls false-escalate.
+_ERROR_PAT = re.compile(r'"(?:error|failed)"\s*:\s*(?!\s*null\b)(?!\s*false\b)(?!\s*"")')
+
 _SKIP_PLATFORMS = frozenset({"cron"})
 
 _TIER_RE = re.compile(r"(?:^|(?<=\s)|(?<=\())[tT]([1-3])(?:\b|(?=\)))")
@@ -874,8 +879,7 @@ def on_post_tool_call(
                     head_src = str(result)
             head = head_src[:500].lower()
             if (
-                '"error"' in head
-                or '"failed"' in head
+                _ERROR_PAT.search(head)
                 or head_src.startswith("Error")
                 or ('"exit_code": ' in head and '"exit_code": 0' not in head and '"exit_code": null' not in head)
             ):
