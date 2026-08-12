@@ -6,16 +6,17 @@ Collapsed from upstream open-world-project/model-router 5-tier map:
   old T4+T5       → T3 Grok  (architecture, high-stakes, final voice)
 
 Policy:
-  • Work loop runs on classified T1/T2 (or T3 when classified).
+  • Work loop stays on classified T1/T2 for the full multi-tool turn
+    (or T3 when the classifier picks high-stakes). Tools do NOT force Grok.
   • Multi-sentence user messages floor at T2 (classifier + deterministic).
   • Tool-error escalation may climb through T3 Grok and de-escalate back.
-  • After any tool use this turn, subsequent API calls switch to Grok
-    (synthesis / potential final).
-  • If the turn still ends off-Grok (no-tool path), transform_llm_output
-    polishes the draft once via Grok so the user-facing reply is Grok.
+  • End of turn: if the draft is still off-Grok, transform_llm_output runs a
+    one-shot Grok final-voice polish so the user-facing reply is Grok.
   • Manual /t1 /t2 /t3 pins win over auto final-voice.
   • Every pre_api_request re-heals half-switch (DeepSeek model on xAI host)
     caused by WebUI webui_credential_refresh — hooks never raise.
+  • post_llm_call rests the agent on Grok between turns (soul default);
+    next pre_llm_call re-classifies for work.
 
 No Hermes/WebUI core file edits. Live switch uses AIAgent.switch_model via
 the same hermes_cli.model_switch resolver as /model (native providers, not
@@ -584,20 +585,6 @@ def _is_grok_model(model: str | None) -> bool:
     return "grok" in m
 
 
-def _messages_after_tools(messages: list | None) -> bool:
-    if not messages:
-        return False
-    for msg in reversed(messages):
-        if not isinstance(msg, dict):
-            continue
-        role = _norm(str(msg.get("role") or ""))
-        if role in ("tool", "function"):
-            return True
-        if role in ("user", "assistant", "system"):
-            return False
-    return False
-
-
 def _force_tier(session_id: str, tier: int, reason: str) -> None:
     """Apply tier and bookkeep; mark escalated when climbing above base."""
     with _lock:
@@ -651,8 +638,13 @@ def _extract_call_llm_text(response: Any) -> str:
     return ""
 
 
-def _grok_final_voice(session_id: str, draft: str) -> str | None:
-    """One-shot Grok rewrite so the user-facing reply is always Grok voice."""
+def _grok_final_voice(session_id: str, draft: str, model_hint: str = "") -> str | None:
+    """One-shot Grok rewrite so the user-facing reply is always Grok voice.
+
+    Runs at end of turn (transform_llm_output) when the work loop stayed on
+    T1/T2. Skips acks, manual pins below T3, and turns already produced on Grok
+    (classifier T3 or error-escalation).
+    """
     draft = (draft or "").strip()
     if not draft:
         return None
@@ -661,14 +653,23 @@ def _grok_final_voice(session_id: str, draft: str) -> str | None:
         is_ack = _ack_turn.get(session_id, False)
         pinned = _pinned.get(session_id, False)
         last = _last_tier.get(session_id, 1)
+        base = _base_tier.get(session_id, last)
     if pinned and last < _FINAL_TIER:
+        logger.info("model-router: final voice skip (pinned T%d)", last)
         return None
     if is_ack:
         return None
-    # Already produced by Grok — don't double-bill.
+
     agent = _get_agent(session_id)
     live_model = getattr(agent, "model", "") if agent is not None else ""
-    if _is_grok_model(live_model) or last >= _FINAL_TIER:
+    # Prefer hook model (what produced the draft), fall back to live agent.
+    draft_model = model_hint or live_model
+    if _is_grok_model(draft_model) or _is_grok_model(live_model):
+        logger.info("model-router: final voice skip (already Grok model=%s)", draft_model or live_model)
+        return None
+    # Classifier/escalation already on T3 bookkeeping with matching Grok agent.
+    if last >= _FINAL_TIER and base >= _FINAL_TIER:
+        logger.info("model-router: final voice skip (base T3)")
         return None
 
     try:
@@ -692,15 +693,30 @@ def _grok_final_voice(session_id: str, draft: str) -> str | None:
             max_tokens=min(8192, max(512, len(draft) // 2 + 800)),
         )
         polished = _extract_call_llm_text(response)
-        if polished and polished != draft:
+        if not polished:
+            logger.warning("model-router: final voice Grok polish returned empty")
+            return None
+        if polished == draft:
             logger.info(
-                "model-router: final voice Grok polish (%d→%d chars)",
+                "model-router: final voice Grok polish no-op (%d chars)",
                 len(draft),
-                len(polished),
             )
+            # Still mark final tier so bookkeeping matches Grok voice path.
             with _lock:
                 _last_tier[session_id] = _FINAL_TIER
-            return polished
+            return None
+        logger.info(
+            "model-router: final voice Grok polish (%d→%d chars) work=T%d",
+            len(draft),
+            len(polished),
+            base if base else last,
+        )
+        with _lock:
+            _last_tier[session_id] = _FINAL_TIER
+        # Align live agent with Grok after polish (post_llm_call also rests on Grok).
+        if agent is not None:
+            _apply_tier(agent, _FINAL_TIER)
+        return polished
     except Exception as exc:
         logger.warning("model-router: final voice Grok polish failed: %s", exc)
     return None
@@ -778,7 +794,11 @@ def on_pre_llm_call(
 
 
 def on_pre_api_request(*, session_id: str = "", platform: str = "", **kwargs: Any) -> None:
-    """Re-apply route every API call — WebUI credential_refresh half-switches mid-turn."""
+    """Re-apply route every API call — WebUI credential_refresh half-switches mid-turn.
+
+    Does NOT force Grok after tools — work loop stays on classified tier;
+    final voice is transform_llm_output polish at end of turn.
+    """
     try:
         if _should_skip(platform, kwargs):
             return
@@ -787,7 +807,6 @@ def on_pre_api_request(*, session_id: str = "", platform: str = "", **kwargs: An
             pinned = _pinned.get(sid, False)
             pending = _pending.get(sid)
             current = _last_tier.get(sid)
-            tools_n = _tools_this_turn.get(sid, 0)
 
         agent = _get_agent(sid)
         if agent is not None and sid:
@@ -796,13 +815,6 @@ def on_pre_api_request(*, session_id: str = "", platform: str = "", **kwargs: An
         if pinned:
             if agent is not None and current:
                 _apply_tier(agent, current)
-            return
-
-        # Post-tool API calls: always Grok for synthesis / final.
-        msgs = kwargs.get("request_messages") or kwargs.get("conversation_history")
-        after_tools = tools_n > 0 or _messages_after_tools(msgs if isinstance(msgs, list) else None)
-        if after_tools:
-            _force_tier(sid, _FINAL_TIER, "post-tool synthesis → Grok")
             return
 
         target = pending or current
@@ -839,6 +851,7 @@ def on_post_tool_call(
     session_id: str = "",
     **kwargs: Any,
 ) -> None:
+    """Count tools + error-escalate. Does not force Grok on success."""
     try:
         sid = session_id or ""
         if not sid:
@@ -883,11 +896,6 @@ def on_post_tool_call(
             with _lock:
                 _tool_errors[sid] = 0
             logger.info("model-router: auto-escalate T%d→T%d after tool errors", current, new_tier)
-            return
-
-        # Even without errors: next API call after tools is Grok (final voice path).
-        if current < _FINAL_TIER:
-            _force_tier(sid, _FINAL_TIER, f"after tool {tool_name or '?'} → Grok final")
     except Exception as exc:
         logger.warning("model-router: on_post_tool_call error: %s", exc, exc_info=True)
 
@@ -907,9 +915,7 @@ def on_transform_llm_output(
         sid = session_id or ""
         if not sid or not (response_text or "").strip():
             return None
-        if _is_grok_model(model):
-            return None
-        return _grok_final_voice(sid, response_text)
+        return _grok_final_voice(sid, response_text, model_hint=model)
     except Exception as exc:
         logger.warning("model-router: on_transform_llm_output error: %s", exc, exc_info=True)
         return None
@@ -1027,6 +1033,6 @@ def register(ctx: Any) -> None:
     ctx.register_command("t3", lambda args: _cmd_pin(args, 3), "Pin session to T3 Grok 4.5")
     ctx.register_command("auto", _cmd_auto, "Resume model-router auto routing")
     logger.info(
-        "model-router: T1 flash / T2 pro / T3 grok | final=Grok | escalate≤T3 | "
-        "/t1 /t2 /t3 /auto | no SOUL writes"
+        "model-router: T1 flash / T2 pro / T3 grok | work-loop=classify | "
+        "final=Grok polish | escalate≤T3 | /t1 /t2 /t3 /auto | no SOUL writes"
     )
