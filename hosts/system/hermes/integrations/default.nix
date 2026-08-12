@@ -73,6 +73,14 @@ in
       ${pkgs.rsync}/bin/rsync -a --delete \
         --exclude 'webui/' --exclude '__pycache__/' --exclude '*.pyc' \
         "$src"/ "$dest"/
+      # Nix store sources carry epoch mtimes. Python prefers .pyc when its
+      # mtime ≥ .py mtime, so an epoch .py can silently lose to a stale
+      # bytecode cache from a prior gateway run (hot-fix / half-restart trap).
+      find "$dest" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+      find "$dest" -type f \( -name '*.py' -o -name '*.pyc' -o -name '*.pyo' \) -print0 \
+        | while IFS= read -r -d '' f; do
+            case "$f" in *.pyc|*.pyo) rm -f "$f" ;; *) touch -c "$f" ;; esac
+          done
       chown -R hermes:hermes "$dest" 2>/dev/null || true
       find "$dest" -type d -exec chmod 2770 {} \; 2>/dev/null || true
       find "$dest" -type f -exec chmod 0640 {} \; 2>/dev/null || true
