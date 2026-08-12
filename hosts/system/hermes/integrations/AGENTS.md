@@ -49,6 +49,11 @@ the symlink.
 **HMC** uses the same shape in `context-manager.nix` (fetch + overlay into the
 materialize root, then the same relative symlink).
 
+**Bytecode / mtime:** Nix sources carry epoch mtimes. Activation wipes
+`__pycache__` and `touch`es all `.py` after install so Python cannot prefer a
+stale `.pyc` over freshly deployed source. Manual hot-fix must do the same
+(`touch` + purge pyc + restart) — see skill `hermes-plugin-ops` §6.
+
 **model-router WebUI** assets stay in-flake at `plugins/model-router/webui`;
 `hermes-webui.nix` sets `HERMES_WEBUI_EXTENSION_DIR` to that store path.
 
