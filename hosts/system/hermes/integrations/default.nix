@@ -43,9 +43,21 @@ let
   materializeRoot = "/var/lib/hermes/plugins";
 in
 {
-  # MCP clients live in gbrain.nix (HTTP sole-owner) and mcp/*.json if added later.
+  imports = [
+    ./mcp # maton stdio wrapper; gbrain HTTP client stays in ../gbrain.nix
+  ];
 
-  system.activationScripts.hermes-integrations-plugins = lib.stringAfter [ "users" "groups" ] ''
+  # Declarative allow-list (module SoT); activation also reconciles live config.yaml.
+  services.hermes-agent.settings.plugins = {
+    enabled = enabledPlugins;
+  };
+
+  system.activationScripts.hermes-integrations-plugins = lib.stringAfter [
+    "users"
+    "groups"
+    "hermes-agent-setup"
+    "hermes-toolbox"
+  ] ''
     # materialize + relative symlink into discovery root (same shape as HMC).
     install_plugin_tree() {
       local name="$1" src="$2"
