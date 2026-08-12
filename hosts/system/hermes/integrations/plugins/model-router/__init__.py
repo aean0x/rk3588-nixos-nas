@@ -850,11 +850,20 @@ def on_post_tool_call(
 
         is_error = False
         if result is not None:
-            head = result[:500].lower()
+            # Hook may pass dict/list/ToolResult — never slice non-str (TypeError: unhashable slice).
+            if isinstance(result, str):
+                head_src = result
+            else:
+                try:
+                    import json as _json
+                    head_src = _json.dumps(result, default=str)
+                except Exception:
+                    head_src = str(result)
+            head = head_src[:500].lower()
             if (
                 '"error"' in head
                 or '"failed"' in head
-                or result.startswith("Error")
+                or head_src.startswith("Error")
                 or ('"exit_code": ' in head and '"exit_code": 0' not in head and '"exit_code": null' not in head)
             ):
                 is_error = True
