@@ -82,6 +82,11 @@ in
         default = "grok-4.5";
       };
 
+      fallback_model = {
+        provider = "xai-oauth";
+        model = "grok-4.5";
+      };
+
       stt = {
         provider = "openai";
         model = "whisper-1";
