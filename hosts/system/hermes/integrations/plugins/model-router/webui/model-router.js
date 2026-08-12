@@ -5,7 +5,7 @@
   const TIERS = [
     { cmd: "/t1", label: "T1 Flash", short: "T1", model: "deepseek-v4-flash", title: "Pin DeepSeek Flash" },
     { cmd: "/t2", label: "T2 Pro", short: "T2", model: "deepseek-v4-pro", title: "Pin DeepSeek Pro" },
-    { cmd: "/t3", label: "T3 Grok", short: "T3", model: "grok-4.5", title: "Pin Grok 4.5" },
+    { cmd: "/t3", label: "T3 Grok", short: "T3", model: "grok-4.6", title: "Pin Grok 4.6" },
   ];
 
   let lastCmd = "/auto";

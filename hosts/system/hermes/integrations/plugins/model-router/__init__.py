@@ -87,7 +87,7 @@ TIERS: dict[int, dict[str, Any]] = {
     },
     3: {
         "label": "T3 Grok",
-        "model": "grok-4.5",
+        "model": "grok-4.6",
         "provider": "xai-oauth",
         "role": "high-stakes + final user-facing voice",
         "best_for": [
@@ -1030,7 +1030,7 @@ def register(ctx: Any) -> None:
     ctx.register_hook("post_llm_call", on_post_llm_call)
     ctx.register_command("t1", lambda args: _cmd_pin(args, 1), "Pin session to T1 DeepSeek Flash")
     ctx.register_command("t2", lambda args: _cmd_pin(args, 2), "Pin session to T2 DeepSeek Pro")
-    ctx.register_command("t3", lambda args: _cmd_pin(args, 3), "Pin session to T3 Grok 4.5")
+    ctx.register_command("t3", lambda args: _cmd_pin(args, 3), "Pin session to T3 Grok 4.6")
     ctx.register_command("auto", _cmd_auto, "Resume model-router auto routing")
     logger.info(
         "model-router: T1 flash / T2 pro / T3 grok | work-loop=classify | "

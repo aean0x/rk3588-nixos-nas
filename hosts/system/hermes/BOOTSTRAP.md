@@ -1,6 +1,6 @@
 # Bootstrap: fresh Hermes + GBrain on rocknas
 
-Target end state: **xAI OAuth + Grok 4.5**, empty identity (no declarative SOUL), **GBrain MCP + CLI** ready, ZeroEntropy embeddings secret in `/run/hermes.env`.
+Target end state: **xAI OAuth + Grok 4.6**, empty identity (no declarative SOUL), **GBrain MCP + CLI** ready, ZeroEntropy embeddings secret in `/run/hermes.env`.
 
 North-star behavior: `~/dev/hetzner-nixos` GBrain integration. Layout here lives under `hosts/system/hermes/`.
 
@@ -37,7 +37,7 @@ Declarative config already sets:
 
 ```nix
 settings.model.provider = "xai-oauth";
-settings.model.default = "grok-4.5";
+settings.model.default = "grok-4.6";
 ```
 
 **One-time OAuth** (interactive; cannot be fully declarative without `authFile`):
@@ -183,7 +183,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
 | `FIRECRAWL_API_KEY` | Yes (sops → hermesEnv; `web_extract`) |
 | `firecrawl` pyproject extra | Yes (`extraDependencyGroups`) |
-| Model provider `xai-oauth` + default `grok-4.5` | Yes |
+| Model provider `xai-oauth` + default `grok-4.6` | Yes |
 | SOUL.md / persona docs | **No** (disabled) |
 | Operator refs (`reference/GBRAIN.md`, `HERMES-WEBUI.md`) | Repo only — not live workspace |
 | retrieval-reflex skill | Yes (always managed; gbrain-native policy) |

@@ -79,12 +79,12 @@ in
       model = {
         # Primary: xAI OAuth (run `hermes auth add xai-oauth` once after deploy).
         provider = "xai-oauth";
-        default = "grok-4.5";
+        default = "grok-4.6";
       };
 
       fallback_model = {
         provider = "xai-oauth";
-        model = "grok-4.5";
+        model = "grok-4.6";
       };
 
       stt = {
@@ -191,10 +191,10 @@ in
           monitor = flash;
           # Memory query rewrite (already cheap; keep on fleet).
           memory_query_rewrite = flash;
-          # vision intentionally omitted → auto → main Grok 4.5.
+          # vision intentionally omitted → auto → main Grok 4.6.
         };
 
-      # Cron fleet default: unpinned jobs must NOT inherit model.default=grok-4.5.
+      # Cron fleet default: unpinned jobs must NOT inherit model.default=grok-4.6.
       # Resolution at fire: job.model > cron.model > HERMES_MODEL > model.default
       cron = {
         model = "deepseek-v4-flash";
