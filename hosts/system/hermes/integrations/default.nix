@@ -1,4 +1,10 @@
 # First-party plugins + MCP clients. Catalog: ./AGENTS.md
+#
+# Discovery (Hermes ≥0.19/0.20): ONLY $HERMES_HOME/plugins (+ optional
+# ~/.hermes/plugins if different, + bundled). There is NO plugins.external_dirs
+# — that key is skills-only. Dual-root install was cargo-cult; we install once
+# into $HERMES_HOME/plugins. HMC is special-cased in ../context-manager.nix
+# (materialize under /var/lib/hermes/plugins + relative symlink into HERMES_HOME).
 {
   lib,
   pkgs,
@@ -29,6 +35,11 @@ let
 
   # JSON list for the activation Python reconciler.
   enabledPluginsJson = builtins.toJSON enabledPlugins;
+
+  # Canonical discovery root. Host path; container stateDir maps this tree to /data/.hermes.
+  hermesHomePlugins = "/var/lib/hermes/.hermes/plugins";
+  # Materialize root used only by HMC (symlink target). Not a second discovery root.
+  pluginMaterializeRoot = "/var/lib/hermes/plugins";
 in
 {
   imports = [
@@ -36,10 +47,6 @@ in
   ];
 
   services.hermes-agent.settings.plugins = {
-    external_dirs = [
-      "/data/plugins"
-      "/var/lib/hermes/plugins"
-    ];
     enabled = enabledPlugins;
   };
 
@@ -51,29 +58,35 @@ in
     install_plugin_tree() {
       name="$1"
       src_dir="$2"
-      for base in /var/lib/hermes/.hermes/plugins /var/lib/hermes/plugins; do
-        [ -d "$(dirname "$base")" ] || continue
-        install -d -m 0755 -o hermes -g hermes "$base/$name"
-        # Core plugin files
-        if [ -f "$src_dir/plugin.yaml" ]; then
-          install -m 0644 -o hermes -g hermes "$src_dir/plugin.yaml" "$base/$name/plugin.yaml"
+      base=${hermesHomePlugins}
+      [ -d "$(dirname "$base")" ] || return 0
+      install -d -m 0755 -o hermes -g hermes "$base/$name"
+      # Core plugin files
+      if [ -f "$src_dir/plugin.yaml" ]; then
+        install -m 0644 -o hermes -g hermes "$src_dir/plugin.yaml" "$base/$name/plugin.yaml"
+      fi
+      if [ -f "$src_dir/__init__.py" ]; then
+        install -m 0644 -o hermes -g hermes "$src_dir/__init__.py" "$base/$name/__init__.py"
+      fi
+      # Optional extras (not webui — that is store-only for HERMES_WEBUI_EXTENSION_DIR)
+      for extra in "$src_dir"/*; do
+        [ -e "$extra" ] || continue
+        base_name="$(basename "$extra")"
+        case "$base_name" in
+          plugin.yaml|__init__.py|webui|__pycache__) continue ;;
+        esac
+        if [ -f "$extra" ]; then
+          install -m 0644 -o hermes -g hermes "$extra" "$base/$name/$base_name"
         fi
-        if [ -f "$src_dir/__init__.py" ]; then
-          install -m 0644 -o hermes -g hermes "$src_dir/__init__.py" "$base/$name/__init__.py"
-        fi
-        # Optional extras (not webui — that is store-only for HERMES_WEBUI_EXTENSION_DIR)
-        for extra in "$src_dir"/*; do
-          [ -e "$extra" ] || continue
-          base_name="$(basename "$extra")"
-          case "$base_name" in
-            plugin.yaml|__init__.py|webui|__pycache__) continue ;;
-          esac
-          if [ -f "$extra" ]; then
-            install -m 0644 -o hermes -g hermes "$extra" "$base/$name/$base_name"
-          fi
-        done
       done
+      # Drop stale dual-root copy (pre-single-root era). Never touch HMC here.
+      stale=${pluginMaterializeRoot}/$name
+      if [ -e "$stale" ] && [ ! -L "$base/$name" ]; then
+        rm -rf "$stale"
+      fi
     }
+
+    install -d -m 0755 -o hermes -g hermes ${hermesHomePlugins}
 
     ${lib.concatMapStringsSep "\n" (name: ''
       install_plugin_tree ${name} ${pluginsDir}/${name}
@@ -113,15 +126,10 @@ for name in desired:
     if name not in enabled:
         enabled.append(name)
         changed = True
-ext = plugins.get("external_dirs")
-if not isinstance(ext, list):
-    plugins["external_dirs"] = ["/data/plugins", "/var/lib/hermes/plugins"]
+# plugins.external_dirs is not a Hermes plugins feature (skills-only). Strip dead key.
+if "external_dirs" in plugins:
+    del plugins["external_dirs"]
     changed = True
-else:
-    for d in ("/data/plugins", "/var/lib/hermes/plugins"):
-        if d not in ext:
-            ext.append(d)
-            changed = True
 if changed:
     path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
 PY
