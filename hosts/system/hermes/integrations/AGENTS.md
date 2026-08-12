@@ -9,7 +9,7 @@ Infrastructure only — not agent-owned workspace content.
 integrations/
 ├── AGENTS.md              # this file
 ├── default.nix            # plugins.enabled + plugin install activation
-├── plugins/               # force-managed plugin trees (→ $HERMES_HOME/plugins)
+├── plugins/               # force-managed sources (materialize → /var/lib/hermes/plugins, symlink → $HERMES_HOME/plugins)
 │   ├── gbrain-retrieval-reflex/
 │   ├── gbrain-memory-flush/
 │   ├── tool-call-coherency/
@@ -35,18 +35,19 @@ Declared once in `default.nix` (`enabledPlugins`):
 | `projects-auto-commit` | EOT monorepo commit for projects tree |
 | `model-router` | T1 Flash / T2 Pro / T3 Grok per-turn routing |
 
-Activation copies each `plugins/<name>/{plugin.yaml,__init__.py}` (and extra
-files except `webui/` / `__pycache__`) into the **only** Hermes discovery root:
+**One install pattern for every plugin** (including HMC):
 
-- `/var/lib/hermes/.hermes/plugins/<name>` (container: `/data/.hermes/plugins/<name>`)
+1. **Materialize** full tree → `/var/lib/hermes/plugins/<name>` (container: `/data/plugins/<name>`)
+2. **Discover** via relative symlink → `$HERMES_HOME/plugins/<name>` → `../../plugins/<name>`
+   (container: `/data/.hermes/plugins/<name>`)
 
-There is no second install root. `plugins.external_dirs` is not a Hermes feature
-(skills-only). Activation also strips that dead key from live config and removes
-stale dual-root copies under `/var/lib/hermes/plugins/<name>` for managed plugins.
+Hermes only scans `$HERMES_HOME/plugins`. `plugins.external_dirs` is not a Hermes
+feature (skills-only); activation strips that dead key from live config. If a prior
+dual-copy left a real directory at the discovery path, activation replaces it with
+the symlink.
 
-**HMC** is not under this list’s source tree: `context-manager.nix` materializes a
-pinned commit at `/var/lib/hermes/plugins/hermes-context-manager` and symlinks it
-into `$HERMES_HOME/plugins`.
+**HMC** uses the same shape in `context-manager.nix` (fetch + overlay into the
+materialize root, then the same relative symlink).
 
 **model-router WebUI** assets stay in-flake at `plugins/model-router/webui`;
 `hermes-webui.nix` sets `HERMES_WEBUI_EXTENSION_DIR` to that store path.
