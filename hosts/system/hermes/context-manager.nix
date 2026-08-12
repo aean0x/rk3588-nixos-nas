@@ -1,10 +1,10 @@
 # hermes-context-manager (HMC) — silent-first context optimization plugin.
 # Upstream: https://github.com/entrepeneur4lyf/hermes-context-manager
 #
-# Installs a pinned commit into /var/lib/hermes/plugins/hermes-context-manager
-# (materialize root — large multi-file package) and a relative symlink under
-# $HERMES_HOME/plugins so the 0.19+ plugin loader discovers it in container
-# mode (HERMES_HOME=/data/.hermes). plugins.external_dirs is not a Hermes key.
+# Same layout as integrations/default.nix (all plugins):
+#   materialize → /var/lib/hermes/plugins/hermes-context-manager
+#   discover    → $HERMES_HOME/plugins/… → ../../plugins/… (relative symlink)
+# Source is a pinned upstream fetch + overlay, not integrations/plugins/<name>.
 #
 # After deploy: restart the gateway so hooks load (`hermes gateway restart` or
 # `systemctl restart hermes-agent`), then `/hmc status` in chat.
