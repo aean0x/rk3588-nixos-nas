@@ -89,13 +89,10 @@ in
     # Reconcile plugins.enabled; strip dead plugins.external_dirs (skills-only key).
     cfg=/var/lib/hermes/.hermes/config.yaml
     if [ -f "$cfg" ]; then
-      ${pkgs.python3}/bin/python3 - "$cfg" <<'PY'
+      ${pkgs.python3.withPackages (ps: [ ps.pyyaml ])}/bin/python3 - "$cfg" <<'PY'
 import sys
 from pathlib import Path
-try:
-    import yaml
-except ImportError:
-    sys.exit(0)
+import yaml
 
 path = Path(sys.argv[1])
 data = yaml.safe_load(path.read_text()) or {}
