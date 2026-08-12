@@ -9,7 +9,7 @@ Infrastructure only — not agent-owned workspace content.
 integrations/
 ├── AGENTS.md              # this file
 ├── default.nix            # plugins.enabled + plugin install activation
-├── plugins/               # force-managed plugin trees (→ /var/lib/hermes/plugins)
+├── plugins/               # force-managed plugin trees (→ $HERMES_HOME/plugins)
 │   ├── gbrain-retrieval-reflex/
 │   ├── gbrain-memory-flush/
 │   ├── tool-call-coherency/
@@ -36,13 +36,17 @@ Declared once in `default.nix` (`enabledPlugins`):
 | `model-router` | T1 Flash / T2 Pro / T3 Grok per-turn routing |
 
 Activation copies each `plugins/<name>/{plugin.yaml,__init__.py}` (and extra
-files except `webui/` / `__pycache__`) into:
+files except `webui/` / `__pycache__`) into the **only** Hermes discovery root:
 
-- `/var/lib/hermes/plugins/<name>`
-- `/var/lib/hermes/.hermes/plugins/<name>`
+- `/var/lib/hermes/.hermes/plugins/<name>` (container: `/data/.hermes/plugins/<name>`)
 
-**HMC** is not under this list’s source tree: `context-manager.nix` fetches a
-pinned commit and applies `plugins/hermes-context-manager-overlay`.
+There is no second install root. `plugins.external_dirs` is not a Hermes feature
+(skills-only). Activation also strips that dead key from live config and removes
+stale dual-root copies under `/var/lib/hermes/plugins/<name>` for managed plugins.
+
+**HMC** is not under this list’s source tree: `context-manager.nix` materializes a
+pinned commit at `/var/lib/hermes/plugins/hermes-context-manager` and symlinks it
+into `$HERMES_HOME/plugins`.
 
 **model-router WebUI** assets stay in-flake at `plugins/model-router/webui`;
 `hermes-webui.nix` sets `HERMES_WEBUI_EXTENSION_DIR` to that store path.
