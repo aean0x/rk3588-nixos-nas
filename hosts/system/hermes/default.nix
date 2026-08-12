@@ -114,22 +114,25 @@ in
         user_profile_enabled = true;
       };
 
-      # Token lean 80/20: native tool-output caps (0.19 DEFAULT_CONFIG knobs).
-      # Skipped (not in 0.19 DEFAULT_CONFIG): tools.compact_schemas, skills.prompt_mode.
+      # Token lean: native tool-output caps (DEFAULT_CONFIG knobs).
+      # Keep dumps small so menial turns don't open near the HMC/native budget.
+      # Skipped (not in DEFAULT_CONFIG): tools.compact_schemas, skills.prompt_mode.
       tool_output = {
-        max_bytes = 8000;
-        max_lines = 200;
+        max_bytes = 6000;
+        max_lines = 150;
         max_line_length = 2000;
       };
 
-      # Keep interactive under ~120k even on large-context models (grok 500k).
-      # threshold_tokens is the absolute floor; percent alone never fires before 200k
-      # because small-context floor raises the ratio trigger near 75% of 500k.
+      # Hard interactive budget under Grok's 200k input rate cliff (and all models).
+      # threshold_tokens is the absolute fire-point; percent alone never fires early
+      # on ~500k windows (small-context floor lifts the ratio trigger toward ~75%).
+      # Match HMC compress.max_context_tokens (context-manager.nix). 200k is a
+      # never-touch ceiling, not an operating target.
       compression = {
         enabled = true;
         threshold = 0.30;
-        threshold_tokens = 120000;
-        target_ratio = 0.18;
+        threshold_tokens = 100000;
+        target_ratio = 0.15;
         protect_last_n = 8;
         proactive_prune_tokens = 24000;
         proactive_prune_min_result_chars = 2000;

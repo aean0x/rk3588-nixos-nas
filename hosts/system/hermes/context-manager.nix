@@ -39,8 +39,11 @@ let
       automatic_strategies: true
 
     compress:
-      # Absolute budget: large windows (grok 500k) otherwise never compress before 200k+.
-      max_context_tokens: 120000
+      # Absolute managed budget (checked before percent). Prefer this over % of
+      # model window so large contexts (grok ~500k) never sit near the 200k
+      # input rate cliff. Match native compression.threshold_tokens in default.nix.
+      # Same cap for all models (incl. DeepSeek aux/delegate).
+      max_context_tokens: 100000
       max_context_percent: 0.24
       min_context_percent: 0.24
       protected_tools:
@@ -61,9 +64,9 @@ let
 
     truncation:
       enabled: true
-      max_lines: 40
-      head_lines: 12
-      tail_lines: 8
+      max_lines: 30
+      head_lines: 10
+      tail_lines: 6
       min_content_length: 500
 
     background_compression:

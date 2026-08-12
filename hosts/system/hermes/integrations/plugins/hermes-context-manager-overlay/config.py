@@ -18,8 +18,9 @@ class ManualModeConfig:
 @dataclass(slots=True)
 class CompressConfig:
     # Absolute token budget. Prefer this over percent gates on large windows
-    # (e.g. grok 500k) so compression engages before 200k+ context.
-    max_context_tokens: int = 120000
+    # (e.g. grok 500k) so compression engages well under the 200k rate cliff.
+    # Keep in sync with context-manager.nix / native compression.threshold_tokens.
+    max_context_tokens: int = 100000
     max_context_percent: float = 0.24
     min_context_percent: float = 0.24
     protected_tools: list[str] = field(default_factory=lambda: ["write_file", "patch"])

@@ -1018,7 +1018,7 @@ class HermesContextManagerPlugin:
                 # window — normalize via tokens/budget for operator status.
                 budget = int(
                     getattr(self.config.compress, "max_context_tokens", 0) or 0
-                ) or 120000
+                ) or 100000
                 tokens = int(state.last_context_tokens or 0)
                 if tokens > 0 and budget > 0:
                     budget_pct = min(100.0, (tokens / budget) * 100.0)
@@ -1053,7 +1053,7 @@ class HermesContextManagerPlugin:
             if action == "context":
                 budget = int(
                     getattr(self.config.compress, "max_context_tokens", 0) or 0
-                ) or 120000
+                ) or 100000
                 tokens = int(state.last_context_tokens or 0)
                 return json.dumps(
                     {
