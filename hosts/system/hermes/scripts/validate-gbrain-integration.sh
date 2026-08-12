@@ -96,12 +96,11 @@ else
 fi
 
 for plug in gbrain-retrieval-reflex gbrain-memory-flush; do
-  if docker exec "$CONTAINER" test -f "/data/plugins/$plug/plugin.yaml" 2>/dev/null \
-    || [ -f "/var/lib/hermes/plugins/$plug/plugin.yaml" ] \
+  if docker exec "$CONTAINER" test -f "/data/.hermes/plugins/$plug/plugin.yaml" 2>/dev/null \
     || [ -f "/var/lib/hermes/.hermes/plugins/$plug/plugin.yaml" ]; then
-    ok "plugin $plug installed"
+    ok "plugin $plug installed under \$HERMES_HOME/plugins"
   else
-    warn "plugin $plug not found under plugins trees"
+    warn "plugin $plug not found under \$HERMES_HOME/plugins"
   fi
 done
 

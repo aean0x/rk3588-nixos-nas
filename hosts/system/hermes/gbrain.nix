@@ -255,7 +255,7 @@ if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
     changed = True
 
-# plugins.enabled / external_dirs: integrations/default.nix
+# plugins.enabled: integrations/default.nix (single-root $HERMES_HOME/plugins)
 
 if changed:
     path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))

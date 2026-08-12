@@ -2,8 +2,9 @@
 # Upstream: https://github.com/entrepeneur4lyf/hermes-context-manager
 #
 # Installs a pinned commit into /var/lib/hermes/plugins/hermes-context-manager
-# (plugins.external_dirs) and a relative symlink under $HERMES_HOME/plugins so
-# the 0.19 plugin loader discovers it in container mode (HERMES_HOME=/data/.hermes).
+# (materialize root — large multi-file package) and a relative symlink under
+# $HERMES_HOME/plugins so the 0.19+ plugin loader discovers it in container
+# mode (HERMES_HOME=/data/.hermes). plugins.external_dirs is not a Hermes key.
 #
 # After deploy: restart the gateway so hooks load (`hermes gateway restart` or
 # `systemctl restart hermes-agent`), then `/hmc status` in chat.
@@ -126,7 +127,7 @@ in
     find "$dest" -type d -exec chmod 2770 {} \;
     find "$dest" -type f -exec chmod 0640 {} \;
 
-    # Discovery path: $HERMES_HOME/plugins (0.19 loads here; external_dirs alone is not enough).
+    # Discovery path: $HERMES_HOME/plugins only (plugins.external_dirs is not a Hermes key).
     # Relative symlink so host + container (stateDir → /data) both resolve.
     ln -sfn ../../plugins/hermes-context-manager ${hermesHomePlugins}/hermes-context-manager
     chown -h hermes:hermes ${hermesHomePlugins}/hermes-context-manager
