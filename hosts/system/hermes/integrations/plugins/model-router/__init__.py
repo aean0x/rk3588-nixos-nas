@@ -2,8 +2,8 @@
 
 Collapsed from upstream open-world-project/model-router 5-tier map:
   old T1+light T2 → T1 Flash
-  old T2+T3       → T2 Pro   (day-to-day coding/review/docs)
-  old T4+T5       → T3 Grok  (architecture, high-stakes, final voice)
+  old T2+T3       → T2 Pro   (day-to-day coding/review/docs + low-signal old-T4)
+  old T4+T5       → T3 Grok  (architecture, security, high-stakes, final voice)
 
 Policy:
   • Work loop stays on classified T1/T2 for the full multi-tool turn
@@ -68,6 +68,7 @@ TIERS: dict[int, dict[str, Any]] = {
             "Status checks",
             "Title generation",
             "Trivial Q&A / look-ups",
+            "Documentation and drafting",
         ],
     },
     2: {
@@ -77,12 +78,14 @@ TIERS: dict[int, dict[str, Any]] = {
         "role": "default workhorse — coding, review, docs",
         "best_for": [
             "Default day-to-day work",
-            "Documentation and drafting",
             "Standard coding and research",
             "Debugging",
             "Code review",
             "Large-document synthesis",
             "Complex analysis",
+            "Nuanced code review",
+            "Algorithmic optimization",
+            "Multi-file implementation",
         ],
     },
     3: {
@@ -94,9 +97,7 @@ TIERS: dict[int, dict[str, Any]] = {
             "Architecture",
             "Migration planning",
             "Complex multi-step design",
-            "Nuanced code review",
             "Security-sensitive analysis",
-            "Algorithmic optimization",
             "High-stakes reasoning",
             "Monetary transactions",
             "Final user-facing response",
@@ -136,14 +137,15 @@ _CLASSIFIER = """\
 You assign a single WORK routing tier (1-3) for the user's message.
 (The final user-facing reply may still be polished by Grok separately.)
 
-1 = Flash — short acks, status, titles, trivial look-ups, pure routing/triage
+1 = Flash — short acks, status, titles, trivial look-ups, pure routing/triage,
+    documentation write-ups and formatting
 2 = Pro — day-to-day work: docs, standard coding/research, debugging, code review,
-    large-doc synthesis, complex analysis, multi-file implementation
+    large-doc synthesis, complex analysis, multi-file implementation,
+    nuanced code review, algorithmic optimization
 3 = Grok — old T4+T5 territory ONLY: architecture, migration planning, complex
-    multi-step design, nuanced review with subtle failure modes, security/crypto,
-    algorithmic optimization, financial modelling, high-stakes work with many
-    interacting constraints. Also use 3 when the task is primarily judgment/
-    synthesis with no clear cheap tool loop.
+    multi-step design, security/crypto, financial modelling, high-stakes work
+    with many interacting constraints. Also use 3 when the task is primarily
+    judgment/synthesis with no clear cheap tool loop.
 
 Rules:
 - When unsure between 1 and 2, pick 2 for real work; pick 1 only for trivial turns.
