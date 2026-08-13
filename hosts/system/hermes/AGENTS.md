@@ -6,7 +6,7 @@
 - **Model routing:** plugin `model-router` classifies each main-agent turn (native providers, not OpenRouter):
   - **T1** `deepseek` / `deepseek-v4-flash` — acks, trivias, docs/drafting (old T1+T2).
   - **T2** `deepseek` / `deepseek-v4-pro` — debug, review, complex analysis, optimization, nuanced review (old T3+T4 + low-signal T4).
-  - **T3** `xai-oauth` / `grok-4.5` — architecture, security, high-stakes, migration, tool-error escalate, end-of-turn final-voice polish.
+  - **T3** `xai-oauth` / `grok-4.6` — architecture, security, high-stakes, migration, tool-error escalate, end-of-turn final-voice polish.
   - Pins: `/t1` `/t2` `/t3` `/auto` via `ctx.register_command` (CLI + gateway).
   - Classifier uses existing `auxiliary.triage_specifier` (Flash). No SOUL.md writes.
   - Cron + `delegate_task` children are skipped (stay on their declared fleet).
