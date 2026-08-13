@@ -126,6 +126,13 @@ in
         "$dest/hermes_context_manager/config.py"
     fi
 
+    # Nix store sources carry epoch mtimes. Python prefers .pyc when its
+    # mtime ≥ .py mtime — wipe bytecode and bump .py mtimes so the gateway
+    # always loads the freshly installed source (same trap as integrations/).
+    find "$dest" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+    find "$dest" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete 2>/dev/null || true
+    find "$dest" -type f -name '*.py' -exec touch -c {} + 2>/dev/null || true
+
     chown -R hermes:hermes "$dest"
     find "$dest" -type d -exec chmod 2770 {} \;
     find "$dest" -type f -exec chmod 0640 {} \;
