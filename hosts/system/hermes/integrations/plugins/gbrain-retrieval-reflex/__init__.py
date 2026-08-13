@@ -3,8 +3,10 @@
 Under HTTP sole-owner (gbrain serve --http), resolve IPC sock is NOT bound
 (upstream 0.42.x: startResolveIpcServer only on stdio). So ambient path is:
 
-  user turn → HTTP MCP tools/call volunteer_context (Bearer token)
-           → inject ## Brain pages… block into pre_llm_call context
+  user turn → HTTP MCP volunteer_context (entity resolve, multi-turn window)
+           → HTTP MCP query (hybrid topical fallback)
+           → merge/dedupe, rank top-N by strength
+           → inject ## Brain pages (ambient push) into pre_llm_call context
 
 Optional fast path: if .gbrain-resolve.sock exists, use resolve IPC first.
 
@@ -18,18 +20,27 @@ import logging
 import os
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-_MAX_POINTERS = int(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_MAX_POINTERS", "3"))
+# Top-N ambient pointers (user-facing: top-5 ranked).
+_MAX_POINTERS = int(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_MAX_POINTERS", "5"))
 _IPC_TIMEOUT_S = float(os.environ.get("GBRAIN_RESOLVE_IPC_TIMEOUT_S", "0.25"))
 _HTTP_TIMEOUT_S = float(os.environ.get("GBRAIN_VOLUNTEER_HTTP_TIMEOUT_S", "8.0"))
-_MAX_CONTEXT_BYTES = 1200
+# ~5 × 400-char previews + headers still small vs system/prompt bulk.
+_MAX_CONTEXT_BYTES = int(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_MAX_CONTEXT_BYTES", "3200"))
+_SYNOPSIS_MAX = int(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_SYNOPSIS_MAX", "400"))
+_SYNOPSIS_MIN_SOFT = 50  # prefer longer when source has it; never pad
 _MIN_MESSAGE_CHARS = 4
+# Entity gate: stock default 0.7 drops slug-suffix (0.6) unless multi-turn boost.
+# Ambient uses 0.6 so named entities (people/…, ops/…) still surface; query fills topical.
+_VOLUNTEER_MIN_CONF = float(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_MIN_CONF", "0.6"))
+_HISTORY_TURNS = int(os.environ.get("GBRAIN_RETRIEVAL_REFLEX_HISTORY_TURNS", "6"))
 _AUDIT_PATHS = (
     Path("/var/lib/hermes/home/.gbrain/retrieval-reflex-last.json"),
     Path("/tmp/gbrain-retrieval-reflex-last.json"),
@@ -62,13 +73,20 @@ _ENV_PATHS = (
 def register(ctx: Any) -> None:
     ctx.register_hook("pre_llm_call", on_pre_llm_call)
     logger.info(
-        "gbrain-retrieval-reflex: registered (http_timeout=%ss mcp=%s)",
+        "gbrain-retrieval-reflex: registered (max=%s synopsis_max=%s http_timeout=%ss mcp=%s)",
+        _MAX_POINTERS,
+        _SYNOPSIS_MAX,
         _HTTP_TIMEOUT_S,
         _MCP_URL,
     )
 
 
-def on_pre_llm_call(*, user_message: Any = None, **kwargs: Any) -> Optional[Dict[str, str]]:
+def on_pre_llm_call(
+    *,
+    user_message: Any = None,
+    conversation_history: Any = None,
+    **kwargs: Any,
+) -> Optional[Dict[str, str]]:
     try:
         text = _normalize_user_message(user_message)
         if not text or len(text.strip()) < _MIN_MESSAGE_CHARS:
@@ -76,22 +94,29 @@ def on_pre_llm_call(*, user_message: Any = None, **kwargs: Any) -> Optional[Dict
         if _TRIVIAL_RE.match(text.strip()):
             return None
 
-        # HTTP sole-owner: volunteer_context (entity push), then query fallback.
-        # After reimport, aliases may be thin — volunteer often returns [] while
-        # hybrid query still finds pages (capitalization / confidence gate).
-        pages = _volunteer_via_http(text)
-        source = "volunteer_context"
-        if not pages:
-            pages = _query_via_http(text)
-            source = "query"
+        # 1) Entity push (multi-turn window when history available)
+        window = _build_volunteer_window(text, conversation_history)
+        volunteered = _volunteer_via_http(window)
+        # 2) Hybrid topical query always run so topic + entity can both land
+        queried = _query_via_http(text)
+        pages, source = _merge_rank_pages(volunteered, queried)
+
         if pages:
             context = _format_pages(pages)
             if context:
-                _audit({"ok": True, "source": source, "n": len(pages), "slugs": [p.get("slug") for p in pages if isinstance(p, dict)]})
+                _audit(
+                    {
+                        "ok": True,
+                        "source": source,
+                        "n": len(pages),
+                        "slugs": [p.get("slug") for p in pages],
+                        "scores": [p.get("confidence") for p in pages],
+                    }
+                )
                 logger.warning(
                     "gbrain-retrieval-reflex: inject source=%s slugs=%s",
                     source,
-                    [p.get("slug") for p in pages if isinstance(p, dict)][:5],
+                    [p.get("slug") for p in pages][:8],
                 )
                 return {"context": context, "target": "user_message"}
 
@@ -115,7 +140,7 @@ def on_pre_llm_call(*, user_message: Any = None, **kwargs: Any) -> Optional[Dict
 
 def _audit(payload: Dict[str, Any]) -> None:
     """Best-effort last-inject marker for live troubleshooting."""
-    payload = {**payload, "ts": __import__("time").time()}
+    payload = {**payload, "ts": time.time()}
     raw = json.dumps(payload, ensure_ascii=False)
     for p in _AUDIT_PATHS:
         try:
@@ -154,6 +179,53 @@ def _normalize_user_message(user_message: Any) -> str:
     return str(user_message)
 
 
+def _strip_injected_blocks(text: str) -> str:
+    """Drop prior ambient / MEMORY budget blocks so volunteer doesn't re-hit them."""
+    if not text:
+        return ""
+    cut_markers = (
+        "## Brain pages (ambient push)",
+        "## Brain pages mentioned this turn",
+        "## MEMORY budget",
+    )
+    out = text
+    for m in cut_markers:
+        if m in out:
+            out = out.split(m, 1)[0]
+    return out.strip()
+
+
+def _build_volunteer_window(user_text: str, history: Any) -> str:
+    """oldest → newest user:/assistant: lines for volunteer_context."""
+    lines: List[str] = []
+    if isinstance(history, list) and history:
+        recent = history[-max(1, _HISTORY_TURNS) :]
+        for msg in recent:
+            if not isinstance(msg, dict):
+                continue
+            role = (msg.get("role") or "").strip().lower()
+            if role not in ("user", "assistant"):
+                continue
+            content = msg.get("content")
+            if content is None:
+                content = msg.get("text")
+            body = _normalize_user_message(content).strip()
+            body = _strip_injected_blocks(body)
+            if not body:
+                continue
+            if len(body) > 500:
+                body = body[:500]
+            lines.append(f"{role}: {body}")
+
+    ut = _strip_injected_blocks(user_text.strip())
+    if len(ut) > 800:
+        ut = ut[:800]
+    # Ensure current user turn is last (volunteer boosts newest-turn mentions).
+    if not lines or not (lines[-1].startswith("user:") and ut[:80] in lines[-1]):
+        lines.append(f"user: {ut}")
+    return "\n".join(lines) if lines else f"user: {ut}"
+
+
 def _read_bearer_token() -> str:
     for p in _TOKEN_PATHS:
         if p is None:
@@ -186,7 +258,6 @@ def _parse_sse_json(raw: str) -> Optional[Dict[str, Any]]:
     raw = raw.strip()
     if not raw:
         return None
-    # SSE: lines "data: {...}"
     if "data:" in raw:
         for line in raw.splitlines():
             line = line.strip()
@@ -252,14 +323,20 @@ def _tools_call_text(name: str, arguments: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _volunteer_via_http(user_text: str) -> List[Dict[str, Any]]:
+def _volunteer_via_http(window: str) -> List[Dict[str, Any]]:
     """Call volunteer_context over HTTP MCP. [] if empty or transport fail."""
-    window = user_text.strip()
-    if not window.startswith("user:") and not window.startswith("assistant:"):
-        window = f"user: {window}"
+    w = window.strip()
+    if not w:
+        return []
+    if not w.startswith("user:") and not w.startswith("assistant:"):
+        w = f"user: {w}"
     text_blob = _tools_call_text(
         "volunteer_context",
-        {"window": window, "max_pages": _MAX_POINTERS},
+        {
+            "window": w,
+            "max_pages": _MAX_POINTERS,
+            "min_confidence": _VOLUNTEER_MIN_CONF,
+        },
     )
     if not text_blob:
         return []
@@ -274,13 +351,13 @@ def _volunteer_via_http(user_text: str) -> List[Dict[str, Any]]:
 
 
 def _query_via_http(user_text: str) -> List[Dict[str, Any]]:
-    """Hybrid query fallback when volunteer returns no entity hits."""
-    q = user_text.strip()
-    if len(q) > 200:
-        q = q[:200]
+    """Hybrid query for topical relevance (always complements entity volunteer)."""
+    q = _strip_injected_blocks(user_text.strip())
+    if len(q) > 240:
+        q = q[:240]
     text_blob = _tools_call_text(
         "query",
-        {"query": q, "limit": _MAX_POINTERS},
+        {"query": q, "limit": max(_MAX_POINTERS, 8)},
     )
     if not text_blob:
         return []
@@ -288,7 +365,6 @@ def _query_via_http(user_text: str) -> List[Dict[str, Any]]:
         data = json.loads(text_blob)
     except json.JSONDecodeError:
         return []
-    # query may return list of hits or {results: [...]}
     hits: List[Any]
     if isinstance(data, list):
         hits = data
@@ -303,43 +379,226 @@ def _query_via_http(user_text: str) -> List[Dict[str, Any]]:
         slug = h.get("slug") or ""
         if not slug:
             continue
+        # Prefer curated summary fields if present; else cleaned chunk_text.
+        raw_syn = (
+            h.get("synopsis")
+            or h.get("summary")
+            or h.get("description")
+            or h.get("chunk_text")
+            or h.get("snippet")
+            or ""
+        )
+        score = h.get("rerank_score")
+        if score is None:
+            score = h.get("score")
+        if score is None:
+            score = h.get("confidence")
         pages.append(
             {
                 "display": h.get("title") or slug,
                 "slug": slug,
-                "synopsis": (h.get("chunk_text") or h.get("snippet") or "")[:160],
-                "confidence": h.get("score") or h.get("confidence"),
+                "synopsis": _clean_synopsis(str(raw_syn) if raw_syn is not None else ""),
+                "confidence": score,
+                "source": "query",
             }
         )
-        if len(pages) >= _MAX_POINTERS:
-            break
     return pages
+
+
+def _clean_synopsis(raw: str, *, max_len: int = 0) -> str:
+    """Privacy-ish one-line preview: fm/body prose, no heading spam, clipped."""
+    if not raw:
+        return ""
+    max_len = max_len or _SYNOPSIS_MAX
+    s = raw.replace("\r\n", "\n").replace("\r", "\n")
+    if s.lstrip().startswith("---"):
+        parts = s.split("---", 2)
+        if len(parts) >= 3:
+            s = parts[2]
+    # Prefer a frontmatter-like summary: line if present in free text.
+    m = re.search(r"(?im)^(?:summary|description)\s*:\s*[\"']?(.+?)[\"']?\s*$", s)
+    if m:
+        s = m.group(1)
+    lines: List[str] = []
+    for line in s.split("\n"):
+        t = line.strip()
+        if not t or t.startswith("#") or t.startswith("<!--") or t.startswith("|"):
+            continue
+        if t in ("---", "***", "```"):
+            continue
+        t = re.sub(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]", r"\1", t)
+        t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+        t = re.sub(r"[*_`]+", "", t)
+        t = re.sub(r"^\s*[-*]\s+", "", t)
+        if t:
+            lines.append(t)
+        if sum(len(x) for x in lines) >= max_len + 40:
+            break
+    prose = re.sub(r"\s+", " ", " ".join(lines)).strip()
+    if not prose:
+        return ""
+    if len(prose) > max_len:
+        cut = prose[: max_len - 1]
+        if " " in cut:
+            cut = cut.rsplit(" ", 1)[0]
+        prose = cut.rstrip(" ,;:") + "…"
+    return prose
+
+
+def _as_score(val: Any) -> float:
+    try:
+        if val is None:
+            return 0.0
+        return float(val)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _normalize_page(p: Dict[str, Any], *, default_source: str) -> Optional[Dict[str, Any]]:
+    slug = p.get("slug") or ""
+    if not slug:
+        return None
+    syn = (
+        p.get("synopsis")
+        or p.get("summary")
+        or p.get("description")
+        or p.get("rationale")
+        or p.get("chunk_text")
+        or p.get("snippet")
+        or ""
+    )
+    conf = p.get("confidence")
+    if conf is None:
+        conf = p.get("score")
+    if conf is None:
+        conf = p.get("rerank_score")
+    return {
+        "display": p.get("display") or p.get("title") or slug,
+        "slug": slug,
+        "synopsis": _clean_synopsis(str(syn) if syn is not None else ""),
+        "confidence": conf,
+        "source": p.get("source") or default_source,
+        "arm": p.get("arm"),
+        "rationale": p.get("rationale"),
+    }
+
+
+def _merge_rank_pages(
+    volunteered: List[Any], queried: List[Any]
+) -> Tuple[List[Dict[str, Any]], str]:
+    """Entity hits first (precision), then topical query by score. Cap top-N."""
+    out: List[Dict[str, Any]] = []
+    seen: set = set()
+    n_vol = 0
+    n_q = 0
+
+    for raw in volunteered:
+        if not isinstance(raw, dict):
+            continue
+        page = _normalize_page(raw, default_source="volunteer")
+        if not page or page["slug"] in seen:
+            continue
+        seen.add(page["slug"])
+        out.append(page)
+        n_vol += 1
+        if len(out) >= _MAX_POINTERS:
+            break
+
+    q_norm: List[Dict[str, Any]] = []
+    for raw in queried:
+        if not isinstance(raw, dict):
+            continue
+        page = _normalize_page(raw, default_source="query")
+        if not page or page["slug"] in seen:
+            continue
+        q_norm.append(page)
+    q_norm.sort(key=lambda p: _as_score(p.get("confidence")), reverse=True)
+
+    for page in q_norm:
+        if page["slug"] in seen:
+            continue
+        seen.add(page["slug"])
+        out.append(page)
+        n_q += 1
+        if len(out) >= _MAX_POINTERS:
+            break
+
+    if n_vol and n_q:
+        source = "volunteer+query"
+    elif n_vol:
+        source = "volunteer_context"
+    elif n_q:
+        source = "query"
+    else:
+        source = "none"
+    return out[:_MAX_POINTERS], source
+
+
+def _format_score(val: Any) -> str:
+    s = _as_score(val)
+    if s <= 0:
+        return "—"
+    if s > 1.5:
+        # unlikely raw; still show compact
+        return f"{s:.2f}"
+    return f"{s:.2f}"
 
 
 def _format_pages(pages: List[Dict[str, Any]]) -> str:
     if not pages:
         return ""
-    # Keep synopses short so inject stays compact and visible.
     lines = [
         "## Brain pages (ambient push)",
-        "Open with MCP get_page before relying on details.",
+        "Top matches by relevance (strength-ordered). Open with MCP get_page before relying on details.",
         "",
     ]
-    for p in pages[:_MAX_POINTERS]:
+    for i, p in enumerate(pages[:_MAX_POINTERS], start=1):
         if not isinstance(p, dict):
             continue
         display = p.get("display") or p.get("slug") or "?"
         slug = p.get("slug") or ""
-        syn = (p.get("synopsis") or p.get("rationale") or "").replace("\n", " ").strip()
-        if len(syn) > 80:
-            syn = syn[:77] + "…"
-        syn_s = f" — {syn}" if syn else ""
-        lines.append(f"- **{display}** → `{slug}`{syn_s}")
+        syn = (p.get("synopsis") or "").replace("\n", " ").strip()
+        if len(syn) > _SYNOPSIS_MAX:
+            syn = syn[: _SYNOPSIS_MAX - 1].rsplit(" ", 1)[0] + "…"
+        src = p.get("source") or "?"
+        arm = p.get("arm")
+        src_s = f"{src}/{arm}" if arm else str(src)
+        strength = _format_score(p.get("confidence"))
+        head = f"{i}. **{display}** → `{slug}` ({strength} · {src_s})"
+        lines.append(f"{head} — {syn}" if syn else head)
     lines.append("Never shell gbrain CLI while serve is up.")
     context = "\n".join(lines)
     if len(context.encode("utf-8")) <= _MAX_CONTEXT_BYTES:
         return context
-    return "\n".join(lines[: 3 + _MAX_POINTERS] + [lines[-1]])
+    # Budget overrun: shrink synopses progressively, keep ranking.
+    budget = _MAX_CONTEXT_BYTES
+    for syn_cap in (220, 120, 80, 0):
+        lines = [
+            "## Brain pages (ambient push)",
+            "Top matches by relevance (strength-ordered). Open with MCP get_page before relying on details.",
+            "",
+        ]
+        for i, p in enumerate(pages[:_MAX_POINTERS], start=1):
+            if not isinstance(p, dict):
+                continue
+            display = p.get("display") or p.get("slug") or "?"
+            slug = p.get("slug") or ""
+            syn = (p.get("synopsis") or "").replace("\n", " ").strip()
+            if syn_cap and len(syn) > syn_cap:
+                syn = syn[: syn_cap - 1].rsplit(" ", 1)[0] + "…"
+            elif not syn_cap:
+                syn = ""
+            src = p.get("source") or "?"
+            arm = p.get("arm")
+            src_s = f"{src}/{arm}" if arm else str(src)
+            strength = _format_score(p.get("confidence"))
+            head = f"{i}. **{display}** → `{slug}` ({strength} · {src_s})"
+            lines.append(f"{head} — {syn}" if syn else head)
+        lines.append("Never shell gbrain CLI while serve is up.")
+        context = "\n".join(lines)
+        if len(context.encode("utf-8")) <= budget:
+            return context
+    return context[:budget]
 
 
 # ── Optional resolve IPC (stdio serve only) ───────────────────────────────
@@ -432,12 +691,9 @@ def _resolve_via_ipc(
 def _format_block(block: Dict[str, Any]) -> str:
     text = block.get("text")
     if isinstance(text, str) and text.strip():
-        return text.strip()[: _MAX_CONTEXT_BYTES]
+        return text.strip()[:_MAX_CONTEXT_BYTES]
     pointers = block.get("pointers") or []
     if not isinstance(pointers, list):
         return ""
-    pages = []
-    for p in pointers:
-        if isinstance(p, dict):
-            pages.append(p)
+    pages = [p for p in pointers if isinstance(p, dict)]
     return _format_pages(pages)
