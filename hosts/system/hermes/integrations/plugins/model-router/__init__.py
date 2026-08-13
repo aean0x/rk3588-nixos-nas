@@ -90,7 +90,7 @@ TIERS: dict[int, dict[str, Any]] = {
     },
     3: {
         "label": "T3 Grok",
-        "model": "grok-4.5",
+        "model": "grok-4.6",
         "provider": "xai-oauth",
         "role": "high-stakes + final user-facing voice",
         "best_for": [
@@ -109,6 +109,11 @@ TIERS: dict[int, dict[str, Any]] = {
 _ESCALATE_MAX = 3
 _ESCALATION_ERROR_THRESHOLD = 2
 _FINAL_TIER = 3
+
+# A real tool error has a non-empty "error" value or "failed": true.
+# Successful results carry "error": null / "" or "failed": false and must not
+# count toward escalation, otherwise two clean tool calls false-escalate.
+_ERROR_PAT = re.compile(r'"(?:error|failed)"\s*:\s*(?!\s*null\b)(?!\s*false\b)(?!\s*"")')
 
 _SKIP_PLATFORMS = frozenset({"cron"})
 
@@ -876,8 +881,7 @@ def on_post_tool_call(
                     head_src = str(result)
             head = head_src[:500].lower()
             if (
-                '"error"' in head
-                or '"failed"' in head
+                _ERROR_PAT.search(head)
                 or head_src.startswith("Error")
                 or ('"exit_code": ' in head and '"exit_code": 0' not in head and '"exit_code": null' not in head)
             ):
@@ -1032,7 +1036,7 @@ def register(ctx: Any) -> None:
     ctx.register_hook("post_llm_call", on_post_llm_call)
     ctx.register_command("t1", lambda args: _cmd_pin(args, 1), "Pin session to T1 DeepSeek Flash")
     ctx.register_command("t2", lambda args: _cmd_pin(args, 2), "Pin session to T2 DeepSeek Pro")
-    ctx.register_command("t3", lambda args: _cmd_pin(args, 3), "Pin session to T3 Grok 4.5")
+    ctx.register_command("t3", lambda args: _cmd_pin(args, 3), "Pin session to T3 Grok 4.6")
     ctx.register_command("auto", _cmd_auto, "Resume model-router auto routing")
     logger.info(
         "model-router: T1 flash / T2 pro / T3 grok | work-loop=classify | "
