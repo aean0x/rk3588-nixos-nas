@@ -98,6 +98,11 @@ in
       "hermes-agent.service"
     ];
     wants = [ "network-online.target" ];
+    # Second in-process agent + UI — tertiary vs HA/AdGuard under OOM pressure.
+    serviceConfig = {
+      MemoryMax = "1G";
+      OOMScoreAdjust = 500;
+    };
   };
 
   # LAN via Caddy; public via Cloudflare Tunnel (same dual-path pattern as before).

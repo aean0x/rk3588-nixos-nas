@@ -29,6 +29,9 @@
       ExecStart = "/run/current-system/sw/bin/hermes dashboard --no-open --host 127.0.0.1 --port 9119 --tui";
       Restart = "on-failure";
       RestartSec = 15;
+      # Tertiary UI — sacrifice under pressure before DNS/HA.
+      MemoryMax = "768M";
+      OOMScoreAdjust = 400;
     };
   };
 

@@ -46,7 +46,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   ├── system/              # Target system (what gets installed)
 │   │   ├── default.nix      # Networking, SSH, users, boot loader, bluetooth
 │   │   ├── packages.nix     # System-wide packages
-│   │   ├── partitions.nix   # Filesystem mounts (label-based), ZFS dataset mounts
+│   │   ├── partitions.nix   # Filesystem mounts (label-based), 8G swapfile, btrfs media
 │   │   ├── tasks.nix        # Auto-upgrade (Sun 03:00) and garbage collection
 │   │   ├── services.nix     # Service imports (uncomment to enable)
 │   │   ├── containers.nix   # Docker engine, refresh timer, imports containers/*
@@ -153,6 +153,7 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the offici
 - **Caddy**: dashboard on 9119 → `hermes.${domain}` (LAN-only by default; Host rewrite for loopback DNS-rebinding guard).
 - **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/memory/AGENTS.md`.
 - **Deploy helpers**: `./deploy validate-gbrain`, `./deploy clean-hermes-state`.
+- **Memory / OOM (8 GiB board):** Hermes is tertiary vs AdGuard + HA. Container **2 GiB** + OOM adj +500; browser **1 GiB**; host **8 GiB** swapfile on root SSD (`partitions.nix`). Full table: `hosts/system/hermes/AGENTS.md` § Resource limits / OOM policy. Heavy nix eval/build → workstation, not on-box Hermes.
 
 
 ### Caddy Reverse Proxy (LAN)

@@ -240,7 +240,9 @@ EOF
       Group = "hermes";
       Restart = "on-failure";
       RestartSec = 5;
-      MemoryMax = "2G";
+      # Tertiary: cap + prefer kill over HA/AdGuard under host memory pressure.
+      MemoryMax = "1G";
+      OOMScoreAdjust = 500;
       TimeoutStartSec = 90;
       StandardOutput = "append:${logDir}/brave.stdout";
       StandardError = "append:${logDir}/brave.stderr";

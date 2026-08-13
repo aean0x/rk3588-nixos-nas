@@ -16,6 +16,20 @@
     fsType = "vfat";
   };
 
+  # 8 GiB swapfile on the primary SSD (root ext4). NixOS creates/mkswaps it
+  # on activation when `size` is set. Avoids OOM kills under Hermes/build spikes.
+  # Not on /media (btrfs RAID) — swap wants local, non-compressed block storage.
+  swapDevices = [
+    {
+      device = "/var/lib/swapfile";
+      size = 8 * 1024; # MiB
+    }
+  ];
+
+  # Prefer reclaiming page cache a bit sooner than thrashing; still use swap
+  # under pressure so OOM is a last resort on 8 GiB RAM boards.
+  boot.kernel.sysctl."vm.swappiness" = 30;
+
   # Btrfs RAID pool mount
   # First boot: create filesystem, then rebuild:
   #   sudo mkfs.btrfs -d raid1 -m raid1 -L media \

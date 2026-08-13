@@ -52,9 +52,15 @@ in
       # hardcodes it). Publish flags (-p) are ignored under host networking;
       # dashboard binds 0.0.0.0:9119 on the host namespace directly. Only resource
       # limits belong in extraOptions here.
+      #
+      # Tertiary vs HA/AdGuard: hard-cap at 2G (no container swap beyond that) so
+      # a runaway nix eval / tool spike dies inside Hermes instead of host OOM.
+      # Host 8G swap softens everything else; OOM prefers this cgroup (score +500).
       extraOptions = [
-        "--memory=4g"
+        "--memory=2g"
+        "--memory-swap=2g"
         "--cpus=2"
+        "--oom-score-adj=500"
       ];
     };
 

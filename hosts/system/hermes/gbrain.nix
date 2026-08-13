@@ -78,6 +78,9 @@ in
       StartLimitIntervalSec = 120;
       StartLimitBurst = 5;
       TimeoutStartSec = "120";
+      # Tertiary memory plane — prefer kill over AdGuard/HA if the box is desperate.
+      MemoryMax = "1G";
+      OOMScoreAdjust = 400;
     };
   };
 
