@@ -71,8 +71,12 @@ in
     user = "hermes";
     group = "hermes";
     hermesHome = "${config.services.hermes-agent.stateDir}/.hermes";
-    # Derives HERMES_WEBUI_PYTHON from passthru.hermesVenv on the sealed package.
-    agent.package = config.services.hermes-agent.package;
+    # Derives HERMES_WEBUI_PYTHON from passthru.hermesVenv.
+    # Match the agent service's effectivePackage (extraDependencyGroups), not
+    # the un-overridden cfg.package — otherwise WebUI can miss firecrawl-py.
+    agent.package = config.services.hermes-agent.package.override {
+      inherit (config.services.hermes-agent) extraPythonPackages extraDependencyGroups;
+    };
     # Full agent secrets first (BRAVE/XAI/X_*/FIRECRAWL/…), then WebUI-only
     # overlay (ELEVENLABS). WebUI runs an *in-process* second agent against the
     # same HERMES_HOME — without hermes.env it only had TTS and looked
