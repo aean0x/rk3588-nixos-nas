@@ -13,8 +13,8 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "=== Stopping Hermes gateway ==="
-systemctl stop hermes-dashboard.service 2>/dev/null || true
+echo "=== Stopping Hermes gateway + WebUI ==="
+systemctl stop hermes-webui.service 2>/dev/null || true
 systemctl stop hermes-agent.service
 
 echo "=== Preserving gbrain: ${CONTAINER_HOME}/brain, ${CONTAINER_HOME}/.bun ==="
@@ -78,8 +78,8 @@ if [ -n "${MEMORY_GBRAIN:-}" ] && [ -f "$MEMORY_GBRAIN" ]; then
   install -m 0640 -o hermes -g hermes "$MEMORY_GBRAIN" "${HERMES_HOME}/memories/MEMORY.md"
 fi
 
-echo "=== Starting Hermes gateway ==="
+echo "=== Starting Hermes gateway + WebUI ==="
 systemctl start hermes-agent.service
-systemctl start hermes-dashboard.service 2>/dev/null || true
+systemctl start hermes-webui.service 2>/dev/null || true
 
 echo "=== Clean complete ==="

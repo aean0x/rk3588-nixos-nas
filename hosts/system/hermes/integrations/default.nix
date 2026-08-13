@@ -10,19 +10,29 @@
 {
   lib,
   pkgs,
+  hermes,
+  hmcPluginSrc,
   ...
 }:
 let
   pluginsDir = ./plugins;
+  skillsDir = ../skills;
 
-  # Force-managed first-party plugins (source under integrations/plugins/).
-  # HMC is fetched in context-manager.nix with the same materialize+symlink layout.
-  managedPluginNames = [
-    "gbrain-retrieval-reflex"
-    "gbrain-memory-flush"
-    "tool-call-coherency"
-    "projects-auto-commit"
-    "model-router"
+  # name → store/source path. HMC is fetch+overlay (hmc.nix), rest are in-tree.
+  managedPlugins = {
+    gbrain-retrieval-reflex = "${pluginsDir}/gbrain-retrieval-reflex";
+    gbrain-memory-flush = "${pluginsDir}/gbrain-memory-flush";
+    tool-call-coherency = "${pluginsDir}/tool-call-coherency";
+    projects-auto-commit = "${pluginsDir}/projects-auto-commit";
+    model-router = "${pluginsDir}/model-router";
+    hermes-context-manager = "${hmcPluginSrc}";
+  };
+
+  managedPluginNames = builtins.attrNames managedPlugins;
+
+  managedSkills = [
+    "retrieval-reflex"
+    "gbrain-http-auth"
   ];
 
   # plugins.enabled — leave empty for user opt-in; list names to force-enable.
@@ -45,6 +55,7 @@ in
 {
   imports = [
     ./mcp # maton stdio wrapper; gbrain HTTP client stays in ../gbrain.nix
+    ./hmc.nix # composed HMC src → managedPlugins.hermes-context-manager
   ];
 
   # Declarative allow-list (module SoT); activation also reconciles live config.yaml.
@@ -91,8 +102,22 @@ in
     }
 
     ${lib.concatMapStrings (name: ''
-      install_plugin_tree ${name} ${pluginsDir}/${name}
+      install_plugin_tree ${name} ${managedPlugins.${name}}
     '') managedPluginNames}
+
+    install -d -m 2770 -o hermes -g hermes ${hermes.hermesHome}/hmc_state
+
+    # GBrain-related skills → skills.external_dirs (same ship path as before).
+    ${lib.concatMapStrings (name: ''
+      install -d -m 0755 -o hermes -g hermes ${hermes.skills.host}/${name}
+      install -m 0644 -o hermes -g hermes ${skillsDir}/${name}/SKILL.md \
+        ${hermes.skills.host}/${name}/SKILL.md
+    '') managedSkills}
+
+    # projects-auto-commit plugin execs this script from $HERMES_HOME/scripts.
+    install -d -m 0755 -o hermes -g hermes ${hermes.hermesHome}/scripts
+    install -m 0755 -o hermes -g hermes ${../scripts/projects_auto_commit.py} \
+      ${hermes.hermesHome}/scripts/projects_auto_commit.py
 
     # Reconcile plugins.enabled; strip dead plugins.external_dirs (skills-only key).
     cfg=/var/lib/hermes/.hermes/config.yaml

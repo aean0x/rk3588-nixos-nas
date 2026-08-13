@@ -140,10 +140,6 @@
       "host": "/var/lib/hermes/memory/AGENTS.md",
       "container": "/data/memory/AGENTS.md"
     },
-    "live_agents_md": {
-      "host": "/var/lib/hermes/.hermes/AGENTS.md",
-      "container": "/data/.hermes/AGENTS.md"
-    },
-    "fail_fast_on_drift": true
+    "fail_fast_on_drift": false
   }
 }

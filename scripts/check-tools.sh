@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Structural + optional remote check for hermes everyday tools.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
 FAIL=0
 pass() { echo "PASS: $1"; }
@@ -10,18 +10,19 @@ fail() { echo "FAIL: $1"; FAIL=1; }
 [[ -f "$H/toolbox.nix" ]] && pass "toolbox.nix exists" || fail "missing toolbox.nix"
 grep -q './toolbox.nix' "$H/default.nix" && pass "default.nix imports toolbox" || fail "toolbox not imported"
 grep -q 'hermes-toolbox\|buildEnv' "$H/toolbox.nix" && pass "buildEnv toolbox defined" || fail "no buildEnv"
-grep -q '/data/toolbox/bin' "$H/toolbox.nix" && pass "container toolbox path in PATH" || fail "no /data/toolbox/bin"
+grep -q 'toolbox.container\|/data/toolbox/bin' "$H/runtime.nix" "$H/toolbox.nix" && pass "container toolbox path in PATH" || fail "no /data/toolbox/bin"
 grep -q 'ln -sfn.*toolbox' "$H/toolbox.nix" && pass "activation links toolbox bin" || fail "no toolbox symlink activation"
 for pkg in git ripgrep jq bun nodejs ffmpeg curl unzip openssh strace nmap chromium; do
   grep -q "$pkg" "$H/toolbox.nix" && pass "toolbox includes $pkg" || fail "toolbox missing $pkg"
 done
-grep -q 'AGENT_BROWSER_EXECUTABLE_PATH' "$H/toolbox.nix" && pass "AGENT_BROWSER_EXECUTABLE_PATH set" || fail "no AGENT_BROWSER path"
-grep -q 'command = "gbrain"' "$H/gbrain.nix" && pass "MCP gbrain bare command" || fail "MCP gbrain not bare"
-# Full agent PATH must live in toolbox.nix (gbrain may only set MCP child PATH).
-if grep -q 'agentPath\|PATH = agentPath' "$H/toolbox.nix" 2>/dev/null; then
-  pass "agent PATH owned by toolbox.nix"
+grep -q 'AGENT_BROWSER_EXECUTABLE_PATH' "$H/runtime.nix" && pass "AGENT_BROWSER_EXECUTABLE_PATH set" || fail "no AGENT_BROWSER path"
+grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && grep -q 'gbrainMcpUrl\|3131/mcp' "$H/gbrain.nix" \
+  && pass "MCP gbrain is HTTP" || fail "MCP gbrain missing HTTP url"
+# Full agent PATH lives in runtime.nix (consumed by toolbox extraOptions + WebUI).
+if grep -q 'containerPath\|containerProcessEnv' "$H/runtime.nix" 2>/dev/null; then
+  pass "agent PATH owned by runtime.nix"
 else
-  fail "toolbox.nix missing agent PATH"
+  fail "runtime.nix missing agent PATH"
 fi
 
 if [[ "${REMOTE_CHECK:-}" == 1 ]]; then

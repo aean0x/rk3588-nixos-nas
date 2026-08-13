@@ -2,11 +2,12 @@
 # Pattern from Hetzner hermes-agent.nix: buildEnv → /var/lib/hermes/toolbox/bin
 # appears in the container as /data/toolbox/bin (stateDir bind).
 #
-# PATH for the gateway is set via services.hermes-agent.environment (not persisted
-# into .env — host CLI would otherwise inherit container-only paths).
+# Container PATH is runtime.nix containerProcessEnv → extraOptions --env
+# (not persisted into .env — host CLI would otherwise inherit /data paths).
 {
   lib,
   pkgs,
+  hermes,
   ...
 }:
 
@@ -73,31 +74,12 @@ let
     ];
   };
 
-  # Container gateway / MCP / terminal children — match Hetzner hermes-agent.nix.
-  # Order matters: bun globals (gbrain) then toolbox (Nix bun works on host+container).
-  # Do not put ~/.local/bin first; agent dual-wrappers there break the Hetzner model.
-  agentPath = lib.concatStringsSep ":" [
-    "/home/hermes/.npm-global/bin"
-    "/home/hermes/.bun/bin" # gbrain from `bun install -g` (container)
-    "/data/toolbox/bin" # Nix bun + everyday tools (host-safe via /nix/store mount)
-    "/run/current-system/sw/bin"
-    "/usr/local/sbin"
-    "/usr/local/bin"
-    "/usr/sbin"
-    "/usr/bin"
-    "/sbin"
-    "/bin"
-  ];
-
-  # Host login / sudo -u hermes: toolbox FIRST so `bun` is pkgs.bun (not curl stub-ld).
-  hermesHostCliPath = "/var/lib/hermes/toolbox/bin:/var/lib/hermes/home/.bun/bin:/var/lib/hermes/home/.npm-global/bin:/var/lib/hermes/home/.local/bin:/etc/profiles/per-user/hermes/bin";
-
   # Hetzner model: never persist container-only PATH/HERMES_PY/AGENT_BROWSER into
   # .env. Host `hermes chat` (terminal.backend=local) loads dotenv and would
   # inherit /data/toolbox paths that do not exist on the host. Container gets
-  # those via services.hermes-agent.environment + container.extraOptions --env.
+  # those via container.extraOptions --env from runtime.nix.
   dotenvSanitize = pkgs.writeShellScript "hermes-toolbox-dotenv-sanitize" ''
-    env_file=/var/lib/hermes/.hermes/.env
+    env_file=${hermes.hermesHome}/.env
     if [ -f "$env_file" ]; then
       sed -i \
         '/^MESSAGING_CWD=/d;/^TERMINAL_CWD=/d;/^PATH=/d;/^HERMES_PY=/d;/^HERMES_PYTHON=/d;/^AGENT_BROWSER_EXECUTABLE_PATH=/d' \
@@ -109,8 +91,7 @@ let
 
   containerProfile = pkgs.writeText "hermes-home-profile" ''
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    # Same order as Hetzner: npm-global, bun globals, toolbox.
-    export PATH="$HOME/.npm-global/bin:$HOME/.bun/bin:/data/toolbox/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    export PATH="${hermes.containerPath}"
   '';
 
   containerBashrc = pkgs.writeText "hermes-home-bashrc" ''
@@ -125,9 +106,9 @@ let
   # the host with container PATH (/data/toolbox missing). Force docker exec
   # when the marker is present (same fields as the NixOS activation marker).
   hermesCliWrapper = pkgs.writeShellScript "hermes-cli-wrapper" ''
-    export PATH="${hermesHostCliPath}:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:$PATH"
-    export HOME="''${HOME:-/var/lib/hermes/home}"
-    export HERMES_HOME="''${HERMES_HOME:-/var/lib/hermes/.hermes}"
+    export PATH="${hermes.hostPath}:/nix/var/nix/profiles/default/bin:$PATH"
+    export HOME="''${HOME:-${hermes.home}}"
+    export HERMES_HOME="''${HERMES_HOME:-${hermes.hermesHome}}"
 
     if [ -z "''${HERMES_DEV:-}" ] && [ -f "''${HERMES_HOME}/.container-mode" ]; then
       backend=docker
@@ -167,8 +148,8 @@ in
   # Host login shells for `sudo -u hermes` / doctor.
   environment.etc."profile.d/hermes-agent-cli.sh" = {
     text = ''
-      if [ -d /var/lib/hermes/toolbox/bin ]; then
-        export PATH="${hermesHostCliPath}:$PATH"
+      if [ -d ${hermes.toolbox.host} ]; then
+        export PATH="${hermes.hostPath}:$PATH"
       fi
     '';
     mode = "0644";
@@ -177,77 +158,29 @@ in
   services.hermes-agent = {
     # Do NOT put PATH / HERMES_PY / AGENT_BROWSER in `environment` — the module
     # merges that into $HERMES_HOME/.env, which host `hermes chat` loads and
-    # which breaks host terminal (container /data/toolbox paths). Hetzner keeps
-    # these out of dotenv; container gets them only via docker --env below.
+    # which breaks host terminal (container /data/toolbox paths).
     environment = { };
 
-    # Identity-hash-sensitive: recreates container when these change (expected once).
-    container.extraOptions = [
-      "--env"
-      "PATH=${agentPath}"
-      "--env"
-      "HERMES_PY=/data/toolbox/bin/python3"
-      "--env"
-      "HERMES_PYTHON=/data/toolbox/bin/python3"
-      "--env"
-      "AGENT_BROWSER_EXECUTABLE_PATH=/data/toolbox/bin/chromium"
-    ];
-
-    # Host hermes user profile (extraPackages); also helps doctor/CLI on host.
-    extraPackages = with pkgs; [
-      git
-      gh
-      nodejs
-      bun
-      ripgrep
-      jq
-      yq-go
-      curl
-      wget
-      unzip
-      zip
-      imagemagick
-      tree
-      rsync
-      openssh
-      ffmpeg
-      sox
-      poppler-utils
-      gnupg
-      age
-      file
-      which
-      pandoc
-      htop
-      ncdu
-      lsof
-      strace
-      tcpdump
-      nmap
-      netcat-gnu
-      socat
-      python3
-      chromium
-    ];
+    container.extraOptions = hermes.mkDockerEnv hermes.containerProcessEnv;
   };
 
   system.activationScripts.hermes-toolbox = lib.stringAfter [ "hermes-agent-setup" ] ''
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/toolbox
-    ln -sfn ${hermesToolbox}/bin /var/lib/hermes/toolbox/bin
+    install -d -m 0755 -o hermes -g hermes ${hermes.stateDir}/toolbox
+    ln -sfn ${hermesToolbox}/bin ${hermes.toolbox.host}
 
-    install -d -m 0750 -o hermes -g hermes /var/lib/hermes/home
-    install -d -m 0750 -o hermes -g hermes /var/lib/hermes/home/.npm-global
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.local/bin
+    install -d -m 0750 -o hermes -g hermes ${hermes.home}
+    install -d -m 0750 -o hermes -g hermes ${hermes.home}/.npm-global
+    install -d -m 0755 -o hermes -g hermes ${hermes.home}/.local/bin
 
     # Interactive / docker-exec shells inside the container.
-    install -m 0644 -o hermes -g hermes ${containerProfile} /var/lib/hermes/home/.profile
-    install -m 0644 -o hermes -g hermes ${containerBashrc} /var/lib/hermes/home/.bashrc
+    install -m 0644 -o hermes -g hermes ${containerProfile} ${hermes.home}/.profile
+    install -m 0644 -o hermes -g hermes ${containerBashrc} ${hermes.home}/.bashrc
 
-    install -d -m 2770 -o hermes -g hermes /var/lib/hermes/skills
-    install -d -m 2770 -o hermes -g hermes /var/lib/hermes/plugins
+    install -d -m 2770 -o hermes -g hermes ${hermes.skills.host}
+    install -d -m 2770 -o hermes -g hermes ${hermes.plugins}
 
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
-    install -m 0755 ${hermesCliWrapper} /var/lib/hermes/bin/hermes-cli
+    install -d -m 0755 -o hermes -g hermes ${hermes.bin}
+    install -m 0755 ${hermesCliWrapper} ${hermes.bin}/hermes-cli
     # MCP wrappers (maton, …): integrations/mcp/*.nix
   '';
 

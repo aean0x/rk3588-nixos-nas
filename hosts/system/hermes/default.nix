@@ -9,32 +9,24 @@
   pkgs,
   settings,
   inputs,
+  hermes,
   ...
 }:
-let
-  hermes = {
-    stateDir = "/var/lib/hermes";
-    workspace = "/var/lib/hermes/workspace";
-  };
-in
 {
   imports = [
     inputs.hermes-agent.nixosModules.default
-    ./package-fix.nix # silence marker fix (state modules OK in 0.19.1)
-    ./toolbox.nix # everyday CLI toolkit → /data/toolbox/bin + agent PATH
+    ./runtime.nix # paths, PATH maps, 2G agent resource SoT
+    ./overrides/package-fix.nix
+    ./toolbox.nix # everyday CLI toolkit → toolbox.bin + agent PATH
     ./onedrive.nix
-    ./dashboard.nix
     ./gbrain.nix
     ./workstation.nix
     ./browser.nix # persistent Brave + loopback CDP for agent automation
     ./hermes-webui.nix # Hermes WebUI (archimedes.<domain>) + ElevenLabs TTS
-    ./context-manager.nix # hermes-context-manager (HMC) plugin pin + config
-    ./integrations # first-party plugins + MCP clients (see integrations/AGENTS.md)
+    ./integrations # plugins (incl. HMC) + MCP clients + gbrain skills
   ];
 
-  _module.args.hermes = hermes;
-
-  # Dashboard runs as hermes (owns .env); hermes needs docker group for docker exec routing.
+  # hermes CLI routes into the container via docker exec (hermes-cli wrapper).
   users.users.hermes.extraGroups = [ "docker" ];
 
   # adminUser needs hermes group membership so os.stat() can traverse .hermes/ (drwxrws---).
@@ -49,19 +41,9 @@ in
       image = "ubuntu:24.04";
       hostUsers = [ settings.adminUser ];
       # Module always creates the container with --network=host (official module
-      # hardcodes it). Publish flags (-p) are ignored under host networking;
-      # dashboard binds 0.0.0.0:9119 on the host namespace directly. Only resource
-      # limits belong in extraOptions here.
-      #
-      # Tertiary vs HA/AdGuard: hard-cap at 2G (no container swap beyond that) so
-      # a runaway nix eval / tool spike dies inside Hermes instead of host OOM.
-      # Host 8G swap softens everything else; OOM prefers this cgroup (score +500).
-      extraOptions = [
-        "--memory=2g"
-        "--memory-swap=2g"
-        "--cpus=2"
-        "--oom-score-adj=500"
-      ];
+      # hardcodes it). Publish flags (-p) are ignored under host networking.
+      # Resource flags from runtime.nix (same numbers as WebUI systemd).
+      extraOptions = hermes.containerResourceOptions;
     };
 
     # Puts `hermes` on system PATH and sets HERMES_HOME system-wide so interactive
@@ -86,6 +68,8 @@ in
         # Primary: xAI OAuth (run `hermes auth add xai-oauth` once after deploy).
         provider = "xai-oauth";
         default = "grok-4.6";
+        # SoT window: WebUI + compressor + HMC all honor this (runtime.nix).
+        context_length = hermes.contextLimit;
       };
 
       fallback_model = {
@@ -129,15 +113,11 @@ in
         max_line_length = 2000;
       };
 
-      # Hard interactive budget under Grok's 200k input rate cliff (and all models).
-      # threshold_tokens is the absolute fire-point; percent alone never fires early
-      # on ~500k windows (small-context floor lifts the ratio trigger toward ~75%).
-      # Match HMC compress.max_context_tokens (context-manager.nix). 200k is a
-      # never-touch ceiling, not an operating target.
+      # Window is model.context_length (200k). Fire at threshold × window.
       compression = {
         enabled = true;
-        threshold = 0.30;
-        threshold_tokens = 100000;
+        threshold = hermes.compressionThreshold;
+        threshold_tokens = hermes.compressionThresholdTokens;
         target_ratio = 0.15;
         protect_last_n = 8;
         proactive_prune_tokens = 24000;
@@ -232,11 +212,11 @@ in
       # Skills dirs on the hermes volume (see toolbox + gbrain activation).
       # Plugins enabled list + install: ./integrations (single source of truth).
       skills.external_dirs = [
-        "/data/skills"
-        "/var/lib/hermes/skills"
+        hermes.skills.container
+        hermes.skills.host
       ];
 
-      # Needs HERMES_BUNDLED_PLUGINS (package-fix + WebUI extraEnvironment)
+      # Needs HERMES_BUNDLED_PLUGINS (overrides/package-fix hermesRuntimeEnv)
       # so discovery finds share/…/plugins/web/*/plugin.yaml.
       web = {
         search_backend = "xai";
@@ -266,6 +246,8 @@ in
     # mcpServers: integrations/mcp/* (maton) + gbrain.nix (HTTP gbrain).
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
+    # overrides/package-fix.nix bakes these into services.hermes-agent.package
+    # so WebUI passthru.hermesVenv matches the gateway (do not re-override).
     # - messaging: Telegram/Discord/Slack — removed from `[all]` (2026-05-12); required for gateway.
     # - firecrawl: web_extract / Firecrawl provider (firecrawl-py); lazy install disabled in Nix.
     extraDependencyGroups = [
@@ -290,7 +272,7 @@ in
       runAs = "hermes";
       commands = [
         {
-          command = "/var/lib/hermes/bin/hermes-cli";
+          command = "${hermes.bin}/hermes-cli";
           options = [
             "NOPASSWD"
             "SETENV"
@@ -308,7 +290,7 @@ in
   ];
 
   # Toolbox PATH for host hermes chat/doctor (see toolbox.nix hermes-cli wrapper).
-  environment.shellAliases.hermes = "sudo -u hermes /var/lib/hermes/bin/hermes-cli";
+  environment.shellAliases.hermes = "sudo -u hermes ${hermes.bin}/hermes-cli";
 
   # SOUL.md declarative install is intentionally disabled.
   # Leave identity blank for a fresh agent; optional local draft: workspace/soul.md (not applied).
