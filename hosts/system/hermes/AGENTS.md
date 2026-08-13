@@ -70,6 +70,26 @@ Activation links a Nix `buildEnv` at `/var/lib/hermes/toolbox/bin` → container
 Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
 `REMOTE_CHECK=1 ./hosts/system/hermes/check-tools.sh` after deploy.
 
+## Resource limits / OOM policy (8 GiB board)
+
+**Priority:** Home Assistant and AdGuard must stay up. Hermes stack is **tertiary** —
+prefer killing or hard-capping it over taking down DNS or HA.
+
+| Surface | Cap / protection | Where |
+|---------|------------------|--------|
+| hermes-agent container | **2 GiB** RAM, `memory-swap=2g` (no extra container swap), `--oom-score-adj=500` | `default.nix` `container.extraOptions` |
+| hermes-browser (Brave) | **1 GiB** `MemoryMax`, OOM adj **+500** | `browser.nix` |
+| hermes-webui | 1 GiB, OOM **+500** | `hermes-webui.nix` |
+| gbrain-mcp-http | 1 GiB, OOM **+400** | `gbrain.nix` |
+| hermes-dashboard | 768 MiB, OOM **+400** | `dashboard.nix` |
+| AdGuard Home | OOM **−500**, `MemoryMin=128M` | `services/adguard.nix` |
+| Home Assistant | docker `--oom-score-adj=-500` | `containers/home-assistant.nix` |
+| Host swap | **8 GiB** file `/var/lib/swapfile` on root SSD | `partitions.nix` (`swapDevices`) |
+
+- Host swap softens spikes so the box does not hard-lock; it does **not** justify unbounded Hermes/`nix eval` on-box.
+- Heavy **Nix eval/build** belongs on the **workstation** (`ssh-workstation` / `./deploy remote-*`), not inside the hermes container (store is visible; multi‑GiB evals OOM the agent first by design).
+- Do not raise Hermes/browser caps without revisiting HA/AdGuard headroom on 8 GiB RAM.
+
 ## Nix vs Hermes (custody — agents must respect)
 
 **Nix** = high-reliability environment policy: not revised day-to-day.  
@@ -218,3 +238,4 @@ systemctl status hermes-agent
 - `firecrawl` must be in `extraDependencyGroups` for `web_extract` (firecrawl-py; lazy install disabled in Nix).
 - Memory **AGENTS.md** is not SOUL; gbrain activation overwrites `.hermes/AGENTS.md` from `memory/AGENTS.md`.
 - `HASS_*` env names for Home Assistant tools (not `HA_*`).
+- On 8 GiB rocknas, unbounded Hermes/browser + on-box `nix eval` OOMs the host; keep tertiary caps and protect AdGuard/HA (see Resource limits above).

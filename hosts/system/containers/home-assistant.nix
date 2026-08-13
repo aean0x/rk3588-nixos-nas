@@ -42,6 +42,8 @@ in
         NET_ADMIN = true;
         NET_RAW = true;
       };
+      # Critical home stack: kernel OOM prefers positive scores (Hermes) first.
+      extraOptions = [ "--oom-score-adj=-500" ];
       autoStart = true;
     };
 

@@ -21,6 +21,12 @@ in
     "adguard.${settings.domain}" = port;
   };
 
+  # Critical path (LAN DNS). Prefer reclaim/kill of tertiary units first.
+  systemd.services.adguardhome.serviceConfig = {
+    OOMScoreAdjust = -500;
+    MemoryMin = "128M";
+  };
+
   services.adguardhome = {
     enable = true;
     mutableSettings = true;
