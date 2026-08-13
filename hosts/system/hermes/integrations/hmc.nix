@@ -83,6 +83,7 @@ let
   hmcPluginSrc = pkgs.runCommand "hermes-context-manager" { } ''
     mkdir -p "$out"
     cp -a ${hmcSrc}/. "$out/"
+    chmod -R u+w "$out"
     rm -rf "$out/.github" "$out/tests" "$out/.gitignore"
     cp ${hmcConfig} "$out/config.yaml"
   '';
