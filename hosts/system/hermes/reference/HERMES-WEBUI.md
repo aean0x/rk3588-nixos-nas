@@ -10,6 +10,8 @@ WAN:  Browser → CF edge → cloudflared → hermes-webui :8787 → HERMES_HOME
 LAN:  Browser → Caddy archimedes.<domain> → hermes-webui :8787 → HERMES_HOME agent
 ```
 
+Same agent package and store-safe env as the gateway (`overrides/package-fix.nix` + `runtime.nix`). WebUI does not re-override extras. Official `hermes dashboard` is removed.
+
 Declared in `hermes-webui.nix`:
 
 ```nix
@@ -19,8 +21,8 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 
 - **Bind loopback only** (`HERMES_WEBUI_HOST=127.0.0.1`). Never open the firewall for :8787.
 - **CGNAT:** public path is tunnel only (`./scripts/setup-cloudflare-tunnel.sh` once / after hostname changes).
-- Hermes dashboard (`hermes.<domain>` :9119) remains LAN-only.
 - Port **8787** (WebUI default); state under `/var/lib/hermes-webui`; runs as `hermes:hermes`.
+- Same 2 GiB / 2 CPU / OOM +500 cap as the gateway (`runtime.nix`).
 - Optional loopback API server still on **:8642** for scripts/tools (not used by WebUI chat).
 - **Model Router extension:** `HERMES_WEBUI_EXTENSION_DIR` → flake `integrations/plugins/model-router/webui` (store path). Injects `/auto` `/t1` `/t2` `/t3` composer buttons and overlays the model chip (`Auto · T1 · deepseek-v4-flash`). No WebUI source patches.
 
@@ -37,9 +39,7 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 
 | Path | Env var |
 |------|---------|
-| `/run/hermes.env` | `ELEVENLABS_API_KEY`, `API_SERVER_KEY`, … |
-| `/run/hermes.env` | Full agent secrets (BRAVE/XAI/FIRECRAWL/…) — required; WebUI is a second in-process agent |
-| `/run/hermes-webui.env` | `ELEVENLABS_API_KEY` (overlay) |
+| `/run/hermes.env` | Full agent secrets including `ELEVENLABS_API_KEY`, `API_SERVER_KEY`, BRAVE/XAI/FIRECRAWL |
 
 ```bash
 cd secrets && ./decrypt
@@ -47,7 +47,7 @@ cd secrets && ./decrypt
 #   elevenlabs_api_key: "sk_..."
 ./encrypt
 # then remote-test / remote-switch and:
-sudo systemctl restart hermes-webui hermes-agent
+sudo systemctl restart hermes-agent hermes-webui
 ```
 
 ## Health checks (on device)
@@ -60,7 +60,7 @@ ss -ltn | grep -E ':8787|:8642'
 systemctl status hermes-agent hermes-webui --no-pager
 
 # ElevenLabs present (do not paste values into chat logs)
-sudo grep -q '^ELEVENLABS_API_KEY=.' /run/hermes-webui.env && echo elevenlabs_env_ok
+sudo grep -q '^ELEVENLABS_API_KEY=.' /run/hermes.env && echo elevenlabs_env_ok
 ```
 
 ## Troubleshooting
@@ -69,7 +69,7 @@ sudo grep -q '^ELEVENLABS_API_KEY=.' /run/hermes-webui.env && echo elevenlabs_en
 |---------|-----|
 | `/health` fails | `systemctl restart hermes-webui`; check journal for HERMES_HOME / python path |
 | Chat fails / missing models | Confirm `hermesHome` = `/var/lib/hermes/.hermes` and service user is `hermes` |
-| ElevenLabs TTS 503 | Ensure `ELEVENLABS_API_KEY` in `/run/hermes-webui.env` and restart `hermes-webui` |
+| ElevenLabs TTS 503 | Ensure `ELEVENLABS_API_KEY` in `/run/hermes.env` and restart `hermes-webui` |
 | Tunnel 502 | `systemctl status cloudflared`; confirm `proxyServices."archimedes…"` = 8787 |
 | Old open-webui still answering | Unit removed; stop leftover if any: `systemctl stop open-webui` then rebuild |
 

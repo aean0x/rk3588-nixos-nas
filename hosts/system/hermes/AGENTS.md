@@ -25,13 +25,13 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 ```
 hosts/system/hermes/
 ├── default.nix          # module import, model routing settings, no SOUL activation
-├── toolbox.nix          # everyday CLI toolkit → /data/toolbox/bin + agent PATH
-├── package-fix.nix     # silence-marker only (drop when upstream _is_token fixed)
+├── runtime.nix          # paths, PATH maps, 2G agent resource SoT (gateway + WebUI)
+├── toolbox.nix          # everyday CLI toolkit → toolbox.bin + agent PATH
+├── overrides/           # explicit upstream workarounds (silence wrap, HMC overlay)
 ├── gbrain.nix           # gbrain-mcp-http + HTTP MCP client + memory registry
-├── context-manager.nix  # hermes-context-manager (HMC) upstream pin + overlay
+├── integrations/hmc.nix # HMC upstream pin + config.yaml (no source overlay)
 ├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
 ├── browser.nix          # Brave sticky profile + CDP + cookie import
-├── dashboard.nix        # web UI :9119 + Caddy
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
 ├── integrations/        # first-party plugins + MCP clients (see integrations/AGENTS.md)
@@ -49,11 +49,13 @@ hosts/system/hermes/
 
 `https://archimedes.<domain>/` — LAN via Caddy, WAN via `services.cloudflareTunnel.proxyServices` (CGNAT tunnel).
 Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
-Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes-webui.env` and `/run/hermes.env`.
-WebUI also loads `/run/hermes.env` (full agent secrets) so in-process search/tools match the gateway.
+Native systemd (not a second Docker container): in-process agent against the same `HERMES_HOME`.
+Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes.env` (WebUI inherits the agent's `environmentFiles`).
+Package + extras: `overrides/package-fix.nix` bakes `extraDependencyGroups` into `services.hermes-agent.package`; WebUI sets `agent.package` to that same drv. Store-safe env is `hermesRuntimeEnv`. Paths / PATH / 2 GiB caps: `runtime.nix`.
 Flake SoT TTS: `settings.tts.provider=elevenlabs` (`eleven_flash_v2_5`, voice `pNInz6obpgDQGcFmaJgB`).
-Web search: `HERMES_BUNDLED_*` package-data env (from hermes wrapper / package-fix) must reach gateway + WebUI; pin `web.search_backend=xai`.
+Web search: pin `web.search_backend=xai`.
 Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace).
+Official `hermes dashboard` (`hermes.<domain>` :9119) is **removed** — WebUI is the only UI.
 
 ## Token lean + plugins (0.19)
 
@@ -67,8 +69,8 @@ Activation links a Nix `buildEnv` at `/var/lib/hermes/toolbox/bin` → container
 `/data/toolbox/bin`. Gateway `environment.PATH` includes that dir plus
 `~/.bun/bin` (gbrain) and `~/.local/bin` (nix-pc wrappers).
 
-Verify: `./hosts/system/hermes/check-tools.sh` (structural) or
-`REMOTE_CHECK=1 ./hosts/system/hermes/check-tools.sh` after deploy.
+Verify: `./scripts/check-tools.sh` (structural) or
+`REMOTE_CHECK=1 ./scripts/check-tools.sh` after deploy.
 
 ## Resource limits / OOM policy (8 GiB board)
 
@@ -77,11 +79,10 @@ prefer killing or hard-capping it over taking down DNS or HA.
 
 | Surface | Cap / protection | Where |
 |---------|------------------|--------|
-| hermes-agent container | **2 GiB** RAM, `memory-swap=2g` (no extra container swap), `--oom-score-adj=500` | `default.nix` `container.extraOptions` |
+| hermes-agent container | **2 GiB** / 2 CPU / OOM **+500** | `runtime.nix` → `containerResourceOptions` |
+| hermes-webui (in-process agent) | **2 GiB** / 2 CPU / OOM **+500** | `runtime.nix` → `systemdResourceConfig` |
 | hermes-browser (Brave) | **1 GiB** `MemoryMax`, OOM adj **+500** | `browser.nix` |
-| hermes-webui | 1 GiB, OOM **+500** | `hermes-webui.nix` |
 | gbrain-mcp-http | 1 GiB, OOM **+400** | `gbrain.nix` |
-| hermes-dashboard | 768 MiB, OOM **+400** | `dashboard.nix` |
 | AdGuard Home | OOM **−500**, `MemoryMin=128M` | `services/adguard.nix` |
 | Home Assistant | docker `--oom-score-adj=-500` | `containers/home-assistant.nix` |
 | Host swap | **8 GiB** file `/var/lib/swapfile` on root SSD | `partitions.nix` (`swapDevices`) |
@@ -111,12 +112,12 @@ If Hermes asks a coding agent for patchy flake edits to fix day-to-day ops (brai
 ### hermes-agent pin
 
 Unpinned to `github:NousResearch/hermes-agent` (tracking main / current lock).  
-`package-fix.nix` is **only** the silence-marker PYTHONPATH wrap — drop when upstream `_is_token` uses `_canonical_silence_candidates`.
+`overrides/package-fix.nix` is the silence wrap + extras-baked package + `hermesRuntimeEnv`. Drop the wrap when upstream `_is_token` uses `_canonical_silence_candidates`. Paths / PATH / agent RAM: `runtime.nix`.
 
 ## GBrain (summary)
 
 ```
-Telegram / hermes chat / dashboard / webui
+Telegram / hermes chat / webui
         │
         ▼
 hermes-agent / webui / CLI ── MCP HTTP ──► gbrain-mcp-http.service
@@ -217,7 +218,7 @@ release-workstation
 | GBrain ops | `./deploy validate-gbrain` (MCP + reflex; no consolidate CLI) |
 | SSH | `./deploy ssh` (fallback; prefer named `./deploy` subcommands) |
 | Telegram | bot DM (allowlisted) |
-| Dashboard | `https://hermes.<domain>/` |
+| WebUI | `https://archimedes.<domain>/` |
 | Logs | `./deploy journal hermes-agent` / `./deploy logs hermes-agent` |
 
 Bootstrap prompts and gbrain install instructions: **`BOOTSTRAP.md`**. After `remote-switch`/`remote-upgrade`, continue autonomously: confirm OAuth, prompt/install GBrain, run validate + benchmark prompts.
@@ -233,9 +234,9 @@ systemctl status hermes-agent
 
 ## Lessons (short)
 
-- Module container is always `--network=host` — no docker `-p` for dashboard.
+- Module container is always `--network=host` — no docker `-p`.
 - `messaging` must be in `extraDependencyGroups` (not in hermes `[all]`).
 - `firecrawl` must be in `extraDependencyGroups` for `web_extract` (firecrawl-py; lazy install disabled in Nix).
-- Memory **AGENTS.md** is not SOUL; gbrain activation overwrites `.hermes/AGENTS.md` from `memory/AGENTS.md`.
+- `memory/AGENTS.md` is an operator contract (copied next to the registry). Activation **deletes** any leftover `$HERMES_HOME/AGENTS.md` we used to inject.
 - `HASS_*` env names for Home Assistant tools (not `HA_*`).
 - On 8 GiB rocknas, unbounded Hermes/browser + on-box `nix eval` OOMs the host; keep tertiary caps and protect AdGuard/HA (see Resource limits above).

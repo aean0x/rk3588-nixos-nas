@@ -8,14 +8,14 @@ Infrastructure only — not agent-owned workspace content.
 ```
 integrations/
 ├── AGENTS.md              # this file
-├── default.nix            # plugins.enabled + plugin install activation
-├── plugins/               # force-managed sources (materialize → /var/lib/hermes/plugins, symlink → $HERMES_HOME/plugins)
+├── default.nix            # plugins.enabled + install (plugins, HMC, gbrain skills)
+├── hmc.nix                # fetch upstream HMC + write config.yaml (no source overlay)
+├── plugins/               # in-tree plugin sources
 │   ├── gbrain-retrieval-reflex/
 │   ├── gbrain-memory-flush/
 │   ├── tool-call-coherency/
 │   ├── projects-auto-commit/
-│   ├── model-router/      # + webui/ extension sidecar
-│   └── hermes-context-manager-overlay/  # overlay for pinned HMC
+│   └── model-router/      # + webui/ extension sidecar
 └── mcp/
     ├── default.nix        # imports MCP client modules
     ├── maton.nix          # stdio maton + /data/bin/maton-mcp wrapper
@@ -28,7 +28,7 @@ Declared once in `default.nix` (`enabledPlugins`):
 
 | Name | Role |
 |------|------|
-| `hermes-context-manager` | HMC — pinned upstream + overlay (`context-manager.nix`) |
+| `hermes-context-manager` | HMC — upstream pin + our `config.yaml` (cheap tool-output only; native owns LLM compact) |
 | `gbrain-retrieval-reflex` | Ambient brain pointers over HTTP MCP |
 | `gbrain-memory-flush` | Prompt to flush durable notes via gbrain MCP |
 | `tool-call-coherency` | Fix double-wrapped / cold MCP tool calls |
@@ -46,8 +46,9 @@ feature (skills-only); activation strips that dead key from live config. If a pr
 dual-copy left a real directory at the discovery path, activation replaces it with
 the symlink.
 
-**HMC** uses the same shape in `context-manager.nix` (fetch + overlay into the
-materialize root, then the same relative symlink).
+**HMC** is stock upstream plus a generated `config.yaml`. Native Hermes
+`compression.threshold_tokens` does LLM compact; HMC only truncates / filters
+tool output (`background_compression` is off so the two do not double-summarize).
 
 **Bytecode / mtime:** Nix sources carry epoch mtimes. Activation wipes
 `__pycache__` and `touch`es all `.py` after install so Python cannot prefer a
@@ -81,6 +82,6 @@ not declarative.
 | Path | Why separate |
 |------|----------------|
 | `gbrain.nix` | HTTP serve unit + memory registry + token wiring |
-| `context-manager.nix` | Upstream pin + overlay install |
-| `skills/` | Agent skills (policy text), not Hermes plugins |
-| `scripts/` | Ops / helpers (e.g. `projects_auto_commit.py`) |
+| `../skills/` | Skill *source*; this module copies gbrain skills into `skills.external_dirs` |
+| `../scripts/projects_auto_commit.py` | Installed next to the auto-commit plugin |
+| `../scripts/git-credential-github-env` | Installed from `gbrain.nix` (GITHUB_PAT for `~/brain` + hermes-user git) |

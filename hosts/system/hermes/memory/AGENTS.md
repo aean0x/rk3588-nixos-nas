@@ -1,12 +1,18 @@
-# AGENTS.md — Memory manifest (look here first)
+# Memory contract (operator / coding-agent reference)
 
-**On every process init** (Hermes gateway, CLI, G-Brain `serve`), load this file and the machine registry before any memory action. Cached copies are invalid; the registry on disk wins.
+**Not** live-injected into Hermes. `$HERMES_HOME/AGENTS.md` is Hermes/GBrain-owned
+(workspace `AGENTS.md` is the project-context file Hermes actually loads).
+This file lives next to the registry as human/agent SoT for *our* memory plane.
+
+Day path: plugins (`gbrain-retrieval-reflex`, `gbrain-memory-flush`) + skills
+(`retrieval-reflex`, `gbrain-http-auth`) + native GBrain hybrid. Do not copy
+this manifesto into the live prompt.
 
 ## 1. Authoritative registry
 
 | Artifact | Host path | Container path |
 |----------|-----------|----------------|
-| This manifest | `/var/lib/hermes/.hermes/AGENTS.md` | `/data/.hermes/AGENTS.md` |
+| This manifest (operator copy) | `/var/lib/hermes/memory/AGENTS.md` | `/data/memory/AGENTS.md` |
 | Location registry (JSON) | `/var/lib/hermes/memory/registry.json` | `/data/memory/registry.json` |
 | Export JSON schema | `/var/lib/hermes/memory/export-schema.json` | `/data/memory/export-schema.json` |
 

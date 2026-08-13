@@ -54,7 +54,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
 │   │   │   ├── filebrowser.nix    # (disabled) legacy web file manager
 │   │   │   └── crowdsec.nix       # CrowdSec IDS/IPS engine + native nftables bouncer
-│   │   ├── hermes/          # Hermes Agent + GBrain (container, dashboard, memory plane, OneDrive)
+│   │   ├── hermes/          # Hermes Agent + GBrain (container, WebUI, memory plane, OneDrive)
 │   │   └── services/        # Native service modules
 │   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
 │   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
@@ -115,7 +115,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | Docker engine | Native | `containers.nix` | Auto-prune, unified refresh timer |
 | Home Assistant + Matter + OTBR | Docker | `containers/home-assistant.nix` | Host network for mDNS/Thread |
 | Files (NFS+SMB) | Native | `services/filesharing.nix` | Guest-only drop zone `/media/Files/Share` |
-| Hermes Agent + GBrain | NixOS module + container | `hermes/` (imported from `containers.nix`) | xAI OAuth / Grok, Flash/Pro router plugin, GBrain MCP + reflex, dashboard/webui; SOUL not declarative |
+| Hermes Agent + GBrain | NixOS module + container | `hermes/` (imported from `containers.nix`) | xAI OAuth / Grok, Flash/Pro router plugin, GBrain MCP + reflex, WebUI; SOUL not declarative |
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
@@ -150,10 +150,10 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the offici
 - **GBrain**: `gbrain.nix` — MCP `gbrain serve` only + reflex plugins; memory registry under `hermes/memory/`. **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI routing**: `addToSystemPackages = true`; host `hermes` routes into the container.
-- **Caddy**: dashboard on 9119 → `hermes.${domain}` (LAN-only by default; Host rewrite for loopback DNS-rebinding guard).
+- **Caddy**: WebUI on 8787 → `archimedes.${domain}` (LAN) + Cloudflare Tunnel (WAN). Official `hermes dashboard` / `hermes.${domain}:9119` is decommissioned.
 - **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/memory/AGENTS.md`.
 - **Deploy helpers**: `./deploy validate-gbrain`, `./deploy clean-hermes-state`.
-- **Memory / OOM (8 GiB board):** Hermes is tertiary vs AdGuard + HA. Container **2 GiB** + OOM adj +500; browser **1 GiB**; host **8 GiB** swapfile on root SSD (`partitions.nix`). Full table: `hosts/system/hermes/AGENTS.md` § Resource limits / OOM policy. Heavy nix eval/build → workstation, not on-box Hermes.
+- **Memory / OOM (8 GiB board):** Hermes is tertiary vs AdGuard + HA. Gateway + WebUI agent processes **2 GiB** / 2 CPU / OOM +500 (`runtime.nix`); browser **1 GiB**; host **8 GiB** swapfile on root SSD (`partitions.nix`). Full table: `hosts/system/hermes/AGENTS.md` § Resource limits / OOM policy. Heavy nix eval/build → workstation, not on-box Hermes.
 
 
 ### Caddy Reverse Proxy (LAN)

@@ -8,6 +8,7 @@
 {
   lib,
   pkgs,
+  hermes,
   ...
 }:
 
@@ -20,16 +21,15 @@ let
   gbrainHttpPort = 3131;
   gbrainMcpUrl = "http://127.0.0.1:${toString gbrainHttpPort}/mcp";
 
-  hermesHome = "/var/lib/hermes/home";
-  gbrainBin = "${hermesHome}/.bun/bin/gbrain";
+  gbrainBin = "${hermes.home}/.bun/bin/gbrain";
 
   # Host-side long-lived serve (sole PGLite owner). Bun global under hermes HOME.
   gbrainHttpScript = pkgs.writeShellScript "gbrain-mcp-http" ''
     set -euo pipefail
-    export HOME="${hermesHome}"
-    export PATH="${hermesHome}/.bun/bin:${hermesHome}/.npm-global/bin:/var/lib/hermes/toolbox/bin:/run/current-system/sw/bin:/usr/bin:/bin"
+    export HOME="${hermes.home}"
+    export PATH="${hermes.hostPath}"
     if [ ! -x "${gbrainBin}" ] && ! command -v gbrain >/dev/null 2>&1; then
-      echo "gbrain-mcp-http: gbrain not installed under ${hermesHome}/.bun/bin (bootstrap first)" >&2
+      echo "gbrain-mcp-http: gbrain not installed under ${hermes.home}/.bun/bin (bootstrap first)" >&2
       exit 1
     fi
     cd "$HOME"
@@ -46,8 +46,8 @@ in
     };
 
     environment = {
-      HERMES_MEMORY_REGISTRY = "/data/memory/registry.json";
-      GBRAIN_AUDIT_DIR = "/home/hermes/.gbrain/audit";
+      HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.container;
+      GBRAIN_AUDIT_DIR = hermes.gbrainAudit.container;
     };
   };
 
@@ -67,10 +67,10 @@ in
       # ZEROENTROPY_API_KEY and other keys for embeddings.
       EnvironmentFile = [ "-/run/hermes.env" ];
       Environment = [
-        "HOME=${hermesHome}"
-        "PATH=${hermesHome}/.bun/bin:${hermesHome}/.npm-global/bin:/var/lib/hermes/toolbox/bin:/run/current-system/sw/bin"
+        "HOME=${hermes.home}"
+        "PATH=${hermes.hostPath}"
       ];
-      WorkingDirectory = hermesHome;
+      WorkingDirectory = hermes.home;
       ExecStart = "${gbrainHttpScript}";
       Restart = "on-failure";
       RestartSec = 10;
@@ -95,43 +95,13 @@ in
     wants = [ "gbrain-mcp-http.service" ];
   };
 
-  # Purge former exclusive-CLI surface (one generation of explicit disable is
-  # enough if units still linger; units no longer defined elsewhere).
-  systemd.services.hermes-gbrain-consolidate.enable = lib.mkForce false;
-  systemd.timers.hermes-gbrain-consolidate.enable = lib.mkForce false;
-  systemd.services.gbrain-dream.enable = lib.mkForce false;
-  systemd.timers.gbrain-dream.enable = lib.mkForce false;
-  systemd.services.gbrain-embed.enable = lib.mkForce false;
-  systemd.timers.gbrain-embed.enable = lib.mkForce false;
-  systemd.services.gbrain-nightly.enable = lib.mkForce false;
-  systemd.timers.gbrain-nightly.enable = lib.mkForce false;
-
   system.activationScripts.hermes-memory-manifest = lib.stringAfter [ "hermes-agent-setup" ] ''
-    # seed_if_missing DEST SRC MODE — Hermes owns content after first install.
-    seed_if_missing() {
-      dest="$1"; src="$2"; mode="$3"
-      if [ ! -e "$dest" ]; then
-        install -D -m "$mode" -o hermes -g hermes "$src" "$dest"
-        echo "hermes-seed: created $dest"
-      fi
-    }
-
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/bin
-    # Purge exclusive CLI + retired stdio serve wrapper (HTTP unit owns serve).
-    rm -f /var/lib/hermes/bin/gbrain-mcp-serve \
-      /var/lib/hermes/bin/gbrain-exclusive-cli \
-      /var/lib/hermes/bin/hermes-gbrain-consolidate-inner \
-      /var/lib/hermes/bin/hermes-gbrain-embed-inner \
-      /var/lib/hermes/bin/hermes-gbrain-consolidate \
-      /var/lib/hermes/bin/hermes-gbrain-dream \
-      /var/lib/hermes/bin/hermes-gbrain-embed \
-      /var/lib/hermes/bin/hermes-gbrain-nightly \
-      /var/lib/hermes/bin/hermes-gbrain-exclusive
-    rm -f /var/lib/hermes/workspace/gbrain-pointer-index.json
+    install -d -m 0755 -o hermes -g hermes ${hermes.bin}
+    rm -f ${hermes.workspace}/gbrain-pointer-index.json
 
     # ── Always managed (memory contract / registry) ──
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/memory
-    install -m 0644 ${registryFile} /var/lib/hermes/memory/registry.json
+    install -d -m 0755 -o hermes -g hermes ${hermes.stateDir}/memory
+    install -m 0644 ${registryFile} ${hermes.memoryRegistry.host}
     install -m 0644 ${schemaFile} /var/lib/hermes/memory/export-schema.json
     install -m 0644 ${agentsManifest} /var/lib/hermes/memory/AGENTS.md
 
@@ -140,7 +110,19 @@ in
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/.hermes/memories/export/snapshots
     chown -R hermes:hermes /var/lib/hermes/.hermes/memories/export
 
-    install -m 0640 -o hermes -g hermes ${agentsManifest} /var/lib/hermes/.hermes/AGENTS.md
+    # Purge the old Nix-injected manifesto. $HERMES_HOME/AGENTS.md is not
+    # workspace context (cwd is /data/workspace); leave the slot to Hermes/GBrain.
+    rm -f ${hermes.hermesHome}/AGENTS.md
+
+    # GBrain ~/brain (and any hermes-user git to github.com) uses GITHUB_PAT.
+    install -d -m 0755 -o hermes -g hermes ${hermes.hermesHome}/scripts
+    install -m 0755 -o hermes -g hermes ${./scripts/git-credential-github-env} \
+      ${hermes.hermesHome}/scripts/git-credential-github-env
+    if command -v git >/dev/null 2>&1; then
+      sudo -u hermes git config --global credential.helper \
+        ${hermes.hermesHome}/scripts/git-credential-github-env || true
+      sudo -u hermes git config --global credential.useHttpPath true || true
+    fi
 
     if [ ! -f /var/lib/hermes/.hermes/memories/MEMORY.md ]; then
       {
@@ -152,33 +134,7 @@ in
       chmod 0640 /var/lib/hermes/.hermes/memories/MEMORY.md
     fi
 
-    # Workspace is Hermes content only (no host GBRAIN.md / HERMES-WEBUI.md).
-    # Operator refs: hosts/system/hermes/reference/{GBRAIN,HERMES-WEBUI}.md
-    install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
-    rm -f /var/lib/hermes/workspace/GBRAIN.md \
-      /var/lib/hermes/workspace/HERMES-WEBUI.md \
-      /var/lib/hermes/workspace/OPEN-WEBUI.md
-
-    # Plugins: hosts/system/hermes/integrations (install + plugins.enabled).
-
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/scripts
-    install -m 0755 -o hermes -g hermes ${./scripts/projects_auto_commit.py} \
-      /var/lib/hermes/.hermes/scripts/projects_auto_commit.py
-    install -m 0755 -o hermes -g hermes ${./scripts/git-credential-github-env} \
-      /var/lib/hermes/.hermes/scripts/git-credential-github-env
-    if command -v git >/dev/null 2>&1; then
-      sudo -u hermes git config --global credential.helper \
-        /var/lib/hermes/.hermes/scripts/git-credential-github-env || true
-      sudo -u hermes git config --global credential.useHttpPath true || true
-    fi
-
-    # Skills: retrieval + HTTP auth wiring (infra-owned policy text).
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills/retrieval-reflex
-    install -m 0644 -o hermes -g hermes ${./skills/retrieval-reflex/SKILL.md} \
-      /var/lib/hermes/skills/retrieval-reflex/SKILL.md
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/skills/gbrain-http-auth
-    install -m 0644 -o hermes -g hermes ${./skills/gbrain-http-auth/SKILL.md} \
-      /var/lib/hermes/skills/gbrain-http-auth/SKILL.md
+    install -d -m 2770 -o hermes -g hermes ${hermes.workspace}
 
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.gbrain

@@ -123,17 +123,8 @@ in
       HERMES_BROWSER_NOVNC_PORT = toString novncPort;
       HERMES_BROWSER_ENGINE = "brave";
     };
-    # Docker process env (dotenv alone is not always visible to children).
-    container.extraOptions = [
-      "--env"
-      "BROWSER_CDP_URL=http://${cdpAddr}:${toString cdpPort}"
-      "--env"
-      "BU_CDP_URL=http://${cdpAddr}:${toString cdpPort}"
-      "--env"
-      "HERMES_BROWSER_CDP_URL=http://${cdpAddr}:${toString cdpPort}"
-      "--env"
-      "HERMES_BROWSER_ENGINE=brave"
-    ];
+    # CDP URLs are host-loopback and host-safe — environment{} → .env is enough.
+    # Do not also --env them; extraOptions is for container-only PATH/HERMES_PY.
     settings.browser = {
       cdp_url = "http://${cdpAddr}:${toString cdpPort}";
       # attach to host Brave on loopback

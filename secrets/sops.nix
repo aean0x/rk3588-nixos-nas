@@ -149,15 +149,6 @@ in
             ]
           );
         };
-        # Hermes WebUI process env (ELEVENLABS_API_KEY for server-side TTS).
-        # Also mirrored into /run/hermes.env via hermesSecrets for HERMES_HOME/.env.
-        hermesWebuiEnv = {
-          owner = "hermes";
-          group = "hermes";
-          mode = "0400";
-          path = "/run/hermes-webui.env";
-          content = "ELEVENLABS_API_KEY=${config.sops.placeholder.elevenlabs_api_key}";
-        };
       }
       (lib.mkIf wifiEnabled {
         wifiEnv = {

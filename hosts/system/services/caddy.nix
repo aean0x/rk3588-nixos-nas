@@ -20,8 +20,8 @@ let
     host: port:
     let
       isExt = builtins.elem host cfg.externalHosts;
-      # Loopback backends (e.g. Hermes dashboard) validate Host against the
-      # listen address. Caddy must rewrite Host or clients get 400 Invalid Host.
+      # Loopback backends that validate Host against the listen address need
+      # a rewrite or clients get 400 Invalid Host.
       upstreamHost = cfg.proxyUpstreamHost.${host} or null;
       hostRewrite = lib.optionalString (upstreamHost != null) ''
         header_up Host ${upstreamHost}
@@ -71,8 +71,8 @@ in
     proxyUpstreamHost = lib.mkOption {
       description = ''
         Optional Host header rewrite per proxyServices hostname.
-        Use for loopback backends that reject non-loopback Host (e.g. Hermes
-        dashboard bound to 127.0.0.1 with DNS-rebinding protection).
+        Use for loopback backends that reject non-loopback Host (DNS-rebinding
+        protection on 127.0.0.1 binds).
       '';
       type = lib.types.attrsOf lib.types.str;
       default = { };

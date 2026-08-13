@@ -231,14 +231,13 @@ Cellular without Tailscale will not reach LAN-only NAS; use Tailscale.
 Native `services.hermes-webui` (flake `hermes-webui`) on **127.0.0.1:8787**.
 LAN: Caddy `archimedes.<domain>`. WAN: Cloudflare Tunnel (`services.cloudflareTunnel.proxyServices`).
 WebUI runs the agent **in-process** against `HERMES_HOME` (`/var/lib/hermes/.hermes`).
-Optional loopback API still on **:8642** for scripts. Dashboard (`hermes.<domain>`) is LAN-only.
+Optional loopback API still on **:8642** for scripts. Official `hermes dashboard` is removed.
 
 Full runbook: **`reference/HERMES-WEBUI.md`**.
 
 | Path | Role |
 |------|------|
 | `/run/hermes.env` | `API_SERVER_KEY`, `ELEVENLABS_API_KEY`, static API_SERVER_* knobs |
-| `/run/hermes-webui.env` | `ELEVENLABS_API_KEY` (server-side TTS) |
 
 ```bash
 systemctl status hermes-agent hermes-webui
@@ -253,7 +252,7 @@ After adding the hostname, re-run `./scripts/setup-cloudflare-tunnel.sh` so DNS 
 
 ## 8. Token lean + hermes-context-manager (HMC)
 
-Settings live in `default.nix` (`tool_output`, compression prune/idle). Plugin pin + config in `context-manager.nix`.
+Settings live in `default.nix` (`tool_output`, compression, `model.context_length` = 200k from `runtime.nix`). HMC is `integrations/hmc.nix`, installed like any other plugin.
 
 ```bash
 # After remote-switch — restart so HMC hooks load:

@@ -1,23 +1,22 @@
-# Hermes packaging patches.
+# Shared agent runtime — package + store-safe env for every Hermes entrypoint.
 #
-# hermes_state_* split modules: present in 0.19.1 hermesVenv.
+# Gateway (container) and WebUI (in-process host) must consume the *same*
+# derivation and the *same* env map. Do not re-override extras in webui.
+#
 # Silence markers: _is_token still uses singular _canonical_silence_candidate
-# so **[SILENT]** / *NO_REPLY* fail. Patch gateway via hermesVenv + PYTHONPATH.
+# so **[SILENT]** / *NO_REPLY* fail. Patch via hermesVenv + PYTHONPATH.
+# Drop silence wrap when upstream _is_token uses _canonical_silence_candidates.
 #
-# Outer package is a thin wrapper (bin/ + share/); Python lives in hermesVenv.
-# Drop silence patch when upstream uses _canonical_silence_candidates in _is_token.
-#
-# Bundled plugins: upstream Nix intentionally keeps plugin.yaml trees under
-# $out/share/hermes-agent/plugins and sets HERMES_BUNDLED_PLUGINS on the *wrapped*
-# hermes binary. The container module runs hermes-agent-env/bin/hermes (venv
-# entrypoint) without that wrapper, so discovery falls back to site-packages
-# plugins/ (code only, no manifests) → empty web/image_gen registries.
-# Inject the share path into the service + container env for both runtimes.
+# Bundled plugins: upstream Nix keeps plugin.yaml under $out/share/hermes-agent
+# and sets HERMES_BUNDLED_* only on the wrapped hermes binary. Container and
+# WebUI never exec that wrapper, so this file injects the share map into
+# process env for both.
 {
   lib,
   pkgs,
   inputs,
   config,
+  hermes,
   ...
 }:
 
@@ -47,13 +46,13 @@ let
     fi
   '';
 
-  # `upstream` is hermes-agent `full` (already includes firecrawl + messaging).
-  # Instantiating with extraDependencyGroups=[] *replaces* that list and
-  # strips firecrawl-py from passthru.hermesVenv. The nixos module then
-  # builds effectivePackage = package.override { extraDependencyGroups = cfg… }
-  # for the agent service only. WebUI must apply the same override
-  # (see hermes-webui.nix) — do not change this `{ }` default to `full` or
-  # nixos-rebuild will realize the kitchen-sink venv.
+  # `upstream` is hermes-agent `full` (kitchen-sink extras). Instantiating
+  # with extraDependencyGroups=[] *replaces* that list and strips firecrawl-py
+  # from passthru.hermesVenv. Bake the *service* extras here so cfg.package
+  # IS the effective venv. Upstream's module may override again with the same
+  # extras (identity). Do not default this to `full` — that realizes extras we
+  # did not declare on the service.
+  agentCfg = config.services.hermes-agent;
   hermesAgentFixed = lib.makeOverridable (
     {
       extraPythonPackages ? [ ],
@@ -82,14 +81,18 @@ let
         unfixed = base;
       };
     }
-  ) { };
+  ) {
+    extraPythonPackages = agentCfg.extraPythonPackages;
+    extraDependencyGroups = agentCfg.extraDependencyGroups;
+  };
 
   # Same package-data env the upstream $out/bin/hermes makeWrapper sets
-  # (share/ has plugin.yaml; site-packages does not). Single map for agent
-  # service + container + WebUI (see hermes-webui.nix).
+  # (share/ has plugin.yaml; site-packages does not), plus the silence
+  # PYTHONPATH. Host-safe: store paths only. Container-only remaps (PATH,
+  # /data/…, HERMES_PY) stay in toolbox.nix extraOptions.
   pkg = hermesAgentFixed;
   share = "${pkg}/share/hermes-agent";
-  hermesPackageDataEnv = {
+  hermesRuntimeEnv = {
     HERMES_BUNDLED_PLUGINS = "${share}/plugins";
     HERMES_BUNDLED_SKILLS = "${share}/skills";
     HERMES_OPTIONAL_SKILLS = "${share}/optional-skills";
@@ -97,28 +100,17 @@ let
     HERMES_OPTIONAL_MCPS = "${share}/optional-mcps";
     HERMES_WEB_DIST = "${share}/web_dist";
     HERMES_TUI_DIR = "${pkg}/ui-tui";
+    PYTHONPATH = "${silenceFixedGateway}/${siteRel}";
   };
 in
 {
   services.hermes-agent.package = lib.mkForce hermesAgentFixed;
 
-  # Expose for hermes-webui.nix (and any other second agent process).
-  _module.args.hermesPackageDataEnv = hermesPackageDataEnv;
+  # WebUI and any other second agent process inherit this map as-is.
+  _module.args.hermesRuntimeEnv = hermesRuntimeEnv;
 
-  services.hermes-agent.environment = hermesPackageDataEnv // {
-    PYTHONPATH = "${silenceFixedGateway}/${siteRel}";
-  };
+  services.hermes-agent.environment = hermesRuntimeEnv;
 
-  services.hermes-agent.container.extraOptions = lib.flatten (
-    [
-      [
-        "--env"
-        "PYTHONPATH=${silenceFixedGateway}/${siteRel}"
-      ]
-    ]
-    ++ lib.mapAttrsToList (k: v: [
-      "--env"
-      "${k}=${v}"
-    ]) hermesPackageDataEnv
-  );
+  # Same map as environment{}, docker --env form (container does not exec the wrapper).
+  services.hermes-agent.container.extraOptions = hermes.mkDockerEnv hermesRuntimeEnv;
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Static checks: GBrain wiring is MCP + reflex only (no exclusive CLI timers).
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
 fail=0
 pass() { echo "PASS $*"; }
@@ -24,7 +24,7 @@ if grep -A15 'mcpServers.gbrain' "$H/gbrain.nix" | grep -qE 'command\s*='; then
 else
   pass "mcpServers.gbrain is HTTP (no stdio command)"
 fi
-grep -q 'gbrain-retrieval-reflex' "$H/gbrain.nix" && pass "gbrain-retrieval-reflex install" || fail_ "no retrieval-reflex plugin"
+grep -q 'gbrain-retrieval-reflex' "$H/integrations/default.nix" && pass "gbrain-retrieval-reflex in integrations" || fail_ "no retrieval-reflex plugin"
 # Static pointer index must be gone
 if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/integrations/plugins/gbrain-reflex" ]; then
   fail_ "static gbrain-reflex / pointer-index still in tree"
