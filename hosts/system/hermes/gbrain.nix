@@ -119,9 +119,11 @@ in
     install -m 0755 -o hermes -g hermes ${./scripts/git-credential-github-env} \
       ${hermes.hermesHome}/scripts/git-credential-github-env
     if command -v git >/dev/null 2>&1; then
-      sudo -u hermes git config --global credential.helper \
-        ${hermes.hermesHome}/scripts/git-credential-github-env || true
-      sudo -u hermes git config --global credential.useHttpPath true || true
+      # Container HOME is ${hermes.home}; helper path must exist inside the
+      # container namespace (/data/.hermes/scripts/…).
+      sudo -u hermes env HOME=${hermes.home} git config --global credential.helper \
+        ${hermes.data}/.hermes/scripts/git-credential-github-env || true
+      sudo -u hermes env HOME=${hermes.home} git config --global credential.useHttpPath true || true
     fi
 
     if [ ! -f /var/lib/hermes/.hermes/memories/MEMORY.md ]; then

@@ -16,15 +16,12 @@ CONTAINER=hermes-agent
 echo "=== 1. agents.md + registry (look here first) ==="
 [ -f "$AGENTS_MANIFEST" ] && ok "repo manifest $AGENTS_MANIFEST" || bad "missing repo manifest"
 [ -f "$REGISTRY" ] && ok "registry $REGISTRY" || bad "missing registry"
-if [ -f "$HERMES_AGENTS" ] && grep -q "look here first" "$HERMES_AGENTS"; then
-  ok "live AGENTS.md contains look-here-first rule"
+if [ -e "$HERMES_AGENTS" ] && grep -qE "look here first|Memory contract \(operator" "$HERMES_AGENTS"; then
+  bad "live $HERMES_AGENTS still has Nix-injected manifesto (should be purged)"
+elif [ -e "$HERMES_AGENTS" ]; then
+  ok "live AGENTS.md present (Hermes/GBrain owned, not Nix manifesto)"
 else
-  bad "live AGENTS.md missing manifest rule"
-fi
-if diff -q "$AGENTS_MANIFEST" "$HERMES_AGENTS" >/dev/null 2>&1; then
-  ok "AGENTS.md matches deployed manifest"
-else
-  bad "AGENTS.md differs from canonical memory manifest (fail-fast)"
+  ok "live HERMES_HOME/AGENTS.md absent (not Nix-injected)"
 fi
 docker exec "$CONTAINER" test -f /data/memory/registry.json && ok "container registry bind" || bad "container registry missing"
 
