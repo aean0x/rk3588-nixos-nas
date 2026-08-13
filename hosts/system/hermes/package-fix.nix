@@ -47,6 +47,13 @@ let
     fi
   '';
 
+  # `upstream` is hermes-agent `full` (already includes firecrawl + messaging).
+  # Instantiating with extraDependencyGroups=[] *replaces* that list and
+  # strips firecrawl-py from passthru.hermesVenv. The nixos module then
+  # builds effectivePackage = package.override { extraDependencyGroups = cfg… }
+  # for the agent service only. WebUI must apply the same override
+  # (see hermes-webui.nix) — do not change this `{ }` default to `full` or
+  # nixos-rebuild will realize the kitchen-sink venv.
   hermesAgentFixed = lib.makeOverridable (
     {
       extraPythonPackages ? [ ],
