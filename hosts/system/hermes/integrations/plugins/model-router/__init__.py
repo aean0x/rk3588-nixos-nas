@@ -173,6 +173,7 @@ models, tiers, routing, or that a draft existed. Output ONLY the final reply.
 _lock = threading.Lock()
 _live_agents: dict[str, Any] = {}
 _last_bound: tuple[str, Any] | None = None
+_last_user_sid: str = ""  # session of the most recent real user turn (command anchor)
 _pinned: dict[str, bool] = {}
 _last_tier: dict[str, int] = {}
 _base_tier: dict[str, int] = {}
@@ -752,6 +753,13 @@ def on_pre_llm_call(
         if _should_skip(platform, kwargs):
             return
         sid = session_id or ""
+        if (user_message or "").strip():
+            # A real user turn (not a tool-call continuation) anchors which
+            # session the human is talking in. Slash commands (/t1 /t2 /t3
+            # /auto) are dispatched without session context, so they resolve
+            # against this instead of the racy _last_bound global.
+            with _lock:
+                _last_user_sid = sid
         agent = _get_agent(sid)
         if agent is not None and sid:
             bind_agent(sid, agent)
@@ -764,6 +772,7 @@ def on_pre_llm_call(
                 with _lock:
                     tier = _last_tier.get(sid) or _base_tier.get(sid) or 3
                 _apply_tier(agent, tier)
+            logger.debug("model-router: pinned session %s — skip classify (tier=%s)", sid or "-", _last_tier.get(sid, "-"))
             return
 
         msg = (user_message or "").strip()
@@ -967,17 +976,31 @@ def on_post_llm_call(*, session_id: str = "", model: str = "", **kwargs: Any) ->
         logger.warning("model-router: on_post_llm_call error: %s", exc, exc_info=True)
 
 
+def _resolve_cmd_sid() -> str:
+    """Resolve which session a slash command should target.
+
+    Slash commands are dispatched with only ``raw_args`` — no session id —
+    so the plugin must infer the session. Prefer the session of the most
+    recent real user turn (set by on_pre_llm_call), then fall back to the
+    last-bound agent, then the CLI manager's agent.
+    """
+    with _lock:
+        if _last_user_sid:
+            return _last_user_sid
+        if _last_bound is not None and _last_bound[0]:
+            return _last_bound[0]
+    agent = _get_agent("")
+    if agent is not None:
+        return getattr(agent, "session_id", "") or ""
+    return ""
+
+
 def _cmd_pin(raw_args: str, tier: int) -> str:
     del raw_args
-    agent = _get_agent("")
-    sid = ""
-    if agent is not None:
-        sid = getattr(agent, "session_id", "") or ""
+    sid = _resolve_cmd_sid()
+    agent = _get_agent(sid) if sid else _get_agent("")
+    if agent is not None and sid:
         bind_agent(sid, agent)
-    if not sid:
-        with _lock:
-            if _last_bound is not None:
-                sid = _last_bound[0]
     meta = TIERS[tier]
     with _lock:
         _pinned[sid] = True
@@ -985,6 +1008,7 @@ def _cmd_pin(raw_args: str, tier: int) -> str:
         _base_tier[sid] = tier
         _pending[sid] = tier
         _ack_turn[sid] = False
+    logger.info("model-router: /t%d pin sid=%s", tier, sid or "-")
     if agent is not None and _apply_tier(agent, tier):
         with _lock:
             _pending.pop(sid, None)
@@ -997,13 +1021,20 @@ def _cmd_pin(raw_args: str, tier: int) -> str:
 
 def _cmd_auto(raw_args: str) -> str:
     del raw_args
-    agent = _get_agent("")
-    sid = getattr(agent, "session_id", "") or "" if agent is not None else ""
+    sid = _resolve_cmd_sid()
     with _lock:
         was = _pinned.pop(sid, False)
         _last_msg.pop(sid, None)
         _ack_turn.pop(sid, None)
         _tools_this_turn.pop(sid, None)
+        _escalated.pop(sid, None)
+        _base_tier.pop(sid, None)
+        _pending.pop(sid, None)
+        _user_msg.pop(sid, None)
+        # Drop the cached tier so the next turn is classified fresh, not
+        # healed onto the previously pinned model.
+        _last_tier.pop(sid, None)
+    logger.info("model-router: /auto sid=%s was_pinned=%s", sid or "-", was)
     if was:
         return "Auto routing resumed. Next turn is classified on Flash."
     return "Auto routing already active."
