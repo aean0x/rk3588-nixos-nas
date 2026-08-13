@@ -149,16 +149,20 @@ in
       # ── Model routing ──
       # Per-turn chat: plugin `model-router` (T1 Flash / T2 Pro / T3 Grok).
       # Native providers — not OpenRouter slugs. See integrations/plugins/model-router/.
-      # Cheap fleet (DeepSeek V4 Flash, provider=deepseek): aux + delegate +
-      # unpinned cron. Vision stays on main (Grok native). `provider: auto`
-      # would inherit main for any unset aux slot — every volume task is pinned.
+      # Cheap fleet (DeepSeek V4 Flash, provider=deepseek): aux + unpinned cron.
+      # Delegate fleet is Pro (see below). Vision stays on main (Grok native).
+      # `provider: auto` would inherit main for any unset aux slot — every
+      # volume task is pinned.
       # Docs: https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
 
       # Sub-agent fleet (delegate_task). Parent stays on main model.
-      # Per-task overrides on delegate_task still escalate individual children.
+      # No per-child model pin — every child inherits this block. Do not put
+      # Grok here (taxes coding + diversion children). Flash is the wrong
+      # default: children implement/review from a dumped prompt.
       delegation = {
-        model = "deepseek-v4-flash";
+        model = "deepseek-v4-pro";
         provider = "deepseek";
+        max_concurrent_children = 5;
       };
 
       # Auxiliary slots (DEFAULT_CONFIG keys). reasoning_effort=none: Flash
