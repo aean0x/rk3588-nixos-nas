@@ -299,6 +299,7 @@ After netboot completes, plug device into router for WAN access before running `
 - Hermes container uses host network + bind mounts; agent tools inside see the hermes user env and writable layer. No more `ws://172.17.0.1` gateway for sub-agents (single-agent model).
 - Hermes workspace (`/var/lib/hermes/workspace`) is owned by the hermes system user; OneDrive sync and hostUsers (in hermes group) have group-writable access.
 - Persistent settings go in `/var/lib` — both for native services and Docker container volume mounts
+- **No Nix one-shots for leftover state.** Do not add activation `rm -f`, `mkForce false` tombstones, or oneshot units to mop up a rename or retired file. `./deploy` SSH and do the operation once. Nix only declares the desired ongoing system.
 
 ### Network / Router Notes
 - When enabling IP forwarding (`net.ipv6.conf.all.forwarding = 1` or equivalent), the kernel resets `accept_ra = 0` on interfaces. Set `accept_ra = 2` (or the desired value) **after** forwarding via a dedicated systemd service that runs after `systemd-sysctl.service`. See `ipv6-accept-ra` pattern if re-implementing.

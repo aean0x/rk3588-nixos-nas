@@ -69,11 +69,7 @@ if [ -n "${USER_SEED:-}" ] && [ -f "$USER_SEED" ]; then
   install -m 0640 -o hermes -g hermes "$USER_SEED" "${HERMES_HOME}/memories/USER.md"
 fi
 
-echo "=== Memory manifest AGENTS.md (optional seed paths) ==="
-MANIFEST="${AGENTS_MANIFEST:-${AGENTS_GBRAIN:-}}"
-if [ -n "$MANIFEST" ] && [ -f "$MANIFEST" ]; then
-  install -m 0640 -o hermes -g hermes "$MANIFEST" "${HERMES_HOME}/AGENTS.md"
-fi
+echo "=== Optional MEMORY.md seed (do not write HERMES_HOME/AGENTS.md) ==="
 if [ -n "${MEMORY_GBRAIN:-}" ] && [ -f "$MEMORY_GBRAIN" ]; then
   install -m 0640 -o hermes -g hermes "$MEMORY_GBRAIN" "${HERMES_HOME}/memories/MEMORY.md"
 fi

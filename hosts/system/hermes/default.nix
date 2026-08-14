@@ -113,11 +113,17 @@
         max_line_length = 2000;
       };
 
-      # Window is model.context_length (200k). Fire at threshold × window.
+      # Native compact: blanket cap 180k. DeepSeek V4 (1M catalog window,
+      # no 75% floor) fires at 0.18 × window ≈ 180k. Grok 4.6 on the 200k
+      # pin is floored to 75% ≈ 150k. After a hop-back Grok may adopt the
+      # 500k catalog window and then the 180k cap wins.
       compression = {
         enabled = true;
         threshold = hermes.compressionThreshold;
         threshold_tokens = hermes.compressionThresholdTokens;
+        model_thresholds = {
+          "deepseek-v4" = 0.18;
+        };
         target_ratio = 0.15;
         protect_last_n = 8;
         proactive_prune_tokens = 24000;

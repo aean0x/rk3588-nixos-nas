@@ -20,9 +20,8 @@ let
   };
 
   # Percent is of the *probed* model window (HMC does not read
-  # model.context_length). 0.30 of Grok ~500k ≈ 150k — after native's 60k
-  # fire. background_compression stays off so the two LLM compactors never
-  # summarize the same range.
+  # model.context_length). Unused while background_compression is off —
+  # native owns LLM compact (DeepSeek ~180k / Grok ~150k).
   hmcConfig = pkgs.writeText "hermes-context-manager-config.yaml" ''
     # Managed by NixOS (integrations/hmc.nix). Pin ${hmcRev}.
     enabled: true
