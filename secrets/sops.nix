@@ -24,6 +24,10 @@ let
     # Pre-authorizes the admin so the gateway allows access on first boot without DM pairing.
     TELEGRAM_ALLOWED_USERS = "telegram_admin_id";
     TELEGRAM_ADMIN_ID = "telegram_admin_id";
+    # Cron `deliver=all` + gateway home channel (bare `deliver=telegram`) resolve
+    # from this env var, not config.yaml — which is HERMES_MANAGED (read-only), so
+    # `/sethome` never persisted. Reuse the admin DM id; no new secret needed.
+    TELEGRAM_HOME_CHANNEL = "telegram_admin_id";
     GOOGLE_PLACES_API_KEY = "google_places_api_key";
     BROWSERLESS_API_TOKEN = "browserless_api_token";
     MATON_API_KEY = "maton_api_key";

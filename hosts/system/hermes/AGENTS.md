@@ -10,7 +10,8 @@
   - Pins: `/t1` `/t2` `/t3` `/auto` via `ctx.register_command` (CLI + gateway).
   - Classifier uses existing `auxiliary.triage_specifier` (Flash). No SOUL.md writes.
   - Cron + `delegate_task` children are skipped (stay on their declared fleet).
-  - **Delegation / aux / cron** still pin Flash: `provider=deepseek`, `model=deepseek-v4-flash`.
+  - **Aux / cron** pin Flash: `provider=deepseek`, `model=deepseek-v4-flash`.
+  - **Delegation** pins Pro: `provider=deepseek`, `model=deepseek-v4-pro`, `max_concurrent_children=5`. No per-child model pin.
   - **Vision:** left on main (Grok native vision).
   - Live switch uses `AIAgent.switch_model` + `hermes_cli.model_switch` (same as `/model`). If the agent is not bound yet, the first API call of that turn may still be Grok; later calls apply the classified tier.
   - WebUI UX is an official extension sidecar (`HERMES_WEBUI_EXTENSION_DIR`), not a core patch.
