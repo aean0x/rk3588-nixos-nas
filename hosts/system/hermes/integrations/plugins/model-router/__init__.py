@@ -115,7 +115,7 @@ _FINAL_TIER = 3
 # count toward escalation, otherwise two clean tool calls false-escalate.
 _ERROR_PAT = re.compile(r'"(?:error|failed)"\s*:\s*(?!\s*null\b)(?!\s*false\b)(?!\s*"")')
 
-_SKIP_PLATFORMS = frozenset({"cron"})
+_SKIP_PLATFORMS = frozenset({"cron", "subagent"})  # subagent = delegate_task children: model is pinned by the delegation config; their output is intermediate work, not a user-facing reply, so no final-voice Grok polish.
 
 _TIER_RE = re.compile(r"(?:^|(?<=\s)|(?<=\())[tT]([1-3])(?:\b|(?=\)))")
 _TIER_WORD_RE = re.compile(r"(?:^|(?<=\s)|(?<=\())tier\s*([1-3])", re.IGNORECASE)
