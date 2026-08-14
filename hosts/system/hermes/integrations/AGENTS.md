@@ -47,7 +47,8 @@ dual-copy left a real directory at the discovery path, activation replaces it wi
 the symlink.
 
 **HMC** is stock upstream plus a generated `config.yaml`. Native Hermes
-`compression.threshold_tokens` does LLM compact; HMC only truncates / filters
+`compression.threshold_tokens` (180k cap) + `model_thresholds.deepseek-v4`
+does LLM compact; HMC only truncates / filters
 tool output (`background_compression` is off so the two do not double-summarize).
 
 **Bytecode / mtime:** Nix sources carry epoch mtimes. Activation wipes
@@ -84,4 +85,4 @@ not declarative.
 | `gbrain.nix` | HTTP serve unit + memory registry + token wiring |
 | `../skills/` | Skill *source*; this module copies gbrain skills into `skills.external_dirs` |
 | `../scripts/projects_auto_commit.py` | Installed next to the auto-commit plugin |
-| `../scripts/git-credential-github-env` | Installed from `gbrain.nix` (GITHUB_PAT for `~/brain` + hermes-user git) |
+| `../scripts/git-credential-github-env` | Installed from `gbrain.nix` at `/home/hermes/.local/bin` (GITHUB_PAT for `~/brain` + host/container git) |

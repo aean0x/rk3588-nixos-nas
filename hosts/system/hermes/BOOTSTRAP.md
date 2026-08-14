@@ -24,7 +24,6 @@ On device after switch:
 ```bash
 systemctl status hermes-agent
 ls -la /var/lib/hermes/memory/          # registry.json, AGENTS.md, export-schema.json
-ls -la /var/lib/hermes/.hermes/AGENTS.md  # live memory contract (not SOUL)
 grep -E 'ZEROENTROPY|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
 # web_extract needs firecrawl-py (extraDependencyGroups) + FIRECRAWL_API_KEY
 ```
@@ -163,8 +162,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 
 | Concern | Host | Container |
 |---------|------|-----------|
-| Memory AGENTS | `/var/lib/hermes/memory/AGENTS.md` | `/data/memory/AGENTS.md` |
-| Live AGENTS | `/var/lib/hermes/.hermes/AGENTS.md` | `/data/.hermes/AGENTS.md` |
+| Memory AGENTS (operator copy) | `/var/lib/hermes/memory/AGENTS.md` | `/data/memory/AGENTS.md` |
 | Export plane | `…/memories/export/` | `/data/.hermes/memories/export/` |
 | GBrain home | `/var/lib/hermes/home/.gbrain` | `/home/hermes/.gbrain` |
 | Brain git | `/var/lib/hermes/home/brain` | `/home/hermes/brain` |
@@ -177,7 +175,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | Piece | Declarative? |
 |-------|----------------|
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
-| Registry + export schema + memory AGENTS.md | Yes (activation, always) |
+| Registry + export schema + memory AGENTS.md (under `/var/lib/hermes/memory/`) | Yes (activation, always) |
 | Host exclusive gbrain CLI / dream timers | **No** (removed; MCP + Hermes cron only) |
 | Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC) | Yes (activation) |
 | `ZEROENTROPY_API_KEY` | Yes (sops → hermesEnv) |
@@ -252,7 +250,7 @@ After adding the hostname, re-run `./scripts/setup-cloudflare-tunnel.sh` so DNS 
 
 ## 8. Token lean + hermes-context-manager (HMC)
 
-Settings live in `default.nix` (`tool_output`, compression, `model.context_length` = 200k from `runtime.nix`). HMC is `integrations/hmc.nix`, installed like any other plugin.
+Settings live in `default.nix` (`tool_output`, compression: 180k cap + DeepSeek 0.18, `model.context_length` = 200k from `runtime.nix`). HMC is `integrations/hmc.nix`, installed like any other plugin.
 
 ```bash
 # After remote-switch — restart so HMC hooks load:

@@ -103,11 +103,10 @@ case "$CMD" in
         info "Soft-reset Hermes state (preserves gbrain ~/.bun + ~/brain)..."
         scp ${SSH_OPTS} \
             "${REPO_ROOT}/hosts/system/hermes/scripts/clean-hermes-state.sh" \
-            "${REPO_ROOT}/hosts/system/hermes/memory/AGENTS.md" \
             "${REPO_ROOT}/hosts/system/hermes/prompts/memory-gbrain.md" \
             "$TARGET:/tmp/"
         ssh -t ${SSH_OPTS} "$TARGET" \
-            "sudo AGENTS_MANIFEST=/tmp/AGENTS.md MEMORY_GBRAIN=/tmp/memory-gbrain.md bash /tmp/clean-hermes-state.sh"
+            "sudo MEMORY_GBRAIN=/tmp/memory-gbrain.md bash /tmp/clean-hermes-state.sh"
         ;;
 
     # On-device commands (forwarded via SSH)

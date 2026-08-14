@@ -68,16 +68,6 @@ in {
     install -m 0755 -o hermes -g hermes ${releaseWorkstation} /var/lib/hermes/home/.local/bin/release-workstation
     install -m 0755 -o hermes -g hermes ${statusWorkstation} /var/lib/hermes/home/.local/bin/workstation-status
 
-    # Drop legacy names / home-resident keys from earlier revisions.
-    rm -f /var/lib/hermes/home/.local/bin/ssh-nix-pc-agent \
-          /var/lib/hermes/home/.local/bin/checkout-nix-pc \
-          /var/lib/hermes/home/.local/bin/release-nix-pc \
-          /var/lib/hermes/home/.local/bin/nix-pc-checkout-status \
-          /var/lib/hermes/home/.local/bin/wake-nix-pc \
-          /var/lib/hermes/home/.ssh/id_ed25519_nix_pc_agent \
-          /var/lib/hermes/home/.ssh/config
-    rm -rf /var/lib/hermes/.hermes/skills/devops/nix-pc-agent
-
     # Known hosts dir (created on first connect); keep empty config-free.
     touch /var/lib/hermes/home/.ssh/known_hosts
     chown hermes:hermes /var/lib/hermes/home/.ssh/known_hosts
@@ -112,7 +102,6 @@ EOF
       chown hermes:hermes /var/lib/hermes/workspace/WORKSTATION.md
       chmod 0640 /var/lib/hermes/workspace/WORKSTATION.md
     fi
-    rm -f /var/lib/hermes/workspace/NIX_PC_AGENT.md
   '';
 
   # Secret readable by hermes only via this mount (for OpenSSH -i inside wrappers).

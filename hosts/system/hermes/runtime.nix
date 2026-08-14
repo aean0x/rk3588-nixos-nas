@@ -68,11 +68,13 @@ let
     "/bin"
   ];
 
-  # Display + compressor window. WebUI / gateway honor model.context_length.
-  # Native compression fires at threshold × this; HMC uses the same ceiling.
+  # Display + compressor window. model.context_length applies to the default
+  # model only (grok-4.6); after a router hop the live catalog window wins.
+  # Native fire is min(ratio × live window, this cap). 180k is the DeepSeek
+  # ceiling; Grok on the 200k pin hits the <512k 75% floor first (~150k).
   contextLimit = 200000;
   compressionThreshold = 0.30;
-  compressionThresholdTokens = 60000; # contextLimit * 0.30
+  compressionThresholdTokens = 180000;
 
   # Both agent entrypoints (gateway container + WebUI process).
   resources = {

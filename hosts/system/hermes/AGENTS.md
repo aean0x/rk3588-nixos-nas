@@ -237,6 +237,7 @@ systemctl status hermes-agent
 - Module container is always `--network=host` — no docker `-p`.
 - `messaging` must be in `extraDependencyGroups` (not in hermes `[all]`).
 - `firecrawl` must be in `extraDependencyGroups` for `web_extract` (firecrawl-py; lazy install disabled in Nix).
-- `memory/AGENTS.md` is an operator contract (copied next to the registry). Activation **deletes** any leftover `$HERMES_HOME/AGENTS.md` we used to inject.
+- `memory/AGENTS.md` is an operator contract (copied next to the registry). Do **not** write it to `$HERMES_HOME/AGENTS.md`.
+- **No Nix one-shots for leftover state.** Do not add `rm -f` / `mkForce false` tombstones in activation to clean a rename or retired file. `./deploy` SSH and do it once. Nix only declares the desired ongoing system.
 - `HASS_*` env names for Home Assistant tools (not `HA_*`).
 - On 8 GiB rocknas, unbounded Hermes/browser + on-box `nix eval` OOMs the host; keep tertiary caps and protect AdGuard/HA (see Resource limits above).

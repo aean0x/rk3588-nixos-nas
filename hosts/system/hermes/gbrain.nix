@@ -97,7 +97,6 @@ in
 
   system.activationScripts.hermes-memory-manifest = lib.stringAfter [ "hermes-agent-setup" ] ''
     install -d -m 0755 -o hermes -g hermes ${hermes.bin}
-    rm -f ${hermes.workspace}/gbrain-pointer-index.json
 
     # ── Always managed (memory contract / registry) ──
     install -d -m 0755 -o hermes -g hermes ${hermes.stateDir}/memory
@@ -110,19 +109,18 @@ in
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/.hermes/memories/export/snapshots
     chown -R hermes:hermes /var/lib/hermes/.hermes/memories/export
 
-    # Purge the old Nix-injected manifesto. $HERMES_HOME/AGENTS.md is not
-    # workspace context (cwd is /data/workspace); leave the slot to Hermes/GBrain.
-    rm -f ${hermes.hermesHome}/AGENTS.md
-
     # GBrain ~/brain (and any hermes-user git to github.com) uses GITHUB_PAT.
+    # Helper lives under hermes HOME so one absolute path works on the host
+    # (WebUI local git) and in the container (/home/hermes is this tree).
     install -d -m 0755 -o hermes -g hermes ${hermes.hermesHome}/scripts
+    install -d -m 0755 -o hermes -g hermes ${hermes.home}/.local/bin
     install -m 0755 -o hermes -g hermes ${./scripts/git-credential-github-env} \
       ${hermes.hermesHome}/scripts/git-credential-github-env
+    install -m 0755 -o hermes -g hermes ${./scripts/git-credential-github-env} \
+      ${hermes.home}/.local/bin/git-credential-github-env
     if command -v git >/dev/null 2>&1; then
-      # Container HOME is ${hermes.home}; helper path must exist inside the
-      # container namespace (/data/.hermes/scripts/…).
       sudo -u hermes env HOME=${hermes.home} git config --global credential.helper \
-        ${hermes.data}/.hermes/scripts/git-credential-github-env || true
+        /home/hermes/.local/bin/git-credential-github-env || true
       sudo -u hermes env HOME=${hermes.home} git config --global credential.useHttpPath true || true
     fi
 
