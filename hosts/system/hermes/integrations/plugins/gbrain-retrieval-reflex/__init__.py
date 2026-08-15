@@ -113,7 +113,7 @@ def on_pre_llm_call(
                         "scores": [p.get("confidence") for p in pages],
                     }
                 )
-                logger.warning(
+                logger.info(
                     "gbrain-retrieval-reflex: inject source=%s slugs=%s",
                     source,
                     [p.get("slug") for p in pages][:8],

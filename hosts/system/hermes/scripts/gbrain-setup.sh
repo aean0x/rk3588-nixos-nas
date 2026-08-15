@@ -281,6 +281,32 @@ import_and_embed() {
   fi
 }
 
+harden_brain_durability() {
+  # Official CLI: put_page write-through only commits if sources harden ran.
+  # Must run with cwd=$HOME (Nixpkgs bun cannot posix_spawn from a foreign cwd)
+  # and with serve down (PGLite single-writer).
+  local pat_file="${GBRAIN_HOME}/github.pat"
+  [[ -d "${BRAIN_REPO}/.git" ]] || {
+    warn "no ${BRAIN_REPO}/.git — skip sources harden"
+    return 0
+  }
+  install -d -m 0700 -o hermes -g hermes "${GBRAIN_HOME}"
+  if [[ ! -s "${pat_file}" && -r /run/hermes.env ]]; then
+    grep '^GITHUB_PAT=' /run/hermes.env | tail -1 | cut -d= -f2- | tr -d '\r\n"' \
+      | sudo tee "${pat_file}" >/dev/null
+    chown hermes:hermes "${pat_file}"
+    chmod 600 "${pat_file}"
+  fi
+  [[ -s "${pat_file}" ]] || {
+    warn "no PAT at ${pat_file} — skip sources harden"
+    return 0
+  }
+  systemctl stop gbrain-mcp-http 2>/dev/null || true
+  log "gbrain sources harden default (cwd=HOME, --no-cron)"
+  as_hermes bash -lc "cd \"\$HOME\" && gbrain sources harden default --pat-file '${pat_file}' --no-cron" \
+    || warn "sources harden exited non-zero (check hook + credential.helper)"
+}
+
 start_stack() {
   log "starting gbrain-mcp-http (sole PGLite owner)"
   systemctl reset-failed gbrain-mcp-http 2>/dev/null || true
@@ -324,6 +350,7 @@ main() {
   mint_token || true
   wire_hermes_mcp_config
   import_and_embed
+  harden_brain_durability
   start_stack
   # Re-wire after start in case setup rewrote config
   wire_hermes_mcp_config

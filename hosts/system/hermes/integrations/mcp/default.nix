@@ -2,6 +2,7 @@
 # gbrain HTTP client + serve unit: ../gbrain.nix (token re-apply lives there).
 {
   imports = [
-    ./maton.nix
+    ./composio.nix
+    ./policylayer-mcp.nix
   ];
 }

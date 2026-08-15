@@ -30,7 +30,6 @@ let
     TELEGRAM_HOME_CHANNEL = "telegram_admin_id";
     GOOGLE_PLACES_API_KEY = "google_places_api_key";
     BROWSERLESS_API_TOKEN = "browserless_api_token";
-    MATON_API_KEY = "maton_api_key";
     # Hermes Home Assistant toolset/platform expect HASS_* (not HA_*).
     HASS_TOKEN = "ha_token";
     HASS_URL = "ha_url";
@@ -81,7 +80,6 @@ in
           mode = "0444";
         };
         browserless_api_token = { };
-        maton_api_key = { };
         ha_token = { };
         ha_url = { };
         telegram_admin_id = { };

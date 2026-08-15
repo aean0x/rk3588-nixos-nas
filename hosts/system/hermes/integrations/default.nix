@@ -54,7 +54,7 @@ let
 in
 {
   imports = [
-    ./mcp # maton stdio wrapper; gbrain HTTP client stays in ../gbrain.nix
+    ./mcp # composio HTTP MCP; gbrain HTTP client stays in ../gbrain.nix
     ./hmc.nix # composed HMC src → managedPlugins.hermes-context-manager
   ];
 

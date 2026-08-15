@@ -136,10 +136,15 @@ if [[ -f "$MR" ]]; then
   else
     fail "model-router missing from integrations or WebUI extension env"
   fi
-  if [[ -f "$HERMES/integrations/mcp/maton.nix" ]] && [[ -f "$HERMES/integrations/mcp/maton-mcp.sh" ]]; then
-    pass "maton MCP client under integrations/mcp"
+  if [[ -f "$HERMES/integrations/mcp/composio.nix" ]] && grep -q 'mcpServers.composio' "$HERMES/integrations/mcp/composio.nix"; then
+    pass "composio MCP client under integrations/mcp"
   else
-    fail "missing integrations/mcp/maton.nix or maton-mcp.sh"
+    fail "missing integrations/mcp/composio.nix"
+  fi
+  if grep -qiE 'maton' "$HERMES/integrations/mcp/"*.nix "$HERMES/integrations/mcp/"*.sh 2>/dev/null; then
+    fail "maton leftovers under integrations/mcp"
+  else
+    pass "no maton leftovers under integrations/mcp"
   fi
 else
   fail "missing hosts/system/hermes/integrations/plugins/model-router/__init__.py"

@@ -10,6 +10,7 @@ Policy:
     (or T3 when the classifier picks high-stakes). Tools do NOT force Grok.
   • Multi-sentence user messages floor at T2 (classifier + deterministic).
   • Tool-error escalation may climb through T3 Grok and de-escalate back.
+    Consecutive errors: T1 needs 4, T2 needs 3 (cheap tiers may thrash).
   • End of turn: if the draft is still off-Grok, transform_llm_output runs a
     one-shot Grok final-voice polish so the user-facing reply is Grok.
   • Manual /t1 /t2 /t3 pins win over auto final-voice.
@@ -106,9 +107,19 @@ TIERS: dict[int, dict[str, Any]] = {
 }
 
 # Escalation may climb onto Grok; post_llm_call de-escalates back to base.
+# Consecutive-error bar is higher on cheaper tiers so Flash/Pro can thrash
+# a bit before we pay for a climb (especially T2→T3).
 _ESCALATE_MAX = 3
-_ESCALATION_ERROR_THRESHOLD = 2
+_ESCALATION_ERROR_THRESHOLD_BY_TIER = {
+    1: 4,  # T1 Flash → T2
+    2: 3,  # T2 Pro → T3
+}
 _FINAL_TIER = 3
+
+
+def _escalation_threshold(tier: int) -> int:
+    return _ESCALATION_ERROR_THRESHOLD_BY_TIER.get(tier, 3)
+
 
 # A real tool error has a non-empty "error" value or "failed": true.
 # Successful results carry "error": null / "" or "failed": false and must not
@@ -904,13 +915,25 @@ def on_post_tool_call(
             count = _tool_errors.get(sid, 0)
             current = _last_tier.get(sid, 1)
 
-        # Tool-error escalation may climb onto Grok.
-        if is_error and count >= _ESCALATION_ERROR_THRESHOLD and current < _ESCALATE_MAX:
+        # Tool-error escalation may climb onto Grok. Threshold is per current
+        # tier so T1/T2 can burn more cheap retries before a climb.
+        threshold = _escalation_threshold(current)
+        if is_error and count >= threshold and current < _ESCALATE_MAX:
             new_tier = min(current + 1, _ESCALATE_MAX)
-            _force_tier(sid, new_tier, f"auto-escalate after {count} tool errors")
+            _force_tier(
+                sid,
+                new_tier,
+                f"auto-escalate after {count} tool errors (need {threshold} on T{current})",
+            )
             with _lock:
                 _tool_errors[sid] = 0
-            logger.info("model-router: auto-escalate T%d→T%d after tool errors", current, new_tier)
+            logger.info(
+                "model-router: auto-escalate T%d→T%d after %d tool errors (need %d)",
+                current,
+                new_tier,
+                count,
+                threshold,
+            )
     except Exception as exc:
         logger.warning("model-router: on_post_tool_call error: %s", exc, exc_info=True)
 

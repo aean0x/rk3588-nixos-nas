@@ -253,7 +253,7 @@
       };
     };
 
-    # mcpServers: integrations/mcp/* (maton) + gbrain.nix (HTTP gbrain).
+    # mcpServers: integrations/mcp/* (composio) + gbrain.nix (HTTP gbrain).
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
     # overrides/package-fix.nix bakes these into services.hermes-agent.package

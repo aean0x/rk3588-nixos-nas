@@ -91,8 +91,8 @@ in
         protection_enabled = true;
         filtering_enabled = true;
         rewrites_enabled = true;
-        safebrowsing_enabled = true;
-        parental_enabled = true;
+        safebrowsing_enabled = false;
+        parental_enabled = false;
         blocking_mode = "default";
 
         safe_search = {
@@ -162,6 +162,13 @@ in
         "@@||tailscale.com^"
         "@@||ts.net^"
         "@@||tailscale.io^"
+        # Aegis standard (filter id 5) is global and lists these two apex
+        # names as exact host blocks. That sinkholes the official app/web
+        # (discord.com → 0.0.0.0) while www/cdn/gateway still resolve.
+        # Keep Aegis for the rest; re-block per kid client if needed:
+        #   ||discord.com^$client='toddler-pc'
+        "@@||discord.com^"
+        "@@||discordapp.com^"
       ];
     };
   };
