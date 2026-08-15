@@ -17,6 +17,10 @@
     hermes-webui.url = "github:nesquena/hermes-webui";
     # Media stack: Sonarr/Radarr (+ optional others) with declarative settings-sync
     nixarr.url = "github:nix-media-server/nixarr";
+    mcp-proxy = {
+      url = "github:aean0x/mcp-proxy";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -59,6 +63,7 @@
           { nixpkgs.overlays = overlays; }
           sops-nix.nixosModules.sops
           nixarr.nixosModules.default
+          inputs.mcp-proxy.nixosModules.default
           ./hardware-configuration.nix
           ./hosts/system/default.nix
           ./secrets/sops.nix

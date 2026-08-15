@@ -37,7 +37,7 @@ hosts/system/hermes/
 ├── workstation.nix      # SSH helpers to workstation Grok agent
 ├── integrations/        # first-party plugins + MCP clients (see integrations/AGENTS.md)
 │   ├── plugins/         # model-router, gbrain-*, tool-call-coherency, …
-│   └── mcp/             # composio HTTP MCP + mcpServers.*
+│   └── mcp/             # composio backend (proxy is flake input aean0x/mcp-proxy)
 ├── skills/              # retrieval-reflex + workstation + gbrain-http-auth
 ├── memory/              # declarative memory plane
 ├── scripts/
@@ -179,6 +179,7 @@ Host exclusive CLI stack is **gone**. Do not reintroduce `hermes-gbrain-*` timer
 
 | Env | Sops key | Purpose |
 |-----|----------|---------|
+| (file) | `composio_api_key` | mcp-proxy → Composio `Authorization: Bearer`; also `COMPOSIO_API_KEY` in hermes env for API |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | Hermes `web_extract` (Firecrawl / firecrawl-py) |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |

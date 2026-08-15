@@ -66,7 +66,8 @@ Declarative clients: `integrations/mcp/` (+ `gbrain.nix` for HTTP gbrain).
 | Server | Command / URL | Notes |
 |--------|---------------|--------|
 | gbrain | HTTP `http://127.0.0.1:3131/mcp` | Sole serve: `gbrain-mcp-http` |
-| composio | HTTP `https://connect.composio.dev/mcp` | OAuth; `COMPOSIO_API_KEY` in hermes env; see `integrations/mcp/composio.nix` |
+| mcp-proxy | HTTP `http://127.0.0.1:3140/<backend>` | Secrets + toolkit filters; flake `github:aean0x/mcp-proxy` |
+| composio | HTTP via proxy → `https://connect.composio.dev/mcp` | Bearer from sops `composio_api_key`; Gmail query exclude-label; `integrations/mcp/composio.nix` |
 
 ## Gaps vs Hetzner (closed)
 

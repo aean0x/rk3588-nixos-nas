@@ -175,7 +175,8 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | Piece | Declarative? |
 |-------|----------------|
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
-| `mcpServers.composio` | Yes (`integrations/mcp/composio.nix`) |
+| `mcpServers.composio` | Yes (`integrations/mcp/composio.nix` via `mcp-proxy`) |
+| `services.mcpProxy` | Yes (flake `github:aean0x/mcp-proxy`) |
 | Registry + export schema + memory AGENTS.md (under `/var/lib/hermes/memory/`) | Yes (activation, always) |
 | Host exclusive gbrain CLI / dream timers | **No** (removed; MCP + Hermes cron only) |
 | Plugin **code** (gbrain-retrieval-reflex, memory-flush, tool-call-coherency, HMC) | Yes (activation) |
