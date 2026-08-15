@@ -18,8 +18,7 @@ integrations/
 │   └── model-router/      # + webui/ extension sidecar
 └── mcp/
     ├── default.nix        # imports MCP client modules
-    ├── maton.nix          # stdio maton + /data/bin/maton-mcp wrapper
-    └── maton-mcp.sh       # wrapper source (secrets via .env)
+    └── composio.nix       # HTTP Composio Connect + OAuth
 ```
 
 ## Plugins (enabled)
@@ -63,10 +62,10 @@ stale `.pyc` over freshly deployed source. Manual hot-fix must do the same
 
 | Server | Module | Transport | Notes |
 |--------|--------|-----------|--------|
-| `maton` | `mcp/maton.nix` | stdio via `/data/bin/maton-mcp` | Wrapper sources `.env` (stdio filter strips ambient secrets) |
+| `composio` | `mcp/composio.nix` | HTTP `https://connect.composio.dev/mcp` | OAuth (`auth = "oauth"`); `COMPOSIO_API_KEY` in hermes env for API |
 | `gbrain` | `../gbrain.nix` | HTTP `http://127.0.0.1:3131/mcp` | Sole serve = `gbrain-mcp-http`; token re-apply in activation |
 
-Agent-configured MCP (robinhood, composio, …) lives in live `config.yaml` only —
+Agent-configured MCP (robinhood, …) lives in live `config.yaml` only —
 not declarative.
 
 ## Adding something

@@ -12,16 +12,25 @@
 }:
 
 let
+  # withPackages already ships `python` and `python3`. Keep both names
+  # explicit so a nixpkgs change cannot drop one.
+  pythonEnv = pkgs.python3.withPackages (
+    ps: with ps; [
+      requests
+      pyyaml
+      toml
+    ]
+  );
+  pythonBins = pkgs.runCommand "hermes-python" { } ''
+    mkdir -p $out/bin
+    ln -s ${pythonEnv}/bin/python3 $out/bin/python3
+    ln -s ${pythonEnv}/bin/python3 $out/bin/python
+  '';
+
   hermesToolbox = pkgs.buildEnv {
     name = "hermes-toolbox";
     paths = [
-      (pkgs.python3.withPackages (
-        ps: with ps; [
-          requests
-          pyyaml
-          toml
-        ]
-      ))
+      pythonEnv
       pkgs.pandoc
       pkgs.bun
       pkgs.nodejs
@@ -94,6 +103,15 @@ let
     export PATH="${hermes.containerPath}"
   '';
 
+  # WebUI (host) terminals snapshot PATH via `bash -l` + ~/.profile.
+  # passwd HOME is ${hermes.stateDir}, not the container home below.
+  # Without this, the snapshot is NixOS user defaults — no toolbox, no python3.
+  hostProfile = pkgs.writeText "hermes-host-profile" ''
+    if [ -d ${hermes.toolbox.host} ]; then
+      export PATH="${hermes.hostPath}:$PATH"
+    fi
+  '';
+
   containerBashrc = pkgs.writeText "hermes-home-bashrc" ''
     [ -f "$HOME/.profile" ] && . "$HOME/.profile"
   '';
@@ -155,6 +173,11 @@ in
     mode = "0644";
   };
 
+  # Login-shell snapshots (WebUI terminal uses bash -l) only reliably see
+  # /run/current-system/sw/bin — not /var/lib/hermes/toolbox/bin.
+  # pythonBins guarantees both `python` and `python3` on that path.
+  environment.systemPackages = [ pythonBins ];
+
   services.hermes-agent = {
     # Do NOT put PATH / HERMES_PY / AGENT_BROWSER in `environment` — the module
     # merges that into $HERMES_HOME/.env, which host `hermes chat` loads and
@@ -175,13 +198,15 @@ in
     # Interactive / docker-exec shells inside the container.
     install -m 0644 -o hermes -g hermes ${containerProfile} ${hermes.home}/.profile
     install -m 0644 -o hermes -g hermes ${containerBashrc} ${hermes.home}/.bashrc
+    # Host hermes user HOME (/var/lib/hermes) — WebUI bash -l snapshot.
+    install -m 0644 -o hermes -g hermes ${hostProfile} ${hermes.stateDir}/.profile
 
     install -d -m 2770 -o hermes -g hermes ${hermes.skills.host}
     install -d -m 2770 -o hermes -g hermes ${hermes.plugins}
 
     install -d -m 0755 -o hermes -g hermes ${hermes.bin}
     install -m 0755 ${hermesCliWrapper} ${hermes.bin}/hermes-cli
-    # MCP wrappers (maton, …): integrations/mcp/*.nix
+    # MCP wrappers (composio, …): integrations/mcp/*.nix
   '';
 
   # Run after setup merges environmentFiles into .env so we can strip PATH again.

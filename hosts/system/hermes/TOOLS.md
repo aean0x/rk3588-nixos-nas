@@ -30,9 +30,14 @@ Aligned with Hetzner `modules/hermes-agent.nix` toolbox + MCP pattern.
 
 Toolbox **first** so host `bun` is Nix `pkgs.bun` (not curl stub-ld).
 
+Host WebUI terminals snapshot PATH via `bash -l` + `/var/lib/hermes/.profile`
+(passwd HOME). That file prepends the host toolbox PATH. `python` and `python3`
+are also linked into `/run/current-system/sw/bin` so a snapshot that misses
+toolbox still finds both names.
+
 ## Toolbox packages (buildEnv)
 
-python3(+requests,pyyaml,toml), pandoc, bun, nodejs, git, ripgrep, jq, yq-go,
+python + python3 (+requests,pyyaml,toml), pandoc, bun, nodejs, git, ripgrep, jq, yq-go,
 curl, wget, unzip, zip, imagemagick, tree, rsync, openssh, ffmpeg, sox,
 poppler-utils, gnupg, age, file, which, coreutils, findutils, gawk, gnused,
 gnutar, gzip, bzip2, xz, zstd, p7zip, htop, ncdu, lsof, strace, tcpdump, nmap,
@@ -61,7 +66,7 @@ Declarative clients: `integrations/mcp/` (+ `gbrain.nix` for HTTP gbrain).
 | Server | Command / URL | Notes |
 |--------|---------------|--------|
 | gbrain | HTTP `http://127.0.0.1:3131/mcp` | Sole serve: `gbrain-mcp-http` |
-| maton | `/data/bin/maton-mcp` | Wrapper sources `.env`; see `integrations/mcp/maton.nix` |
+| composio | HTTP `https://connect.composio.dev/mcp` | OAuth; `COMPOSIO_API_KEY` in hermes env; see `integrations/mcp/composio.nix` |
 
 ## Gaps vs Hetzner (closed)
 

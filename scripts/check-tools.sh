@@ -16,6 +16,8 @@ for pkg in git ripgrep jq bun nodejs ffmpeg curl unzip openssh strace nmap chrom
   grep -q "$pkg" "$H/toolbox.nix" && pass "toolbox includes $pkg" || fail "toolbox missing $pkg"
 done
 grep -q 'AGENT_BROWSER_EXECUTABLE_PATH' "$H/runtime.nix" && pass "AGENT_BROWSER_EXECUTABLE_PATH set" || fail "no AGENT_BROWSER path"
+grep -q 'hermes-python\|pythonBins' "$H/toolbox.nix" && pass "python/python3 aliases declared" || fail "no python/python3 aliases"
+grep -q 'stateDir}/.profile\|hostProfile' "$H/toolbox.nix" && pass "host hermes .profile installed" || fail "no host hermes .profile"
 grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && grep -q 'gbrainMcpUrl\|3131/mcp' "$H/gbrain.nix" \
   && pass "MCP gbrain is HTTP" || fail "MCP gbrain missing HTTP url"
 # Full agent PATH lives in runtime.nix (consumed by toolbox extraOptions + WebUI).
@@ -35,14 +37,14 @@ if [[ "${REMOTE_CHECK:-}" == 1 ]]; then
     echo PATH=\$PATH
     test -d /data/toolbox/bin && echo TOOLBOX_DIR=yes || echo TOOLBOX_DIR=no
     missing=0
-    for c in git rg jq bun node gbrain python3 ffmpeg curl wget unzip yq file which rsync ssh pandoc nmap strace chromium chrome; do
+    for c in git rg jq bun node gbrain python python3 ffmpeg curl wget unzip yq file which rsync ssh pandoc nmap strace chromium chrome; do
       p=\$(command -v \$c 2>/dev/null || true)
       if [ -n \"\$p\" ]; then echo OK \$c=\$p; else echo MISSING \$c; missing=1; fi
     done
     echo AGENT_BROWSER_EXECUTABLE_PATH=\${AGENT_BROWSER_EXECUTABLE_PATH:-unset}
     echo BROWSER_CDP_URL=\${BROWSER_CDP_URL:-unset}
     # critical set must all be present
-    for c in git rg jq bun gbrain python3 curl chromium; do
+    for c in git rg jq bun gbrain python python3 curl chromium; do
       command -v \$c >/dev/null || exit 2
     done
     exit 0
@@ -59,7 +61,7 @@ if [[ "${REMOTE_CHECK:-}" == 1 ]]; then
   echo "=== gateway child PATH sample (via hermes -Q) ==="
   chat_out=$(ssh ${SSH_OPTS} "$TARGET" 'sudo -u hermes /run/current-system/sw/bin/hermes chat -Q --yolo --accept-hooks -q "
 Use the terminal tool once. Run exactly:
-echo PATH=\$PATH; command -v git; command -v rg; command -v jq; command -v gbrain; command -v python3; ls /data/toolbox/bin | wc -l
+echo PATH=\$PATH; command -v git; command -v rg; command -v jq; command -v gbrain; command -v python; command -v python3; ls /data/toolbox/bin | wc -l
 Reply with only the command output.
 "' 2>&1) || true
   echo "$chat_out" | tail -40

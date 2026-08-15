@@ -52,3 +52,9 @@ See gbrain `docs/mcp/DEPLOY.md`, `docs/guides/push-context.md`.
 
 MCP ops on the live HTTP serve. Hermes cron via MCP only.  
 Never `gbrain autopilot --install` as a second process on PGLite.
+
+**Git durability:** `put_page` write-through only auto-commits when the brain
+repo has been hardened (`gbrain sources harden default --pat-file ~/.gbrain/github.pat`).
+That is CLI-only; stop `gbrain-mcp-http` first, run from `$HOME` as hermes
+(Nixpkgs bun cannot spawn git if cwd is another user's home), then restart serve.
+`./deploy gbrain-setup` includes this step.
