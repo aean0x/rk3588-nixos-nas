@@ -37,7 +37,7 @@ hosts/system/hermes/
 ├── workstation.nix      # SSH helpers to workstation Grok agent
 ├── integrations/        # first-party plugins + MCP clients (see integrations/AGENTS.md)
 │   ├── plugins/         # model-router, gbrain-*, tool-call-coherency, …
-│   └── mcp/             # composio HTTP MCP + mcpServers.*
+│   └── mcp/             # composio via mcp-proxy :3140 + mail-surface filters
 ├── skills/              # retrieval-reflex + workstation + gbrain-http-auth
 ├── memory/              # declarative memory plane
 ├── scripts/

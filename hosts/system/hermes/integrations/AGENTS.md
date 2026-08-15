@@ -18,7 +18,7 @@ integrations/
 │   └── model-router/      # + webui/ extension sidecar
 └── mcp/
     ├── default.nix        # imports MCP client modules
-    └── composio.nix       # HTTP Composio Connect + OAuth
+    └── composio.nix       # Hermes → 127.0.0.1:3140/composio + mail-surface filters
 ```
 
 ## Plugins (enabled)
@@ -62,7 +62,7 @@ stale `.pyc` over freshly deployed source. Manual hot-fix must do the same
 
 | Server | Module | Transport | Notes |
 |--------|--------|-----------|--------|
-| `composio` | `mcp/composio.nix` | HTTP `https://connect.composio.dev/mcp` | OAuth (`auth = "oauth"`); `COMPOSIO_API_KEY` in hermes env for API |
+| `composio` | `mcp/composio.nix` | HTTP `http://127.0.0.1:3140/composio` | mcp-proxy injects auth; mail surface = inbox/sent/drafts minus `agent-blocked` |
 | `gbrain` | `../gbrain.nix` | HTTP `http://127.0.0.1:3131/mcp` | Sole serve = `gbrain-mcp-http`; token re-apply in activation |
 
 Agent-configured MCP (robinhood, …) lives in live `config.yaml` only —
