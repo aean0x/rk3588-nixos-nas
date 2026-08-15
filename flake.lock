@@ -62,6 +62,26 @@
         "type": "github"
       }
     },
+    "mcp-proxy": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786821225,
+        "narHash": "sha256-JlWNJ6xzHBp9CPMLqbyF8y/igpSNpGw/w2rwuKCmhyk=",
+        "owner": "aean0x",
+        "repo": "mcp-proxy",
+        "rev": "b01ee9cf25b408abcf471472892892a33762ae9f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "aean0x",
+        "repo": "mcp-proxy",
+        "type": "github"
+      }
+    },
     "nixarr": {
       "inputs": {
         "nixpkgs": "nixpkgs_3",
@@ -238,6 +258,7 @@
       "inputs": {
         "hermes-agent": "hermes-agent",
         "hermes-webui": "hermes-webui",
+        "mcp-proxy": "mcp-proxy",
         "nixarr": "nixarr",
         "nixpkgs": "nixpkgs_4",
         "nixpkgs-stable": "nixpkgs-stable",

@@ -97,7 +97,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `browserless_api_token` — Remote browser CDP service (Browserless cloud; good for soft CF, weak alone on AXS-class ticketing)
 - Local browser: `hosts/system/hermes/browser.nix` — host Chromium + Xvfb, sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **noVNC on :6080** for phone captcha handoff (`hermes-browser-status`). Primary for checkout; Browserless is secondary scraping only.
 - `telegram_bot_token`, `telegram_admin_id` — Telegram bot + admin allowlist
-- `composio_api_key` — Composio MCP/API (Connect HTTP + OAuth)
+- `composio_api_key` — mcp-proxy injects Composio MCP Bearer; also Hermes env for API
 - `ha_token`, `ha_url` — Home Assistant API
 - `cloudflare_dns_api_token` — Cloudflare API for ACME DNS-01 challenge
 - `filebrowser_password` — FileBrowser admin password

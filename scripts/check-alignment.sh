@@ -136,10 +136,18 @@ if [[ -f "$MR" ]]; then
   else
     fail "model-router missing from integrations or WebUI extension env"
   fi
-  if [[ -f "$HERMES/integrations/mcp/composio.nix" ]] && grep -q 'mcpServers.composio' "$HERMES/integrations/mcp/composio.nix"; then
-    pass "composio MCP client under integrations/mcp"
+  if [[ -f "$HERMES/integrations/mcp/composio.nix" ]] && grep -q 'mcpServers.composio' "$HERMES/integrations/mcp/composio.nix" \
+    && grep -q 'services.mcpProxy' "$HERMES/integrations/mcp/composio.nix" \
+    && grep -q 'mcp-proxy' "$ROOT/flake.nix" \
+    && [[ ! -e "$HERMES/integrations/mcp/proxy.nix" ]]; then
+    pass "composio MCP client via mcp-proxy flake"
   else
-    fail "missing integrations/mcp/composio.nix"
+    fail "missing composio → mcp-proxy flake wiring"
+  fi
+  if grep -q 'api.policylayer.com\|policylayer-mcp' "$HERMES/integrations/mcp/"*.nix 2>/dev/null; then
+    fail "policylayer leftover under integrations/mcp"
+  else
+    pass "no policylayer leftovers under integrations/mcp"
   fi
   if grep -qiE 'maton' "$HERMES/integrations/mcp/"*.nix "$HERMES/integrations/mcp/"*.sh 2>/dev/null; then
     fail "maton leftovers under integrations/mcp"

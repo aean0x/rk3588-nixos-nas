@@ -35,12 +35,12 @@ let
     HASS_URL = "ha_url";
     GOOGLE_API_KEY = "google_api_key";
     GEMINI_API_KEY = "google_api_key";
-    CLAWHUB_TOKEN = "clawhub_token";
-    X_API_KEY = "x_api_key";
-    X_API_SECRET = "x_api_secret";
-    X_ACCESS_TOKEN = "x_access_token";
-    X_ACCESS_SECRET = "x_access_secret";
-    X_BEARER_TOKEN = "x_bearer_token";
+    # CLAWHUB_TOKEN = "clawhub_token";
+    # X_API_KEY = "x_api_key";
+    # X_API_SECRET = "x_api_secret";
+    # X_ACCESS_TOKEN = "x_access_token";
+    # X_ACCESS_SECRET = "x_access_secret";
+    # X_BEARER_TOKEN = "x_bearer_token";
     GITHUB_PAT = "github_pat";
     BTC_WALLET_KEY = "btc_wallet_key";
     # GBrain embeddings (gbrain embed --stale / dream).
@@ -54,7 +54,7 @@ let
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
     DEEPSEEK_API_KEY = "deepseek_api_key";
-    COMPOSIO_API_KEY = "composio_api_key";
+    # COMPOSIO_API_KEY = "composio_api_key";
   };
 in
 {

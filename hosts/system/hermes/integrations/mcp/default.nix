@@ -3,6 +3,5 @@
 {
   imports = [
     ./composio.nix
-    ./policylayer-mcp.nix
   ];
 }
