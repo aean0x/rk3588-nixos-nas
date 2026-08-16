@@ -37,38 +37,6 @@
           args = "arguments";
         }
       ];
-      tools.deny = [
-        "GMAIL_CREATE_FILTER"
-        "GMAIL_DELETE_FILTER"
-        "GMAIL_GET_FILTER"
-        "GMAIL_LIST_FILTERS"
-        "GMAIL_CREATE_LABEL"
-        "GMAIL_DELETE_LABEL"
-        "GMAIL_UPDATE_LABEL"
-        "GMAIL_GET_LABEL"
-        "GMAIL_LIST_LABELS"
-        "GMAIL_ADD_LABEL_TO_EMAIL"
-        "GMAIL_BATCH_MODIFY_MESSAGES"
-        "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID"
-        "GMAIL_GET_ATTACHMENT"
-        "OUTLOOK_CREATE_EMAIL_RULE"
-        "OUTLOOK_DELETE_EMAIL_RULE"
-        "OUTLOOK_UPDATE_EMAIL_RULE"
-        "OUTLOOK_LIST_EMAIL_RULES"
-        "OUTLOOK_LIST_MAIL_FOLDER_MESSAGE_RULES"
-        "OUTLOOK_CREATE_MAIL_FOLDER"
-        "OUTLOOK_DELETE_MAIL_FOLDER"
-        "OUTLOOK_LIST_MAIL_FOLDERS"
-        "OUTLOOK_LIST_CHILD_MAIL_FOLDERS"
-        "OUTLOOK_GET_MAIL_FOLDER"
-        "OUTLOOK_GET_MESSAGE"
-        "OUTLOOK_SEARCH_MESSAGES"
-        "OUTLOOK_LIST_MAIL_FOLDER_MESSAGES"
-        "OUTLOOK_LIST_OUTLOOK_ATTACHMENTS"
-        "OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT"
-        "OUTLOOK_MOVE_MESSAGE"
-        "OUTLOOK_BATCH_MOVE_MESSAGES"
-      ];
       toolkits.gmail = {
         # Only tools that take a Gmail `query` string. A prefix match would
         # inject query= onto GMAIL_LIST_LABELS / fetch-by-id and change them.
@@ -81,11 +49,9 @@
             prepend = "(in:inbox OR in:sent OR in:drafts) ";
             requireTokens = [
               "-label:agent-blocked"
-              "-label:REDACTED"
             ];
             denyTokens = [
               "label:agent-blocked"
-              "label:REDACTED"
               "in:anywhere"
               "in:spam"
               "in:trash"
@@ -103,7 +69,6 @@
           # sentitems and drafts are intentionally not denied.
           denyValues = [
             "agent-blocked"
-            "clutter"
             "junkemail"
             "deleteditems"
             "archive"
