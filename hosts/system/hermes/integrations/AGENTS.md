@@ -68,7 +68,7 @@ to `tools/call` (including unwrapped inner slugs such as Composio
 | Server | Module | Transport | Notes |
 |--------|--------|-----------|--------|
 | `mcp-proxy` | flake `github:aean0x/mcp-proxy` | HTTP `127.0.0.1:3140/<backend>` | `nixosModules.default`; `LoadCredential` for secrets |
-| `composio` | `mcp/composio.nix` | HTTP via proxy → `https://connect.composio.dev/mcp` | Bearer from `composio_api_key`; Gmail query exclude-label filter |
+| `composio` | `mcp/composio.nix` | HTTP via proxy → `https://connect.composio.dev/mcp` | Bearer from `composio_api_key`; mail-surface: inbox/sent/drafts minus agent-blocked |
 | `gbrain` | `../gbrain.nix` | HTTP `http://127.0.0.1:3131/mcp` | Sole serve = `gbrain-mcp-http`; token re-apply in activation |
 
 Agent-configured MCP (robinhood, …) lives in live `config.yaml` only —
