@@ -508,7 +508,7 @@ def handle_request_secret(args: dict, **kwargs: Any) -> str:
             )
 
         kind = classify_reply(response)
-        if kind == "cancel":
+        if kind in {"cancel", "ignore"}:
             return json.dumps(
                 {"status": "cancelled", "service": service, "detail": "user cancelled"}
             )

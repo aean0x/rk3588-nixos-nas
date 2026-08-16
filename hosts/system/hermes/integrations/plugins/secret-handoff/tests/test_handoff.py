@@ -120,6 +120,32 @@ class NeverReturnsSecret(unittest.TestCase):
         self.assertNotIn(secret, json.dumps(data))
         self.assertIsNone(h.peek_pending("cli"))
 
+    def test_slash_in_clarify_does_not_inject(self) -> None:
+        secret = "/stop"
+        captured: list[str] = []
+
+        def fake_clarify(**_kwargs):
+            return json.dumps({"user_response": "/stop"})
+
+        def fake_inject(text: str, **_kwargs) -> tuple[bool, str]:
+            captured.append(text)
+            return True, "injected"
+
+        with (
+            patch.object(h, "resolve_session_key_for_tool", return_value="cli"),
+            patch.object(h, "inject_secret", side_effect=fake_inject),
+        ):
+            _install_clarify(fake_clarify)
+            out = h.handle_request_secret(
+                {"service": "axs"},
+                callback=lambda *_a, **_k: secret,
+            )
+        data = json.loads(out)
+        self.assertEqual(data["status"], "cancelled")
+        self.assertEqual(captured, [])
+        self.assertNotIn(secret, json.dumps(data))
+        self.assertIsNone(h.peek_pending("cli"))
+
     def test_cancel_skips_inject(self) -> None:
         secret = "cancel-must-not-leak"
         captured: list[str] = []
