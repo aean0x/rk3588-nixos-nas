@@ -1,8 +1,9 @@
-"""Ephemeral login paste: intercept clarify, inject via CDP, never persist.
+"""Ephemeral login paste: clarify, inject via CDP, return status only.
 
-Same-process gateway + agent worker. Pending metadata and the secret live in
-module-level RAM only. The hook rewrites the inbound event *before* auth,
-session persistence, and the stock clarify interceptor.
+Same-process gateway, WebUI, and CLI. Pending metadata lives in module-level
+RAM only. The tool asks via stock clarify, extracts the reply, injects it
+over a direct CDP websocket, and returns {status, service, detail} — never
+the secret.
 """
 
 from __future__ import annotations
@@ -19,24 +20,14 @@ from urllib.request import Request, urlopen
 
 logger = logging.getLogger("hermes.plugins.secret_handoff")
 
-PENDING_TTL_S = 300.0
 DEFAULT_CDP_URL = "http://127.0.0.1:9222"
 TOOL_TIMEOUT_S = 300.0
 _CDP_TIMEOUT_S = 8.0
 
 _CANCEL_REPLIES = frozenset({"cancel", "n", "no"})
-_PLACEHOLDER_PREFIXES = (
-    "[secret received",
-    "[secret cancelled",
-    "[secret handoff failed",
-)
 
 # session_key → metadata (never the secret)
 _pending: dict[str, dict[str, Any]] = {}
-# session_key → bytearray of the secret (zeroed after use)
-_secrets: dict[str, bytearray] = {}
-# session_key → last {status, service, detail} for the unblocked tool
-_results: dict[str, dict[str, str]] = {}
 _lock = threading.RLock()
 
 
@@ -55,92 +46,9 @@ def classify_reply(text: Optional[str]) -> str:
     return "inject"
 
 
-def placeholder_for(service: str, status: str) -> str:
-    if status == "received":
-        name = (service or "site").strip() or "site"
-        return f"[secret received for {name}]"
-    if status == "cancelled":
-        return "[secret cancelled]"
-    return "[secret handoff failed]"
-
-
-def should_intercept(text: Optional[str], pending: Optional[dict], now: float) -> bool:
-    """True when this inbound message is a secret-handoff reply for *pending*."""
-    if not pending:
-        return False
-    created = pending.get("created_at")
-    try:
-        created_at = float(created)
-    except (TypeError, ValueError):
-        return False
-    if now - created_at > PENDING_TTL_S:
-        return False
-    if (text or "").lstrip().startswith("/"):
-        return False
-    return True
-
-
-def process_inbound(
-    text: Optional[str],
-    pending: Optional[dict],
-    *,
-    now: float,
-    has_audio: bool = False,
-    inject_fn: Optional[Callable[[str, dict], tuple[bool, str]]] = None,
-) -> Optional[dict[str, str]]:
-    """Hook-equivalent. Returns a rewrite dict or None. Never includes the secret."""
-    if not should_intercept(text, pending, now):
-        return None
-    stripped = "" if text is None else str(text).strip()
-    # Voice/audio-only: do not invent a password from a transcript.
-    if has_audio and classify_reply(text) == "inject":
-        return None
-    if not stripped and has_audio:
-        return None
-    kind = classify_reply(text)
-    if kind == "ignore":
-        return None
-    service = str((pending or {}).get("service") or "site")
-    if kind == "cancel":
-        return {"action": "rewrite", "text": placeholder_for(service, "cancelled")}
-    # Consumed as a secret reply — must rewrite even if inject fails.
-    ok = False
-    try:
-        if inject_fn is not None and pending is not None:
-            ok, _detail = inject_fn(stripped, pending)
-    except Exception:
-        ok = False
-    return {
-        "action": "rewrite",
-        "text": placeholder_for(service, "received" if ok else "failed"),
-    }
-
-
-def event_has_audio(event: Any) -> bool:
-    if event is None:
-        return False
-    mt = getattr(event, "message_type", None)
-    name = getattr(mt, "value", None) or getattr(mt, "name", None) or mt
-    if name and str(name).lower() in {"audio", "voice"}:
-        return True
-    for item in getattr(event, "media_types", None) or []:
-        low = str(item).lower()
-        if any(tag in low for tag in ("audio", "voice", "ogg", "opus")):
-            return True
-    return False
-
-
 # ---------------------------------------------------------------------------
 # RAM state
 # ---------------------------------------------------------------------------
-
-
-def _wipe_buf(buf: Optional[bytearray]) -> None:
-    if not buf:
-        return
-    for i in range(len(buf)):
-        buf[i] = 0
-    buf.clear()
 
 
 def set_pending(session_key: str, meta: dict[str, Any]) -> None:
@@ -159,86 +67,19 @@ def clear_pending(session_key: str) -> None:
         _pending.pop(session_key, None)
 
 
-def store_secret(session_key: str, secret: str) -> None:
-    data = bytearray(secret.encode("utf-8", errors="surrogateescape"))
-    with _lock:
-        old = _secrets.pop(session_key, None)
-        _wipe_buf(old)
-        _secrets[session_key] = data
-
-
-def take_secret(session_key: str) -> str:
-    with _lock:
-        buf = _secrets.pop(session_key, None)
-    if not buf:
-        return ""
-    try:
-        return bytes(buf).decode("utf-8", errors="surrogateescape")
-    finally:
-        _wipe_buf(buf)
-
-
-def wipe_secret(session_key: str) -> None:
-    with _lock:
-        buf = _secrets.pop(session_key, None)
-    _wipe_buf(buf)
-
-
-def store_result(session_key: str, result: dict[str, str]) -> None:
-    with _lock:
-        _results[session_key] = {
-            "status": str(result.get("status") or ""),
-            "service": str(result.get("service") or ""),
-            "detail": str(result.get("detail") or ""),
-        }
-
-
-def pop_result(session_key: str) -> Optional[dict[str, str]]:
-    with _lock:
-        result = _results.pop(session_key, None)
-        return dict(result) if result else None
-
-
 def clear_all(session_key: str) -> None:
-    wipe_secret(session_key)
     clear_pending(session_key)
 
 
 def reset_state() -> None:
     """Test helper: drop all RAM slots."""
     with _lock:
-        keys = set(_pending) | set(_secrets) | set(_results)
-        for key in keys:
-            buf = _secrets.pop(key, None)
-            _wipe_buf(buf)
         _pending.clear()
-        _results.clear()
 
 
 # ---------------------------------------------------------------------------
 # Session key — same format the gateway uses for pending clarify
 # ---------------------------------------------------------------------------
-
-
-def resolve_session_key(*, source: Any = None, gateway: Any = None) -> str:
-    """Gateway session key used by clarify_gateway / _session_key_for_source."""
-    if gateway is not None and source is not None:
-        try:
-            key = gateway._session_key_for_source(source)
-            if key:
-                return str(key)
-        except Exception:
-            pass
-    if source is not None:
-        try:
-            from gateway.session import build_session_key
-
-            key = build_session_key(source)
-            if key:
-                return str(key)
-        except Exception:
-            pass
-    return ""
 
 
 def resolve_session_key_for_tool(**kwargs: Any) -> str:
@@ -539,116 +380,6 @@ def inject_secret(
 
 
 # ---------------------------------------------------------------------------
-# Hook
-# ---------------------------------------------------------------------------
-
-
-def on_pre_gateway_dispatch(
-    *,
-    event: Any = None,
-    source: Any = None,
-    gateway: Any = None,
-    **_kwargs: Any,
-) -> Optional[dict[str, str]]:
-    consumed = False
-    session_key = ""
-    service = "site"
-    try:
-        src = source if source is not None else getattr(event, "source", None)
-        session_key = resolve_session_key(source=src, gateway=gateway)
-        if not session_key:
-            return None
-        pending = peek_pending(session_key)
-        now = time.time()
-        if pending and (now - float(pending.get("created_at") or 0)) > PENDING_TTL_S:
-            clear_all(session_key)
-            pending = None
-        text = getattr(event, "text", None)
-        if text is None:
-            text = ""
-        if not should_intercept(text, pending, now):
-            return None
-        if pending is None:
-            return None
-
-        service = str(pending.get("service") or "site")
-        has_audio = event_has_audio(event)
-        rewrite = process_inbound(
-            text,
-            pending,
-            now=now,
-            has_audio=has_audio,
-            inject_fn=None,
-        )
-        if rewrite is None:
-            return None
-
-        kind = classify_reply(text)
-        if kind == "cancel":
-            clear_all(session_key)
-            store_result(
-                session_key,
-                {"status": "cancelled", "service": service, "detail": "user cancelled"},
-            )
-            return rewrite
-
-        # Secret reply: copy to RAM, inject, wipe, rewrite even on failure.
-        consumed = True
-        secret = str(text)
-        store_secret(session_key, secret)
-        ok = False
-        detail = "inject failed"
-        try:
-            ok, detail = inject_secret(
-                secret,
-                cdp_url=pending.get("cdp_url"),
-                target_id=pending.get("target_id"),
-                frame_id=pending.get("frame_id"),
-            )
-        except Exception:
-            logger.warning("secret-handoff: inject failed")
-            ok = False
-            detail = "inject failed"
-        finally:
-            wipe_secret(session_key)
-            clear_pending(session_key)
-            secret = ""
-
-        store_result(
-            session_key,
-            {
-                "status": "ok" if ok else "error",
-                "service": service,
-                "detail": detail,
-            },
-        )
-        return {
-            "action": "rewrite",
-            "text": placeholder_for(service, "received" if ok else "failed"),
-        }
-    except Exception:
-        # Do not log exc_info — exception text can contain the secret.
-        logger.warning("secret-handoff: hook failed")
-        if consumed:
-            if session_key:
-                try:
-                    wipe_secret(session_key)
-                    clear_pending(session_key)
-                    store_result(
-                        session_key,
-                        {
-                            "status": "error",
-                            "service": service,
-                            "detail": "inject failed",
-                        },
-                    )
-                except Exception:
-                    pass
-            return {"action": "rewrite", "text": placeholder_for(service, "failed")}
-        return None
-
-
-# ---------------------------------------------------------------------------
 # Tool
 # ---------------------------------------------------------------------------
 
@@ -661,18 +392,18 @@ REQUEST_SECRET_SCHEMA: dict[str, Any] = {
     "name": "request_secret",
     "description": (
         "Ask the user for a site password without persisting it. Focus the "
-        "password field in the browser first, then call this. The user types "
-        "into the stock clarify field (no prefix). The plugin intercepts the "
-        "reply, injects via a direct CDP websocket, and returns only a status "
-        "JSON — the secret never enters the transcript or model context. "
-        "Do not ask the user to paste a password in chat."
+        "password field in the browser first, then call this. Stock clarify "
+        "collects the reply; the plugin injects it via a direct CDP websocket "
+        "and returns only a status JSON — the secret never enters the "
+        "transcript or model context. Do not ask the user to paste a password "
+        "in chat."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "service": {
                 "type": "string",
-                "description": "Site or account name shown in the placeholder (e.g. axs).",
+                "description": "Site or account name (e.g. axs).",
             },
             "target_id": {
                 "type": "string",
@@ -716,16 +447,12 @@ def _extract_clarify_response(raw: Any) -> str:
 
 def _clarify_looks_failed(response: str) -> Optional[dict[str, str]]:
     low = response.strip()
+    if not low:
+        return {"status": "failed", "detail": "empty"}
     if low.startswith("[user did not respond"):
-        return {"status": "error", "detail": "timed out"}
+        return {"status": "failed", "detail": "timed out"}
     if low.startswith("[clarify") or "not available" in low.lower():
-        return {"status": "error", "detail": "clarify unavailable"}
-    if any(low.startswith(p) for p in _PLACEHOLDER_PREFIXES):
-        if low.startswith("[secret received"):
-            return {"status": "ok", "detail": "injected"}
-        if low.startswith("[secret cancelled"):
-            return {"status": "cancelled", "detail": "user cancelled"}
-        return {"status": "error", "detail": "inject failed"}
+        return {"status": "failed", "detail": "clarify unavailable"}
     return None
 
 
@@ -733,7 +460,7 @@ def handle_request_secret(args: dict, **kwargs: Any) -> str:
     service = str((args or {}).get("service") or "").strip()
     if not service:
         return json.dumps(
-            {"status": "error", "service": "", "detail": "service is required"}
+            {"status": "failed", "service": "", "detail": "service is required"}
         )
 
     session_key = resolve_session_key_for_tool(**kwargs)
@@ -755,78 +482,64 @@ def handle_request_secret(args: dict, **kwargs: Any) -> str:
     question = f"Password for {service}. {_QUESTION}"
     callback = kwargs.get("callback") or _find_clarify_callback(session_key)
 
-    raw: Any = None
+    raw: Any = ""
+    response = ""
     try:
-        from tools.clarify_tool import clarify_tool
+        try:
+            from tools.clarify_tool import clarify_tool
 
-        raw = clarify_tool(question=question, choices=None, callback=callback)
-    except Exception:
-        logger.warning("secret-handoff: clarify_tool failed")
-        finished = pop_result(session_key)
-        if finished:
+            raw = clarify_tool(question=question, choices=None, callback=callback)
+        except Exception:
+            logger.warning("secret-handoff: clarify_tool failed")
+            return json.dumps(
+                {"status": "failed", "service": service, "detail": "clarify unavailable"}
+            )
+
+        response = _extract_clarify_response(raw)
+        raw = ""
+        mapped = _clarify_looks_failed(response)
+        if mapped:
             return json.dumps(
                 {
-                    "status": finished.get("status") or "error",
+                    "status": mapped["status"],
                     "service": service,
-                    "detail": finished.get("detail") or "",
+                    "detail": mapped["detail"],
                 }
             )
-        clear_all(session_key)
-        return json.dumps(
-            {"status": "error", "service": service, "detail": "clarify unavailable"}
-        )
 
-    finished = pop_result(session_key)
-    if finished:
-        return json.dumps(
-            {
-                "status": finished.get("status") or "error",
-                "service": service,
-                "detail": finished.get("detail") or "",
-            }
-        )
+        kind = classify_reply(response)
+        if kind in {"cancel", "ignore"}:
+            return json.dumps(
+                {"status": "cancelled", "service": service, "detail": "user cancelled"}
+            )
 
-    response = _extract_clarify_response(raw)
-    raw = None
-    mapped = _clarify_looks_failed(response)
-    if mapped:
-        clear_all(session_key)
+        pending = peek_pending(session_key) or {}
+        try:
+            ok, detail = inject_secret(
+                response,
+                cdp_url=cdp_url or pending.get("cdp_url"),
+                target_id=target_id or pending.get("target_id"),
+                frame_id=frame_id or pending.get("frame_id"),
+            )
+        except Exception:
+            ok, detail = False, "inject failed"
+
         return json.dumps(
             {
-                "status": mapped["status"],
+                "status": "ok" if ok else "failed",
                 "service": service,
-                "detail": mapped["detail"],
+                "detail": detail,
             }
-        )
-
-    kind = classify_reply(response)
-    if kind == "cancel":
-        clear_all(session_key)
-        return json.dumps(
-            {"status": "cancelled", "service": service, "detail": "user cancelled"}
-        )
-
-    pending = peek_pending(session_key) or {}
-    try:
-        ok, detail = inject_secret(
-            response,
-            cdp_url=cdp_url or pending.get("cdp_url"),
-            target_id=target_id or pending.get("target_id"),
-            frame_id=frame_id or pending.get("frame_id"),
         )
     except Exception:
-        ok, detail = False, "inject failed"
+        logger.warning("secret-handoff: request_secret failed")
+        return json.dumps(
+            {"status": "failed", "service": service, "detail": "inject failed"}
+        )
     finally:
+        raw = ""
         response = ""
         clear_all(session_key)
-
-    return json.dumps(
-        {
-            "status": "ok" if ok else "error",
-            "service": service,
-            "detail": detail,
-        }
-    )
 
 
 def _register_tool(ctx: Any) -> None:
@@ -864,6 +577,5 @@ def _register_tool(ctx: Any) -> None:
 
 
 def register(ctx: Any) -> None:
-    ctx.register_hook("pre_gateway_dispatch", on_pre_gateway_dispatch)
     _register_tool(ctx)
-    logger.info("secret-handoff: registered request_secret + pre_gateway_dispatch")
+    logger.info("secret-handoff: registered request_secret")
