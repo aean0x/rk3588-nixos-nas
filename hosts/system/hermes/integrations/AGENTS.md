@@ -15,7 +15,8 @@ integrations/
 │   ├── gbrain-memory-flush/
 │   ├── tool-call-coherency/
 │   ├── projects-auto-commit/
-│   └── model-router/      # + webui/ extension sidecar
+│   ├── model-router/      # + webui/ extension sidecar
+│   └── secret-handoff/    # ephemeral login paste (clarify intercept + CDP)
 └── mcp/
     ├── default.nix        # imports client modules
     └── composio.nix       # Composio backend + Hermes client via mcp-proxy flake
@@ -33,6 +34,7 @@ Declared once in `default.nix` (`enabledPlugins`):
 | `tool-call-coherency` | Fix double-wrapped / cold MCP tool calls |
 | `projects-auto-commit` | EOT monorepo commit for projects tree |
 | `model-router` | T1 Flash / T2 Pro / T3 Grok per-turn routing |
+| `secret-handoff` | Ephemeral login paste — clarify intercept + direct CDP inject |
 
 **One install pattern for every plugin** (including HMC):
 
