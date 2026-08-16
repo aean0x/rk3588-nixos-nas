@@ -69,11 +69,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786830144,
-        "narHash": "sha256-aMCUrtWacGb3zJgbBhUPk6ImLKfk14BmAnGQim+8B14=",
+        "lastModified": 1786873166,
+        "narHash": "sha256-vb0Oj5LkscoZm0ABPfduoVgVPJYEHV05u9F/xACKdVQ=",
         "owner": "aean0x",
         "repo": "mcp-proxy",
-        "rev": "4a7ed607faf8ea169cd203f91f196cd1f4f275f4",
+        "rev": "7579b98bf73b84b83e06625791b80b5a8ab3d8b2",
         "type": "github"
       },
       "original": {
