@@ -6,6 +6,10 @@ Technical roadmap for AI agents working with this NixOS flake configuration.
 
 **`./deploy` is the primary interface for all server interactions** — SSH, log inspection, container management, builds, and deployments. Run `./deploy` with no arguments to see all available commands.
 
+### Git identity (mandatory)
+
+Commits use **only** this machine's `git config user.name` / `user.email`. Do not override `GIT_AUTHOR_*` / `GIT_COMMITTER_*`, do not add Claude/Copilot/agent `Co-authored-by` trailers, and do not commit as a bot.
+
 ### Agent autonomy (mandatory)
 
 Agents working this repo are **expected to drive `./deploy` themselves** to complete goals end-to-end — do not stop and hand the user a checklist of deploy steps when `./deploy` can do them. Treat the workstation + device as one loop: edit → `git add` (flakes) → `./deploy remote-test|remote-switch` → `./deploy journal` / `./deploy validate-gbrain` / `./deploy hermes …` → fix → repeat.
