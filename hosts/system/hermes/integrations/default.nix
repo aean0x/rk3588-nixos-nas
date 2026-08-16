@@ -25,6 +25,7 @@ let
     tool-call-coherency = "${pluginsDir}/tool-call-coherency";
     projects-auto-commit = "${pluginsDir}/projects-auto-commit";
     model-router = "${pluginsDir}/model-router";
+    secret-handoff = "${pluginsDir}/secret-handoff";
     hermes-context-manager = "${hmcPluginSrc}";
   };
 
@@ -42,6 +43,7 @@ let
     "tool-call-coherency"
     "projects-auto-commit"
     "model-router"
+    "secret-handoff"
     "hermes-context-manager"
   ];
 
