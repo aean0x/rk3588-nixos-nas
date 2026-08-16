@@ -1,4 +1,4 @@
-"""secret-handoff — ephemeral login paste via clarify intercept + CDP."""
+"""secret-handoff — ephemeral login paste via clarify + CDP."""
 
 from __future__ import annotations
 
