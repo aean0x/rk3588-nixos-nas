@@ -36,8 +36,7 @@ hosts/system/hermes/
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
 ├── integrations/        # first-party plugins + MCP clients (see integrations/AGENTS.md)
-│   ├── plugins/         # model-router, gbrain-*, tool-call-coherency, …
-│   └── mcp/             # composio backend (proxy is flake input aean0x/mcp-proxy)
+│   └── mcp/             # composio via flake aean0x/hermes-pnp (mcp-proxy + plugins)
 ├── skills/              # retrieval-reflex + workstation + gbrain-http-auth
 ├── memory/              # declarative memory plane
 ├── scripts/
@@ -103,7 +102,7 @@ prefer killing or hard-capping it over taking down DNS or HA.
 | Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
 | MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
 | Force-disable of legacy exclusive timers (no new host gbrain CLI) | Cron job prompts/`jobs.json` (MCP-only hygiene), skills after seed |
-| Plugin **code** under `integrations/plugins/` (+ HMC pin) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
+| Plugin **code** in flake `hermes-pnp` (+ HMC pin here) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
 | Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
 | Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
 

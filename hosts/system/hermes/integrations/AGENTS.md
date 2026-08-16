@@ -8,19 +8,15 @@ Infrastructure only — not agent-owned workspace content.
 ```
 integrations/
 ├── AGENTS.md              # this file
-├── default.nix            # plugins.enabled + install (plugins, HMC, gbrain skills)
+├── default.nix            # hermes-pnp plugin list + HMC extra + gbrain skills
 ├── hmc.nix                # fetch upstream HMC + write config.yaml (no source overlay)
-├── plugins/               # in-tree plugin sources
-│   ├── gbrain-retrieval-reflex/
-│   ├── gbrain-memory-flush/
-│   ├── tool-call-coherency/
-│   ├── projects-auto-commit/
-│   ├── model-router/      # + webui/ extension sidecar
-│   └── secret-handoff/    # ephemeral login paste (clarify + CDP inject)
 └── mcp/
     ├── default.nix        # imports client modules
-    └── composio.nix       # Composio backend + Hermes client via mcp-proxy flake
+    └── composio.nix       # Composio backend + Hermes client via hermes-pnp
 ```
+
+First-party plugin **code** is flake input `github:aean0x/hermes-pnp` (`plugins/`).
+This host only declares which plugins to enable.
 
 ## Plugins (enabled)
 
@@ -57,8 +53,8 @@ tool output (`background_compression` is off so the two do not double-summarize)
 stale `.pyc` over freshly deployed source. Manual hot-fix must do the same
 (`touch` + purge pyc + restart) — see skill `hermes-plugin-ops` §6.
 
-**model-router WebUI** assets stay in-flake at `plugins/model-router/webui`;
-`hermes-webui.nix` sets `HERMES_WEBUI_EXTENSION_DIR` to that store path.
+**model-router WebUI** assets ship with hermes-pnp. `hermes-webui.nix`
+sets `HERMES_WEBUI_EXTENSION_DIR` from `services.hermesPnP.plugins.webuiExtensionDir`.
 
 ## MCP clients
 
@@ -69,7 +65,7 @@ to `tools/call` (including unwrapped inner slugs such as Composio
 
 | Server | Module | Transport | Notes |
 |--------|--------|-----------|--------|
-| `mcp-proxy` | flake `github:aean0x/mcp-proxy` | HTTP `127.0.0.1:3140/<backend>` | `nixosModules.default`; `LoadCredential` for secrets |
+| `mcp-proxy` | flake `github:aean0x/hermes-pnp` | HTTP `127.0.0.1:3140/<backend>` | `nixosModules.mcp-proxy`; `LoadCredential` for secrets |
 | `composio` | `mcp/composio.nix` | HTTP via proxy → `https://connect.composio.dev/mcp` | Bearer from `composio_api_key`; mail-surface: inbox/sent/drafts minus agent-blocked |
 | `gbrain` | `../gbrain.nix` | HTTP `http://127.0.0.1:3131/mcp` | Sole serve = `gbrain-mcp-http`; token re-apply in activation |
 
@@ -106,12 +102,14 @@ unwrap; deny that surface tool if you need a hard guarantee.
 
 ## Adding something
 
-1. **Plugin:** drop tree under `plugins/<name>/` with `plugin.yaml` + `__init__.py`,
-   append name to `enabledPlugins` in `default.nix`.
-2. **MCP client:** add `mcp/<name>.nix` that declares `services.mcpProxy.backends.<name>`
+1. **Plugin (portable):** add it to `hermes-pnp` `plugins/<name>/`, then append
+   the name to `services.hermesPnP.plugins.enable` here.
+2. **Plugin (host-only):** put the tree anywhere and add
+   `services.hermesPnP.plugins.extraPlugins.<name> = ./path;`
+3. **MCP client:** add `mcp/<name>.nix` that declares `services.mcpProxy.backends.<name>`
    (secret + filters) and points `services.hermes-agent.mcpServers.<name>` at the
    proxy path. Import it from `mcp/default.nix`.
-3. Restart: `systemctl restart mcp-proxy hermes-agent` (and webui if extension paths change).
+4. Restart: `systemctl restart mcp-proxy hermes-agent` (and webui if extension paths change).
 
 ## Related (not here)
 
@@ -119,5 +117,5 @@ unwrap; deny that surface tool if you need a hard guarantee.
 |------|----------------|
 | `gbrain.nix` | HTTP serve unit + memory registry + token wiring |
 | `../skills/` | Skill *source*; this module copies gbrain skills into `skills.external_dirs` |
-| `../scripts/projects_auto_commit.py` | Installed next to the auto-commit plugin |
+| hermes-pnp `projects-auto-commit/scripts/` | Bundled with the plugin (not copied from this flake) |
 | `../scripts/git-credential-github-env` | Installed from `gbrain.nix` at `/home/hermes/.local/bin` (GITHUB_PAT for `~/brain` + host/container git) |

@@ -24,7 +24,7 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 - Port **8787** (WebUI default); state under `/var/lib/hermes-webui`; runs as `hermes:hermes`.
 - Same 2 GiB / 2 CPU / OOM +500 cap as the gateway (`runtime.nix`).
 - Optional loopback API server still on **:8642** for scripts/tools (not used by WebUI chat).
-- **Model Router extension:** `HERMES_WEBUI_EXTENSION_DIR` → flake `integrations/plugins/model-router/webui` (store path). Injects `/auto` `/t1` `/t2` `/t3` composer buttons and overlays the model chip (`Auto · T1 · deepseek-v4-flash`). No WebUI source patches.
+- **Model Router extension:** `HERMES_WEBUI_EXTENSION_DIR` → `services.hermesPnP.plugins.webuiExtensionDir` (hermes-pnp store path). Injects `/auto` `/t1` `/t2` `/t3` composer buttons and overlays the model chip. No WebUI source patches.
 
 ## URL
 

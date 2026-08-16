@@ -120,42 +120,36 @@ else
   pass "SOUL activation disabled (fresh agent)"
 fi
 
-MR="$HERMES/integrations/plugins/model-router/__init__.py"
-if [[ -f "$MR" ]]; then
-  if grep -nE 'SOUL\.md' "$MR" \
-    | grep -viE 'does not|must not|no .*SOUL|without.*SOUL|not (write|touch|edit)' \
-    | grep -qE 'write|open\(|Path\(|put_page|SOUL\.md["'\'']'; then
-    fail "model-router must not write SOUL.md"
-  else
-    pass "model-router does not touch SOUL.md"
-  fi
-  if grep -q 'model-router' "$HERMES/integrations/default.nix" \
-    && grep -q 'HERMES_WEBUI_EXTENSION_DIR' "$WEBUI" \
-    && grep -q 'integrations' "$DEFAULT"; then
-    pass "model-router in integrations + WebUI extension + default.nix import"
-  else
-    fail "model-router missing from integrations or WebUI extension env"
-  fi
-  if [[ -f "$HERMES/integrations/mcp/composio.nix" ]] && grep -q 'mcpServers.composio' "$HERMES/integrations/mcp/composio.nix" \
-    && grep -q 'services.mcpProxy' "$HERMES/integrations/mcp/composio.nix" \
-    && grep -q 'mcp-proxy' "$ROOT/flake.nix" \
-    && [[ ! -e "$HERMES/integrations/mcp/proxy.nix" ]]; then
-    pass "composio MCP client via mcp-proxy flake"
-  else
-    fail "missing composio → mcp-proxy flake wiring"
-  fi
-  if grep -q 'api.policylayer.com\|policylayer-mcp' "$HERMES/integrations/mcp/"*.nix 2>/dev/null; then
-    fail "policylayer leftover under integrations/mcp"
-  else
-    pass "no policylayer leftovers under integrations/mcp"
-  fi
-  if grep -qiE 'maton' "$HERMES/integrations/mcp/"*.nix "$HERMES/integrations/mcp/"*.sh 2>/dev/null; then
-    fail "maton leftovers under integrations/mcp"
-  else
-    pass "no maton leftovers under integrations/mcp"
-  fi
+if grep -q 'model-router' "$HERMES/integrations/default.nix" \
+  && grep -q 'hermesPnP.plugins' "$HERMES/integrations/default.nix" \
+  && grep -q 'HERMES_WEBUI_EXTENSION_DIR' "$WEBUI" \
+  && grep -q 'integrations' "$DEFAULT"; then
+  pass "model-router declared via hermes-pnp + WebUI extension"
 else
-  fail "missing hosts/system/hermes/integrations/plugins/model-router/__init__.py"
+  fail "model-router missing from hermes-pnp declaration or WebUI extension env"
+fi
+if [[ -f "$HERMES/integrations/mcp/composio.nix" ]] && grep -q 'mcpServers.composio' "$HERMES/integrations/mcp/composio.nix" \
+  && grep -q 'services.mcpProxy' "$HERMES/integrations/mcp/composio.nix" \
+  && grep -q 'hermes-pnp' "$ROOT/flake.nix" \
+  && [[ ! -e "$HERMES/integrations/mcp/proxy.nix" ]]; then
+  pass "composio MCP client via hermes-pnp mcp-proxy"
+else
+  fail "missing composio → hermes-pnp mcp-proxy flake wiring"
+fi
+if grep -q 'api.policylayer.com\|policylayer-mcp' "$HERMES/integrations/mcp/"*.nix 2>/dev/null; then
+  fail "policylayer leftover under integrations/mcp"
+else
+  pass "no policylayer leftovers under integrations/mcp"
+fi
+if grep -qiE 'maton' "$HERMES/integrations/mcp/"*.nix "$HERMES/integrations/mcp/"*.sh 2>/dev/null; then
+  fail "maton leftovers under integrations/mcp"
+else
+  pass "no maton leftovers under integrations/mcp"
+fi
+if [[ -d "$HERMES/integrations/plugins" ]]; then
+  fail "in-tree integrations/plugins still present (moved to hermes-pnp)"
+else
+  pass "first-party plugins live in hermes-pnp"
 fi
 
 if grep -n 'services/hermes\.nix' "$ROOT_AGENTS" "$HERMES_AGENTS" 2>/dev/null; then

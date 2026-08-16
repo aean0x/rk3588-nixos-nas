@@ -1,165 +1,54 @@
-# First-party plugins + MCP clients. Catalog: ./AGENTS.md
-#
-# Pattern (all plugins, including HMC):
-#   materialize → /var/lib/hermes/plugins/<name>
-#   discover    → $HERMES_HOME/plugins/<name>  (relative symlink ../../plugins/<name>)
-#
-# Hermes ≥0.19/0.20 scans ONLY $HERMES_HOME/plugins (+ optional ~/.hermes/plugins if
-# different, + bundled). There is NO plugins.external_dirs (skills-only key).
-# One install shape everywhere — no dual full copies, no special-case fork.
+# Hermes integrations: PnP plugins + MCP clients + host skills.
+# Plugin *code* lives in flake input hermes-pnp. HMC is a host pin.
 {
   lib,
-  pkgs,
   hermes,
   hmcPluginSrc,
+  inputs,
   ...
 }:
 let
-  pluginsDir = ./plugins;
   skillsDir = ../skills;
-
-  # name → store/source path. HMC is fetch+overlay (hmc.nix), rest are in-tree.
-  managedPlugins = {
-    gbrain-retrieval-reflex = "${pluginsDir}/gbrain-retrieval-reflex";
-    gbrain-memory-flush = "${pluginsDir}/gbrain-memory-flush";
-    tool-call-coherency = "${pluginsDir}/tool-call-coherency";
-    projects-auto-commit = "${pluginsDir}/projects-auto-commit";
-    model-router = "${pluginsDir}/model-router";
-    secret-handoff = "${pluginsDir}/secret-handoff";
-    hermes-context-manager = "${hmcPluginSrc}";
-  };
-
-  managedPluginNames = builtins.attrNames managedPlugins;
-
   managedSkills = [
     "retrieval-reflex"
     "gbrain-http-auth"
   ];
-
-  # plugins.enabled — leave empty for user opt-in; list names to force-enable.
-  enabledPlugins = [
-    "gbrain-retrieval-reflex"
-    "gbrain-memory-flush"
-    "tool-call-coherency"
-    "projects-auto-commit"
-    "model-router"
-    "secret-handoff"
-    "hermes-context-manager"
-  ];
-
-  enabledPluginsJson = builtins.toJSON enabledPlugins;
-
-  # Canonical paths (host). Container stateDir maps .hermes → /data/.hermes and
-  # /var/lib/hermes/plugins → /data/plugins when those bind mounts exist.
-  hermesHomePlugins = "/var/lib/hermes/.hermes/plugins";
-  materializeRoot = "/var/lib/hermes/plugins";
 in
 {
   imports = [
-    ./mcp # composio via flake mcp-proxy; gbrain HTTP client stays in ../gbrain.nix
-    ./hmc.nix # composed HMC src → managedPlugins.hermes-context-manager
+    inputs.hermes-pnp.nixosModules.plugins
+    ./mcp # composio via hermes-pnp mcp-proxy; gbrain HTTP client stays in ../gbrain.nix
+    ./hmc.nix # composed HMC src → extraPlugins.hermes-context-manager
   ];
 
-  # Declarative allow-list (module SoT); activation also reconciles live config.yaml.
-  services.hermes-agent.settings.plugins = {
-    enabled = enabledPlugins;
+  services.hermesPnP.plugins = {
+    enable = [
+      "gbrain-retrieval-reflex"
+      "gbrain-memory-flush"
+      "tool-call-coherency"
+      "projects-auto-commit"
+      "model-router"
+      "secret-handoff"
+    ];
+    extraPlugins.hermes-context-manager = hmcPluginSrc;
+    stateDir = hermes.stateDir;
+    user = "hermes";
+    group = "hermes";
   };
 
-  system.activationScripts.hermes-integrations-plugins = lib.stringAfter [
+  # Host skills + HMC state. Plugin trees are installed by hermes-pnp.
+  system.activationScripts.hermes-integrations-skills = lib.stringAfter [
     "users"
     "groups"
     "hermes-agent-setup"
-    "hermes-toolbox"
+    "hermes-pnp-plugins"
   ] ''
-    # materialize + relative symlink into discovery root (same shape as HMC).
-    install_plugin_tree() {
-      local name="$1" src="$2"
-      local dest="${materializeRoot}/$name"
-      local link="${hermesHomePlugins}/$name"
-      mkdir -p "$dest" "${hermesHomePlugins}"
-      # Drop previous discovery entry if it was a real dir (pre-unify dual copy).
-      if [ -e "$link" ] && [ ! -L "$link" ]; then
-        rm -rf "$link"
-      fi
-      # Refresh materialize tree (no webui / pycache).
-      find "$dest" -mindepth 1 -maxdepth 1 ! -name webui ! -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-      ${pkgs.rsync}/bin/rsync -a --delete \
-        --exclude 'webui/' --exclude '__pycache__/' --exclude '*.pyc' \
-        "$src"/ "$dest"/
-      # Nix store sources carry epoch mtimes. Python prefers .pyc when its
-      # mtime ≥ .py mtime, so an epoch .py can silently lose to a stale
-      # bytecode cache from a prior gateway run (hot-fix / half-restart trap).
-      # Two finds (delete pyc/pyo, touch py). Avoid shell null-delimited loops:
-      # empty single-quotes close Nix multi-line strings.
-      find "$dest" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-      find "$dest" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete 2>/dev/null || true
-      find "$dest" -type f -name '*.py' -exec touch -c {} + 2>/dev/null || true
-      chown -R hermes:hermes "$dest" 2>/dev/null || true
-      find "$dest" -type d -exec chmod 2770 {} \; 2>/dev/null || true
-      find "$dest" -type f -exec chmod 0640 {} \; 2>/dev/null || true
-      # Relative: $HERMES_HOME/plugins/<name> → ../../plugins/<name>
-      # works on host (/var/lib/hermes) and container (/data) with matching layout.
-      ln -sfn ../../plugins/"$name" "$link"
-      chown -h hermes:hermes "$link" 2>/dev/null || true
-    }
-
-    ${lib.concatMapStrings (name: ''
-      install_plugin_tree ${name} ${managedPlugins.${name}}
-    '') managedPluginNames}
-
     install -d -m 2770 -o hermes -g hermes ${hermes.hermesHome}/hmc_state
 
-    # GBrain-related skills → skills.external_dirs (same ship path as before).
     ${lib.concatMapStrings (name: ''
       install -d -m 0755 -o hermes -g hermes ${hermes.skills.host}/${name}
       install -m 0644 -o hermes -g hermes ${skillsDir}/${name}/SKILL.md \
         ${hermes.skills.host}/${name}/SKILL.md
     '') managedSkills}
-
-    # projects-auto-commit plugin execs this script from $HERMES_HOME/scripts.
-    install -d -m 0755 -o hermes -g hermes ${hermes.hermesHome}/scripts
-    install -m 0755 -o hermes -g hermes ${../scripts/projects_auto_commit.py} \
-      ${hermes.hermesHome}/scripts/projects_auto_commit.py
-
-    # Reconcile plugins.enabled; strip dead plugins.external_dirs (skills-only key).
-    cfg=/var/lib/hermes/.hermes/config.yaml
-    if [ -f "$cfg" ]; then
-      ${pkgs.python3.withPackages (ps: [ ps.pyyaml ])}/bin/python3 - "$cfg" <<'PY'
-import sys
-from pathlib import Path
-import yaml
-
-path = Path(sys.argv[1])
-data = yaml.safe_load(path.read_text()) or {}
-if not isinstance(data, dict):
-    sys.exit(0)
-
-changed = False
-plugins = data.setdefault("plugins", {})
-if not isinstance(plugins, dict):
-    plugins = {}
-    data["plugins"] = plugins
-    changed = True
-
-# Dead key: Hermes never reads plugins.external_dirs (skills.external_dirs only).
-if "external_dirs" in plugins:
-    del plugins["external_dirs"]
-    changed = True
-
-enabled = list(plugins.get("enabled") or [])
-want = ${enabledPluginsJson}
-for name in want:
-    if name not in enabled:
-        enabled.append(name)
-        changed = True
-if plugins.get("enabled") != enabled:
-    plugins["enabled"] = enabled
-    changed = True
-
-if changed:
-    path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
-PY
-      chown hermes:hermes "$cfg" 2>/dev/null || true
-    fi
   '';
 }

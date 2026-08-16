@@ -134,7 +134,7 @@
 
       # ── Model routing ──
       # Per-turn chat: plugin `model-router` (T1 Flash / T2 Pro / T3 Grok).
-      # Native providers — not OpenRouter slugs. See integrations/plugins/model-router/.
+      # Native providers — not OpenRouter slugs. Plugin: hermes-pnp model-router.
       # Cheap fleet (DeepSeek V4 Flash, provider=deepseek): aux + unpinned cron.
       # Delegate fleet is Pro (see below). Vision stays on main (Grok native).
       # `provider: auto` would inherit main for any unset aux slot — every
@@ -253,7 +253,7 @@
       };
     };
 
-    # mcpServers: integrations/mcp/* (composio via flake mcp-proxy) + gbrain.nix.
+    # mcpServers: integrations/mcp/* (composio via flake hermes-pnp) + gbrain.nix.
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
     # overrides/package-fix.nix bakes these into services.hermes-agent.package

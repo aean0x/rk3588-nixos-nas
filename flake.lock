@@ -44,6 +44,26 @@
         "type": "github"
       }
     },
+    "hermes-pnp": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786907676,
+        "narHash": "sha256-n8Vgmo2OFExMuyPLyc4pC+IGsmRjAkAXqrAIIxWxzk0=",
+        "owner": "aean0x",
+        "repo": "hermes-pnp",
+        "rev": "8a765e5c9e925040944e80f5745cb82fccf9b935",
+        "type": "github"
+      },
+      "original": {
+        "owner": "aean0x",
+        "repo": "hermes-pnp",
+        "type": "github"
+      }
+    },
     "hermes-webui": {
       "inputs": {
         "nixpkgs": "nixpkgs_2"
@@ -59,26 +79,6 @@
       "original": {
         "owner": "nesquena",
         "repo": "hermes-webui",
-        "type": "github"
-      }
-    },
-    "mcp-proxy": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1786873166,
-        "narHash": "sha256-vb0Oj5LkscoZm0ABPfduoVgVPJYEHV05u9F/xACKdVQ=",
-        "owner": "aean0x",
-        "repo": "mcp-proxy",
-        "rev": "7579b98bf73b84b83e06625791b80b5a8ab3d8b2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "aean0x",
-        "repo": "mcp-proxy",
         "type": "github"
       }
     },
@@ -257,8 +257,8 @@
     "root": {
       "inputs": {
         "hermes-agent": "hermes-agent",
+        "hermes-pnp": "hermes-pnp",
         "hermes-webui": "hermes-webui",
-        "mcp-proxy": "mcp-proxy",
         "nixarr": "nixarr",
         "nixpkgs": "nixpkgs_4",
         "nixpkgs-stable": "nixpkgs-stable",

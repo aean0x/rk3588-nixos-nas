@@ -7,7 +7,7 @@ description: "When brain pointers appear or a durable entity is salient, get_pag
 
 Policy skill for ambient + op GBrain push-context on Hermes (HTTP sole-owner).
 
-Plugin SoT: `hosts/system/hermes/integrations/plugins/gbrain-retrieval-reflex/`
+Plugin SoT: flake `hermes-pnp` `plugins/gbrain-retrieval-reflex/`
 (version **0.4.0+**). Runtime audit: `~/.gbrain/retrieval-reflex-last.json`.
 
 ## What injects pointers

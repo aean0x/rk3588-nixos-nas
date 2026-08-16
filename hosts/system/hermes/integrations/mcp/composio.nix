@@ -19,7 +19,7 @@
   ...
 }:
 {
-  imports = [ inputs.mcp-proxy.nixosModules.default ];
+  imports = [ inputs.hermes-pnp.nixosModules.mcp-proxy ];
 
   services.mcpProxy = {
     enable = true;

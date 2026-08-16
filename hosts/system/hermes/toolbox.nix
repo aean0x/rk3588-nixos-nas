@@ -206,7 +206,7 @@ in
 
     install -d -m 0755 -o hermes -g hermes ${hermes.bin}
     install -m 0755 ${hermesCliWrapper} ${hermes.bin}/hermes-cli
-    # MCP clients (composio via flake mcp-proxy): integrations/mcp/*.nix
+    # MCP clients (composio via flake hermes-pnp): integrations/mcp/*.nix
   '';
 
   # Run after setup merges environmentFiles into .env so we can strip PATH again.

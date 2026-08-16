@@ -17,8 +17,8 @@
     hermes-webui.url = "github:nesquena/hermes-webui";
     # Media stack: Sonarr/Radarr (+ optional others) with declarative settings-sync
     nixarr.url = "github:nix-media-server/nixarr";
-    mcp-proxy = {
-      url = "github:aean0x/mcp-proxy";
+    hermes-pnp = {
+      url = "github:aean0x/hermes-pnp";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

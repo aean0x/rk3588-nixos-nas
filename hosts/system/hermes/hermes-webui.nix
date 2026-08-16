@@ -35,6 +35,10 @@ in
       assertion = config.services.hermes-webui.agent.package == agentPkg;
       message = "hermes-webui.agent.package must be services.hermes-agent.package (no extra override).";
     }
+    {
+      assertion = config.services.hermesPnP.plugins.webuiExtensionDir != null;
+      message = "hermes-webui needs hermesPnP model-router plugin for HERMES_WEBUI_EXTENSION_DIR.";
+    }
   ];
 
   services.hermes-webui = {
@@ -52,7 +56,7 @@ in
     extraEnvironment = hermesRuntimeEnv // {
       HERMES_WEBUI_TRUST_FORWARDED_PROTO = "true";
       HERMES_WEBUI_SECURE = "true";
-      HERMES_WEBUI_EXTENSION_DIR = "${./integrations/plugins/model-router/webui}";
+      HERMES_WEBUI_EXTENSION_DIR = toString config.services.hermesPnP.plugins.webuiExtensionDir;
       HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
       # Host remaps of container-only paths (gateway sees /data and /home/hermes).
       HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.host;
