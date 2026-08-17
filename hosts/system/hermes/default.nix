@@ -27,6 +27,7 @@
 
   services.hermesPnP = {
     enable = true;
+    environmentFiles = [ "/run/hermes.env" ];
     models = {
       low = {
         provider = "deepseek";
@@ -73,12 +74,8 @@
     # CLI sessions share state (sessions, skills, cron) with the gateway service.
     addToSystemPackages = true;
 
-    # Merged into ${stateDir}/.hermes/.env at activation. Re-read on every startup,
-    # so secret rotation only needs `systemctl restart hermes-agent`.
-    environmentFiles = [
-      "/run/hermes.env"
-      # /run/hermes-browser.env is added by services.hermesPnP.browser.
-    ];
+    # Composer forwards hermesPnP.environmentFiles here. Browser module
+    # also adds /run/hermes-browser.env (cdp + noVNC).
 
     settings = {
       # browser.cdp_url + BROWSER_CDP_URL come from services.hermesPnP.browser.
