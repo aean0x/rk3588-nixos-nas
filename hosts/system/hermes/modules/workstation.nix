@@ -7,13 +7,13 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   workstationHost = "192.168.1.71";
   workstationUser = "agent";
   secretPath = "/run/secrets/nix_pc_agent_ssh_key";
+  skillSrc = ../skills/workstation/SKILL.md;
 
-  # Config used only by wrappers (not a general-purpose ~/.ssh/config the model
-  # is encouraged to inspect). IdentityFile points at the secret mount.
   sshConfig = pkgs.writeText "hermes-workstation-ssh-config" ''
     Host workstation
       HostName ${workstationHost}
@@ -26,7 +26,6 @@
       ConnectTimeout 10
   '';
 
-  # Single internal hop: always injects config (and thus the key path).
   sshWorkstation = pkgs.writeShellScript "ssh-workstation" ''
     set -euo pipefail
     export HOME="''${HOME:-/home/hermes}"
@@ -51,35 +50,32 @@
   statusWorkstation = pkgs.writeShellScript "workstation-status" ''
     exec ${sshWorkstation} workstation-checkout status
   '';
-in {
+in
+{
   systemd.tmpfiles.rules = [
     "d /var/lib/hermes/home 0755 hermes hermes -"
     "d /var/lib/hermes/home/.ssh 0700 hermes hermes -"
     "d /var/lib/hermes/home/.local/bin 0755 hermes hermes -"
   ];
 
-  system.activationScripts.hermes-workstation = lib.stringAfter ["users" "setupSecrets"] ''
+  system.activationScripts.hermes-workstation = lib.stringAfter [ "users" "setupSecrets" ] ''
     install -d -m 0700 -o hermes -g hermes /var/lib/hermes/home/.ssh
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/home/.local/bin
 
-    # Wrappers only — no private key file under HOME.
     install -m 0755 -o hermes -g hermes ${sshWorkstation} /var/lib/hermes/home/.local/bin/ssh-workstation
     install -m 0755 -o hermes -g hermes ${checkoutWorkstation} /var/lib/hermes/home/.local/bin/checkout-workstation
     install -m 0755 -o hermes -g hermes ${releaseWorkstation} /var/lib/hermes/home/.local/bin/release-workstation
     install -m 0755 -o hermes -g hermes ${statusWorkstation} /var/lib/hermes/home/.local/bin/workstation-status
 
-    # Known hosts dir (created on first connect); keep empty config-free.
     touch /var/lib/hermes/home/.ssh/known_hosts
     chown hermes:hermes /var/lib/hermes/home/.ssh/known_hosts
     chmod 0644 /var/lib/hermes/home/.ssh/known_hosts
 
-    # Skill for discovery (/workstation, skills_list).
     install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/skills/devops/workstation
-    install -m 0644 -o hermes -g hermes ${./skills/workstation/SKILL.md} \
+    install -m 0644 -o hermes -g hermes ${skillSrc} \
       /var/lib/hermes/.hermes/skills/devops/workstation/SKILL.md
 
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
-    # Hermes-owned after seed; wrappers + skill stay force-managed above.
     if [ ! -f /var/lib/hermes/workspace/WORKSTATION.md ]; then
       cat > /var/lib/hermes/workspace/WORKSTATION.md <<'EOF'
 # Coding workstation (remote Grok)
@@ -104,12 +100,9 @@ EOF
     fi
   '';
 
-  # Secret readable by hermes only via this mount (for OpenSSH -i inside wrappers).
-  # Not copied into HOME. Model can still `cat` the mount if it tries — wrappers
-  # + skill discourage that; true air-gap would need a privileged ssh proxy.
   services.hermes-agent.container.extraVolumes = [
     "${secretPath}:${secretPath}:ro"
   ];
 
-  environment.systemPackages = [pkgs.openssh];
+  environment.systemPackages = [ pkgs.openssh ];
 }

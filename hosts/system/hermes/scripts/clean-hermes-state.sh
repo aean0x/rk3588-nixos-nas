@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Selective Hermes reset on hermes-01: keep gbrain (~/brain, ~/.bun), declarative
+# Selective Hermes reset: keep gbrain (~/brain, ~/.bun), declarative
 # config/.env; wipe workspace, sessions, runtime DBs/logs, browser-harness, and
 # non-gbrain identity/memory docs. Run on device as root (via sudo).
 set -euo pipefail
@@ -67,11 +67,6 @@ if [ -n "${SOUL_SEED:-}" ] && [ -f "$SOUL_SEED" ]; then
 fi
 if [ -n "${USER_SEED:-}" ] && [ -f "$USER_SEED" ]; then
   install -m 0640 -o hermes -g hermes "$USER_SEED" "${HERMES_HOME}/memories/USER.md"
-fi
-
-echo "=== Optional MEMORY.md seed (do not write HERMES_HOME/AGENTS.md) ==="
-if [ -n "${MEMORY_GBRAIN:-}" ] && [ -f "$MEMORY_GBRAIN" ]; then
-  install -m 0640 -o hermes -g hermes "$MEMORY_GBRAIN" "${HERMES_HOME}/memories/MEMORY.md"
 fi
 
 echo "=== Starting Hermes gateway + WebUI ==="

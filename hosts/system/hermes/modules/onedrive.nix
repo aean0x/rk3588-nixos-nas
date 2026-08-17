@@ -3,14 +3,19 @@
 {
   config,
   pkgs,
-  hermes,
   ...
 }:
 let
   onedriveConfig = config.sops.secrets.onedrive_rclone_config.path;
+  stateDir = config.services.hermes-agent.stateDir;
+  workspace = "${stateDir}/workspace";
 in
 {
   environment.systemPackages = [ pkgs.rclone ];
+
+  systemd.tmpfiles.rules = [
+    "d ${workspace}/onedrive 2770 hermes hermes - -"
+  ];
 
   systemd.services.onedrive-sync = {
     description = "Sync OneDrive folders into Hermes workspace (non-destructive)";
@@ -21,7 +26,7 @@ in
       Type = "oneshot";
       User = "hermes";
       Group = "hermes";
-      Environment = [ "HOME=${hermes.stateDir}" ];
+      Environment = [ "HOME=${stateDir}" ];
     };
 
     script = ''
@@ -32,12 +37,12 @@ in
       chmod 600 "$RCLONE_CONF"
       trap 'rm -f "$RCLONE_CONF"' EXIT
 
-      mkdir -p "${hermes.workspace}/onedrive/Shared" "${hermes.workspace}/onedrive/Documents"
+      mkdir -p "${workspace}/onedrive/Shared" "${workspace}/onedrive/Documents"
       RCLONE="${pkgs.rclone}/bin/rclone copy --update --config $RCLONE_CONF"
-      $RCLONE "onedrive:Shared" "${hermes.workspace}/onedrive/Shared"
-      $RCLONE "${hermes.workspace}/onedrive/Shared" "onedrive:Shared"
-      $RCLONE "onedrive:Documents" "${hermes.workspace}/onedrive/Documents"
-      $RCLONE "${hermes.workspace}/onedrive/Documents" "onedrive:Documents"
+      $RCLONE "onedrive:Shared" "${workspace}/onedrive/Shared"
+      $RCLONE "${workspace}/onedrive/Shared" "onedrive:Shared"
+      $RCLONE "onedrive:Documents" "${workspace}/onedrive/Documents"
+      $RCLONE "${workspace}/onedrive/Documents" "onedrive:Documents"
     '';
   };
 

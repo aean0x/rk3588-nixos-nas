@@ -4,6 +4,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
+CONSUMER="$H/hermes.nix"
+GBRAIN="$H/modules/gbrain.nix"
 FAIL=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAIL=1; }
@@ -13,12 +15,27 @@ if [[ -f "$H/toolbox.nix" ]]; then
 else
   pass "no host toolbox.nix"
 fi
-grep -q 'inputs.hermes-pnp.nixosModules.default' "$H/default.nix" \
-  && pass "default.nix imports composer (toolbox)" || fail "composer not imported"
-grep -q 'toolbox.hostPath' "$H/gbrain.nix" "$H/hermes-webui.nix" \
-  && pass "host modules consume composer toolbox.hostPath" || fail "host still hardcodes toolbox PATH"
-grep -q 'mcpServers.gbrain' "$H/gbrain.nix" && grep -q 'gbrainMcpUrl\|3131/mcp' "$H/gbrain.nix" \
-  && pass "MCP gbrain is HTTP" || fail "MCP gbrain missing HTTP url"
+if grep -q 'inputs.hermes-pnp.nixosModules.default' "$CONSUMER" \
+  && grep -q 'services.hermesPnP' "$CONSUMER"; then
+  pass "hermes.nix imports composer (toolbox)"
+else
+  fail "composer not imported from hermes.nix"
+fi
+if grep -q 'toolbox.extraPackages' "$CONSUMER"; then
+  pass "consumer extends composer toolbox"
+else
+  fail "hermes.nix should extend hermesPnP.toolbox (extraPackages)"
+fi
+if grep -q 'mcpServers.gbrain' "$GBRAIN"; then
+  fail "modules/gbrain.nix still declares mcpServers.gbrain (composer owns HTTP url)"
+else
+  pass "MCP gbrain URL left to composer"
+fi
+if grep -q 'gbrain.enable' "$CONSUMER"; then
+  pass "composer gbrain hook enabled"
+else
+  fail "hermes.nix must set services.hermesPnP.gbrain.enable"
+fi
 
 if [[ "${REMOTE_CHECK:-}" == 1 ]]; then
   # shellcheck disable=SC1091

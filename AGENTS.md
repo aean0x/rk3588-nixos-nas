@@ -58,7 +58,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
 │   │   │   ├── filebrowser.nix    # (disabled) legacy web file manager
 │   │   │   └── crowdsec.nix       # CrowdSec IDS/IPS engine + native nftables bouncer
-│   │   ├── hermes/          # Hermes Agent + GBrain (container, WebUI, memory plane, OneDrive)
+│   │   ├── hermes/          # Hermes consumer (hermes.nix) + host leftovers
 │   │   └── services/        # Native service modules
 │   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
 │   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
@@ -99,7 +99,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `openrouter_api_key`, `anthropic_api_key`, `deepseek_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
 - `browserless_api_token` — Remote browser CDP service (Browserless cloud; good for soft CF, weak alone on AXS-class ticketing)
-- Local browser: `hosts/system/hermes/browser.nix` — host Chromium + Xvfb, sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **noVNC on :6080** for phone captcha handoff (`hermes-browser-status`). Primary for checkout; Browserless is secondary scraping only.
+- Local browser: `services.hermesPnP.browser` (declared in `hosts/system/hermes/hermes.nix`, Brave engine) — sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **noVNC on :6080** for phone captcha handoff (`hermes-browser-status`). Primary for checkout; Browserless is secondary scraping only.
 - `telegram_bot_token`, `telegram_admin_id` — Telegram bot + admin allowlist
 - `composio_api_key` — hermes-pnp mcp-proxy injects Composio MCP Bearer; also Hermes env for API
 - `ha_token`, `ha_url` — Home Assistant API
@@ -107,7 +107,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `filebrowser_password` — FileBrowser admin password
 - `onedrive_rclone_config` — rclone config for OneDrive sync (mode 0444)
 - `cloudflared_tunnel_credentials` — Cloudflare Tunnel credentials JSON (from `./scripts/setup-cloudflare-tunnel.sh`)
-- `nix_pc_agent_ssh_key` — Hermes → workstation `agent` SSH key at `/run/secrets/…` only; **wrappers** inject it (not copied into hermes HOME). See `hosts/system/hermes/workstation.nix`.
+- `nix_pc_agent_ssh_key` — Hermes → workstation `agent` SSH key at `/run/secrets/…` only; **wrappers** inject it (not copied into hermes HOME). See `hosts/system/hermes/modules/workstation.nix`.
 - Workstation hop: skill **`workstation`**, commands `checkout-workstation` / `release-workstation` / `ssh-workstation`; no Wake-on-LAN.
 
 ### Service Architecture
@@ -119,7 +119,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | Docker engine | Native | `containers.nix` | Auto-prune, unified refresh timer |
 | Home Assistant + Matter + OTBR | Docker | `containers/home-assistant.nix` | Host network for mDNS/Thread |
 | Files (NFS+SMB) | Native | `services/filesharing.nix` | Guest-only drop zone `/media/Files/Share` |
-| Hermes Agent + GBrain | NixOS module + container | `hermes/` (imported from `containers.nix`) | xAI OAuth / Grok, Flash/Pro router plugin, GBrain MCP + reflex, WebUI; SOUL not declarative |
+| Hermes Agent + GBrain | NixOS module + container | `hermes/hermes.nix` (hermes-pnp) + `hermes/modules/` | xAI OAuth / Grok, low/medium/high router, GBrain MCP + reflex, WebUI; SOUL not declarative |
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
@@ -146,17 +146,17 @@ Examples: `hermes-agent-setup` (via the official module) + our activation writes
 
 ### Hermes Agent Architecture
 
-Hermes Agent (from `github:NousResearch/hermes-agent`) is enabled via the official NixOS module under `hosts/system/hermes/` (imported from `containers.nix`). GBrain long-term memory is the primary add-on (north star: `~/dev/hetzner-nixos` GBrain integration, adapted to this layout).
+Hermes Agent (from `github:NousResearch/hermes-agent`) is composed by flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Host leftovers (GBrain Bearer rewrite, Composio policy, OneDrive, workstation) stay under `hosts/system/hermes/modules/`.
 
 - **Deployment mode**: `container.enable = true` (Ubuntu 24.04, module `--network=host`). State under `/var/lib/hermes`.
 - **Model**: `settings.model.provider = "xai-oauth"`, `default = "grok-4.6"`. One-time `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: **No declarative SOUL.md** — activation does not install persona docs. Agent owns identity.
-- **GBrain**: `gbrain.nix` — MCP `gbrain serve` only + reflex plugins; memory registry under `hermes/memory/`. **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
+- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`; host `modules/gbrain.nix` is leftovers (Bearer rewrite, git-credential, 1G cap). **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI routing**: `addToSystemPackages = true`; host `hermes` routes into the container.
 - **Caddy**: WebUI on 8787 → `archimedes.${domain}` (LAN) + Cloudflare Tunnel (WAN). Official `hermes dashboard` / `hermes.${domain}:9119` is decommissioned.
-- **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/memory/AGENTS.md`.
-- **Deploy helpers**: `./deploy validate-gbrain`, `./deploy clean-hermes-state`.
+- **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/AGENTS.md`.
+- **Deploy helpers**: `./deploy validate-gbrain` / `gbrain-setup` (scripts from locked hermes-pnp), `./deploy clean-hermes-state`.
 - **Memory / OOM (8 GiB board):** Hermes is tertiary vs AdGuard + HA. Gateway + WebUI agent processes **2 GiB** / 2 CPU / OOM +500 (`runtime.nix`); browser **1 GiB**; host **8 GiB** swapfile on root SSD (`partitions.nix`). Full table: `hosts/system/hermes/AGENTS.md` § Resource limits / OOM policy. Heavy nix eval/build → workstation, not on-box Hermes.
 
 

@@ -1,242 +1,120 @@
 # Hermes Agent — rocknas
 
-## Scope
+Composer SoT: **`hermes.nix`** (`services.hermesPnP` + official settings + public edge).  
+Host runtime (2G caps, sudo CLI): **`runtime.nix`**.  
+Leftovers: **`modules/`** (GBrain Bearer/git-credential/1G, Composio, OneDrive, workstation).
 
-- **Runtime:** official `hermes-agent` NixOS module, container mode (`ubuntu:24.04`, `--network=host`).
-- **Model routing:** plugin `model-router` classifies each main-agent turn (native providers, not OpenRouter):
-  - **low** `deepseek` / `deepseek-v4-flash` — acks, trivias, docs/drafting.
-  - **medium** `deepseek` / `deepseek-v4-pro` — debug, review, complex analysis, optimization, nuanced review.
-  - **high** `xai-oauth` / `grok-4.6` — architecture, security, high-stakes, migration, tool-error escalate.
-  - Pins: `/low` `/medium` `/high` `/auto` via `ctx.register_command` (CLI + gateway).
-  - Classifier uses existing `auxiliary.triage_specifier` (low). No SOUL.md writes.
-  - Cron + `delegate_task` children are skipped (stay on their declared fleet).
-  - **Aux:** mechanical slots + cron pin low; `background_review` / `curator` / `kanban_decomposer` pin medium.
-  - **Delegation** pins medium: `hermesPnP.models.medium`, `max_concurrent_children=5`. No per-child model pin.
-  - **Vision:** left on main (high, Grok native vision).
-  - Live switch uses `AIAgent.switch_model` + `hermes_cli.model_switch` (same as `/model`). If the agent is not bound yet, the first API call of that turn may still be high; later calls apply the classified model.
-  - WebUI UX is an official extension sidecar (`HERMES_WEBUI_EXTENSION_DIR`), not a core patch.
-- **Identity:** declarative **SOUL.md is disabled**. Fresh agent; no forced persona from Nix.
-- **Long-term memory:** **GBrain** — this is the primary integration focus.
+First-boot: **`BOOTSTRAP.md`**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
-Canonical GBrain contract: **`memory/AGENTS.md`** + **`memory/registry.json`**.  
-Operator bootstrap: **`BOOTSTRAP.md`**.
-
-## Layout (this repo)
+## Layout
 
 ```
 hosts/system/hermes/
-├── default.nix          # module import, model routing settings, no SOUL activation
-├── runtime.nix          # site identity + 2G agent resource SoT (gateway + WebUI)
-├── gbrain.nix           # gbrain-mcp-http + HTTP MCP client + memory registry
-├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
-├── plugins.nix          # HMC extraPlugin (host pin)
-├── mcp.nix              # composio via flake aean0x/hermes-pnp (mcp-proxy)
-├── browser.nix          # Brave engine override (CDP + noVNC from the composer)
-├── onedrive.nix         # workspace OneDrive sync
-├── workstation.nix      # SSH helpers to workstation Grok agent
-├── skills/              # retrieval-reflex + workstation + gbrain-http-auth
-├── memory/              # declarative memory plane
-├── scripts/
-├── BOOTSTRAP.md
-├── reference/           # Operator docs (GBRAIN.md, HERMES-WEBUI.md) — not live workspace
-└── workspace/           # soul draft only (not activated); live content Hermes-owned
+├── hermes.nix           # composer + official settings + Caddy/tunnel
+├── runtime.nix          # 2G agent RAM/CPU + sudo hermes CLI
+├── modules/
+│   ├── gbrain.nix       # site leftovers (Bearer rewrite, git-credential, 1G)
+│   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
+│   ├── onedrive.nix
+│   └── workstation.nix
+├── skills/workstation/  # other skills live in hermes-pnp
+├── scripts/             # clean-hermes-state + git-credential helper
+└── BOOTSTRAP.md
 ```
 
-## Hermes WebUI
+## Runtime
 
-`https://archimedes.<domain>/` — LAN via Caddy, WAN via `services.cloudflareTunnel.proxyServices` (CGNAT tunnel).
-Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
-Native systemd (not a second Docker container): in-process agent against the same `HERMES_HOME`.
-Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes.env` (WebUI inherits the agent's `environmentFiles`).
-Package + extras: hermes-pnp composer bakes `extraDependencyGroups` into `services.hermes-agent.package` and pairs WebUI to that drv. Store-safe env is `services.hermes-agent.environment`. Paths / 2 GiB caps: `runtime.nix`; PATH: composer `toolbox`.
-Flake SoT TTS: `settings.tts.provider=elevenlabs` (`eleven_flash_v2_5`, voice `pNInz6obpgDQGcFmaJgB`).
-Web search: pin `web.search_backend=xai`.
-Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace).
-Official `hermes dashboard` (`hermes.<domain>` :9119) is **removed** — WebUI is the only UI.
+- Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes`.
+- Models: PnP `low`/`medium`/`high` (deepseek flash / pro / xai-oauth grok-4.6). WebUI extension sidecar from composer.
+- No declarative SOUL.md.
+- WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs (`DfE5EkknFF950NR6OMui`, `eleven_flash_v2_5`). Search: `web.search_backend=xai`.
+- Toolbox + browser CDP/noVNC: composer. Engine here is Brave.
 
-## Token lean + plugins (0.19)
+## Resource limits (8 GiB — Hermes is tertiary)
 
-- `tool_output` + compression prune/idle in `default.nix`
-- Plugin allow-list: **`services.hermesPnP.plugins`** in `default.nix` (catalog: flake hermes-pnp). HMC only in `plugins.nix`.
-- After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
+Prefer killing Hermes over DNS or Home Assistant.
 
-## Everyday tools (toolbox)
+| Surface | Cap | Where |
+|---------|-----|--------|
+| hermes-agent container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
+| hermes-webui | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
+| hermes-browser (Brave) | 1 GiB / OOM +500 | `hermesPnP.browser` |
+| gbrain-mcp-http | 1 GiB / OOM +400 | `modules/gbrain.nix` (unit is composer) |
+| AdGuard / HA | OOM −500 | their modules |
+| Host swap | 8 GiB | `partitions.nix` |
 
-Composer `services.hermesPnP.toolbox` links a Nix `buildEnv` at
-`/var/lib/hermes/toolbox/bin` → container `/data/toolbox/bin`. Gateway
-`environment.PATH` includes that dir plus
-`~/.bun/bin` (gbrain) and `~/.local/bin` (nix-pc wrappers).
+Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.
 
-Toolbox is composer-owned; verify with `nix flake check` in hermes-pnp
-(the `modules` check asserts the buildEnv materializes + PATH wiring).
+## Nix vs Hermes custody
 
-## Resource limits / OOM policy (8 GiB board)
-
-**Priority:** Home Assistant and AdGuard must stay up. Hermes stack is **tertiary** —
-prefer killing or hard-capping it over taking down DNS or HA.
-
-| Surface | Cap / protection | Where |
-|---------|------------------|--------|
-| hermes-agent container | **2 GiB** / 2 CPU / OOM **+500** | `runtime.nix` → `containerResourceOptions` |
-| hermes-webui (in-process agent) | **2 GiB** / 2 CPU / OOM **+500** | `runtime.nix` → `systemdResourceConfig` |
-| hermes-browser (Brave) | **1 GiB** `MemoryMax`, OOM adj **+500** | `services.hermesPnP.browser` (composer) |
-| gbrain-mcp-http | 1 GiB, OOM **+400** | `gbrain.nix` |
-| AdGuard Home | OOM **−500**, `MemoryMin=128M` | `services/adguard.nix` |
-| Home Assistant | docker `--oom-score-adj=-500` | `containers/home-assistant.nix` |
-| Host swap | **8 GiB** file `/var/lib/swapfile` on root SSD | `partitions.nix` (`swapDevices`) |
-
-- Host swap softens spikes so the box does not hard-lock; it does **not** justify unbounded Hermes/`nix eval` on-box.
-- Heavy **Nix eval/build** belongs on the **workstation** (`ssh-workstation` / `./deploy remote-*`), not inside the hermes container (store is visible; multi‑GiB evals OOM the agent first by design).
-- Do not raise Hermes/browser caps without revisiting HA/AdGuard headroom on 8 GiB RAM.
-
-## Nix vs Hermes (custody — agents must respect)
-
-**Nix** = high-reliability environment policy: not revised day-to-day.  
-**Hermes** = operational content and runtime state: may change without a rebuild.
-
-| Nix owns (declare here; push back if asked to “let Hermes edit”) | Hermes owns (do **not** bake into flake) |
-|------------------------------------------------------------------|------------------------------------------|
+| Nix owns | Hermes owns |
+|----------|-------------|
 | Module enablement, ports, Caddy/tunnel, secrets wiring | SOUL / persona, USER.md, MEMORY.md body |
-| Model routing axes, tool_output/compression knobs | Brain pages (`~/brain`, PGLite), pointer **index content** |
-| MCP server declarations, `extraDependencyGroups` | Day-to-day `put_page` / `query` / links |
-| Force-disable of legacy exclusive timers (no new host gbrain CLI) | Cron job prompts/`jobs.json` (MCP-only hygiene), skills after seed |
-| Plugin **code** in flake `hermes-pnp` (+ HMC pin here) | Brain pages, SOUL, cron prompts, pointer aliases **in gbrain** |
-| Toolbox PATH, browser CDP service, workstation SSH wrappers | Cookie sessions, OAuth tokens, ad-hoc apt/pip in container |
-| Temporary package pins / silence packaging fix until upstream | GBrain CLI version (`bun install -g`), `gbrain config` |
+| Model routing, tool_output/compression | Brain pages, pointer index content |
+| MCP declarations, extraDependencyGroups | Day-to-day put_page / query |
+| Plugin **code** in hermes-pnp | Cron prompts, gbrain CLI version |
+| Toolbox PATH, browser CDP, workstation wrappers | Cookies, OAuth tokens, ad-hoc apt/pip |
 
-If a request would put operational content into Nix, or environment policy only into agent memory, **refuse and restate this table**.  
-If Hermes asks a coding agent for patchy flake edits to fix day-to-day ops (brain pages, gbrain CLI pin, sync path, SOUL, cron prompts), **push back** — fix under Hermes custody or document the host limitation (e.g. import not `gbrain sync`).
+Do not bake operational content into the flake. Do not put environment policy only in agent memory.
 
-### hermes-agent pin
+## GBrain
 
-Unpinned to `github:NousResearch/hermes-agent` (tracking main / current lock).  
-Silence wrap + extras-baked package: hermes-pnp composer (`packageFixes.silenceMarkers`). Drop the wrap when upstream `_is_token` uses `_canonical_silence_candidates`. Paths / PATH / agent RAM: `runtime.nix`.
+`hermesPnP.gbrain.enable` starts `gbrain-mcp-http` (`gbrain serve --http :3131`).  
+Host leftover re-applies literal Bearer into `config.yaml`.
 
-## GBrain (summary)
+- CLI: bun-global under hermes HOME (`./deploy gbrain-setup`).
+- Embeddings: `ZEROENTROPY_API_KEY` via `/run/hermes.env`.
+- **Never** shell `gbrain` while the agent is up (PGLite single-writer).
+- Hygiene: MCP tools or Hermes cron **via MCP only**. No exclusive consolidate/dream/embed.
+- Protocol SoT: GBrain page `ops/gbrain-protocol`. Composer operator doc: hermes-pnp `docs/gbrain.md`.
 
 ```
-Telegram / hermes chat / webui
-        │
-        ▼
-hermes-agent / webui / CLI ── MCP HTTP ──► gbrain-mcp-http.service
-        │                    url http://127.0.0.1:3131/mcp
-        │                                  │
-        │ MEMORY (working)     gbrain serve --http (sole PGLite owner)
-        │ gbrain-retrieval-reflex (resolve IPC on that process)
-        ▼
-Day path: shared HTTP MCP + two plugins (retrieval-reflex, memory-flush)
-```
-
-- CLI install (bootstrap only): `~/.bun/bin/gbrain` under hermes HOME.
-- Embeddings: `ZEROENTROPY_API_KEY` via sops → `/run/hermes.env` → **gbrain-mcp-http** EnvironmentFile.
-- **PGLite single-writer:** one long-lived HTTP serve (not per-agent stdio). Fixes WebUI+gateway dual spawn / lock orphans (hermes-agent#72887). **Never** shell concurrent `gbrain serve` stdio.
-- **HTTP Bearer:** token in `~/.gbrain/hermes-mcp.token` (mint once with `gbrain auth create …` while serve can auth). Activation re-applies `Authorization` headers into config.yaml from that file / `GBRAIN_REMOTE_TOKEN`.
-- If MCP 401: re-check token file + headers; restart hermes-agent/webui so sessions reload config.
-- If MCP stuck “connecting”: `systemctl status gbrain-mcp-http`; `./deploy sudo pkill -9 -f gbrain` only if orphans remain, then restart the unit.
-- **Resolve sock:** optional ambient path on some gbrain builds; day path is HTTP MCP tools + skill `volunteer_context` if sock absent.
-
-### Maintenance / “autopilot” (MCP + Hermes cron only)
-
-Host exclusive CLI stack is **gone**. Do not reintroduce `hermes-gbrain-*` timers or
-`gbrain autopilot --install` alongside MCP serve (second PGLite owner).
-
-```bash
-# ── Hermes cron hygiene (agent owns jobs.json; MCP tools only) ──
-# Chat (inside Hermes):
-#   /cron add "0 2 * * *" "GBrain hygiene via MCP only: use gbrain MCP tools
-#     (query / get_page / put_page; run_onboard if listed). Promote durable
-#     signals from MEMORY.md with put_page. Never shell gbrain or terminal gbrain." \
-#     --name "gbrain-mcp-hygiene"
-# List / inspect:
-#   ./deploy hermes cron list
-#   # or: /cron list in chat
-
-# ── gbrain native surfaces (prefer MCP when available) ──
-# Live agent: MCP ops only (put_page, query, get_page, run_onboard, …).
-# Operator with hermes-agent STOPPED (disaster recovery only):
-#   sudo systemctl stop hermes-agent
-#   sudo -u hermes env HOME=/var/lib/hermes/home \
-#     PATH=/var/lib/hermes/home/.bun/bin:$PATH \
-#     bash -lc 'cd ~ && gbrain onboard --check --json'
-#   # optional unattended auto-eligible only:
-#   # gbrain onboard --auto --max-usd 5
-#   sudo systemctl start hermes-agent
-
-# ── NEVER (races PGLite with gbrain serve) ──
-#   gbrain autopilot --install
-#   gbrain dream | embed | doctor | sync   # while hermes-agent is up
-#   sudo hermes-gbrain-consolidate|nightly|dream|embed   # removed
-#   /var/lib/hermes/bin/gbrain-exclusive-cli              # removed
-#
-# When upstream ships cooperative serve maintenance (garrytan/gbrain#677),
-# prefer that over any host stop/start choreography.
+Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-http
+                              MEMORY (working)           gbrain serve (sole writer)
+                              retrieval-reflex + memory-flush
 ```
 
 ## Secrets
 
-| Env | Sops key | Purpose |
-|-----|----------|---------|
-| (file) | `composio_api_key` | mcp-proxy → Composio `Authorization: Bearer`; also `COMPOSIO_API_KEY` in hermes env for API |
+| Env / file | Sops | Purpose |
+|------------|------|---------|
+| file | `composio_api_key` | mcp-proxy Bearer + `COMPOSIO_API_KEY` |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
-| `FIRECRAWL_API_KEY` | `firecrawl_api_key` | Hermes `web_extract` (Firecrawl / firecrawl-py) |
+| `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |
-| `XAI_API_KEY` | `xai_api_key` | Fallback / tooling (OAuth is primary for chat) |
-| `TELEGRAM_*` | telegram secrets | Gateway |
-| (file) | `nix_pc_agent_ssh_key` | `/run/secrets/…` only; `ssh-workstation` injects via IdentityFile (not in hermes HOME) |
+| `XAI_API_KEY` | `xai_api_key` | Fallback (OAuth is primary) |
+| `TELEGRAM_*` | telegram | Gateway |
+| file | `nix_pc_agent_ssh_key` | `ssh-workstation` IdentityFile only |
 
-```bash
-cd secrets && ./decrypt   # → secrets.yaml.work
-# edit (e.g. set firecrawl_api_key), then:
-./encrypt                 # → secrets.yaml
-# After deploy: systemctl restart hermes-agent
-```
+`cd secrets && ./decrypt` → edit → `./encrypt` → `./deploy remote-test`.
 
-## Coding workstation
+## Workstation
 
-Module: `workstation.nix` — PATH helpers + skill **`workstation`**
-(`skills/workstation/SKILL.md` → `~/.hermes/skills/devops/workstation/`).
-
-**Not MCP tools.** Discovery: `/workstation`, skill index, NL; run via **`terminal`**.
-
-Host powered on. Checkout latch until release. Key never placed in hermes HOME.
+`modules/workstation.nix` + skill `workstation`. Not MCP. Host on; checkout latch; key never in hermes HOME.
 
 ```bash
 checkout-workstation
-ssh-workstation true
 ssh-workstation 'bash -lc "grok --always-approve -p …"'
 release-workstation
 ```
 
-## Communicate with the agent
+## Talk to the agent
 
-**Agents should run these via `./deploy` themselves** — do not wait for the human to poke Hermes or validate GBrain when the goal requires it.
+Drive these via `./deploy` — do not wait for the human.
 
-| Method | Command / URL |
-|--------|----------------|
-| CLI | `./deploy hermes chat` / `./deploy hermes doctor` / `./deploy hermes mcp list` |
-| GBrain ops | `./deploy validate-gbrain` (MCP + reflex; no consolidate CLI) |
-| SSH | `./deploy ssh` (fallback; prefer named `./deploy` subcommands) |
-| Telegram | bot DM (allowlisted) |
+| Method | Command |
+|--------|---------|
+| CLI | `./deploy hermes chat` / `doctor` / `mcp list` |
+| GBrain | `./deploy validate-gbrain` / `gbrain-setup` |
 | WebUI | `https://archimedes.<domain>/` |
-| Logs | `./deploy journal hermes-agent` / `./deploy logs hermes-agent` |
+| Logs | `./deploy journal hermes-agent` |
+| Soft reset | `./deploy clean-hermes-state` |
 
-Bootstrap prompts and gbrain install instructions: **`BOOTSTRAP.md`**. After `remote-switch`/`remote-upgrade`, continue autonomously: confirm OAuth, prompt/install GBrain, run validate + benchmark prompts.
+## Lessons
 
-## Host maintenance commands
-
-```bash
-systemctl status hermes-agent
-./deploy validate-gbrain           # MCP + reflex; asserts exclusive CLI gone
-# Soft reset agent state, keep gbrain install + brain:
-./deploy clean-hermes-state
-```
-
-## Lessons (short)
-
-- Module container is always `--network=host` — no docker `-p`.
-- `messaging` must be in `extraDependencyGroups` (not in hermes `[all]`).
-- `firecrawl` must be in `extraDependencyGroups` for `web_extract` (firecrawl-py; lazy install disabled in Nix).
-- `memory/AGENTS.md` is an operator contract (copied next to the registry). Do **not** write it to `$HERMES_HOME/AGENTS.md`.
-- **No Nix one-shots for leftover state.** Do not add `rm -f` / `mkForce false` tombstones in activation to clean a rename or retired file. `./deploy` SSH and do it once. Nix only declares the desired ongoing system.
-- `HASS_*` env names for Home Assistant tools (not `HA_*`).
-- On 8 GiB rocknas, unbounded Hermes/browser + on-box `nix eval` OOMs the host; keep tertiary caps and protect AdGuard/HA (see Resource limits above).
+- Container is `--network=host` — no docker `-p`.
+- `messaging` and `firecrawl` must be in `extraDependencyGroups`.
+- Do not write a Nix manifesto to `$HERMES_HOME/AGENTS.md`.
+- No Nix one-shots for leftover state — `./deploy` SSH once.
+- `HASS_*` for Home Assistant tools (not `HA_*`).
+- Do not raise Hermes/browser caps without revisiting HA/AdGuard headroom.
