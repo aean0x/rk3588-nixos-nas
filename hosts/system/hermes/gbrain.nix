@@ -216,7 +216,7 @@ in {
         mcp["gbrain"] = desired_mcp
         changed = True
 
-    # plugins.enabled: plugins.nix (single-root $HERMES_HOME/plugins)
+    # plugins.enabled: composer hermes-agent-plugins (stateDir/plugins)
 
     if changed:
         path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))

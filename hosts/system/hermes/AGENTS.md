@@ -57,7 +57,7 @@ Official `hermes dashboard` (`hermes.<domain>` :9119) is **removed** — WebUI i
 ## Token lean + plugins (0.19)
 
 - `tool_output` + compression prune/idle in `default.nix`
-- Plugin allow-list + install: **`plugins.nix`** (catalog: flake hermes-pnp)
+- Plugin allow-list: **`services.hermesPnP.plugins`** in `default.nix` (catalog: flake hermes-pnp). HMC only in `plugins.nix`.
 - After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)

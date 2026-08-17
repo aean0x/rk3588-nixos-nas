@@ -80,6 +80,11 @@ if grep -q 'projects-auto-commit' "$DEFAULT" "$HERMES/plugins.nix"; then
 else
   pass "no projects-auto-commit"
 fi
+if grep -q '/var/lib/hermes/bin/hermes-cli' "$ROOT/deploy"; then
+  fail "deploy still calls leftover hermes-cli (use official hermes)"
+else
+  pass "deploy uses official hermes"
+fi
 
 if grep -q 'mcpServers.composio' "$HERMES/mcp.nix" \
   && grep -q 'services.mcpProxy' "$HERMES/mcp.nix" \

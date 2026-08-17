@@ -184,8 +184,8 @@
         cron_mode = "deny";
       };
 
-      # Skills dirs on the hermes volume (see toolbox + gbrain activation).
-      # Plugins enabled list + install: ./plugins.nix (single source of truth).
+      # Skills dirs on the hermes volume (composer extraSkills + host skills).
+      # Plugins: hermesPnP.plugins + extraPlugins (HMC in ./plugins.nix).
       skills.external_dirs = [
         hermes.skills.container
         hermes.skills.host

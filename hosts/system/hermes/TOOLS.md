@@ -77,16 +77,18 @@ Declarative clients: `mcp.nix` (+ `gbrain.nix` for HTTP gbrain).
 | Agent PATH | npm → bun → toolbox → sw | same |
 | Host CLI PATH | toolbox first (Nix bun) | same + `~/.local/bin` for workstation helpers |
 | `AGENT_BROWSER_EXECUTABLE_PATH` | toolbox chromium | same |
-| MCP gbrain | bare `gbrain serve` + PATH env | same |
-| `hermes-cli` wrapper | `/var/lib/hermes/bin/hermes-cli` | same |
-| sudo NOPASSWD | hermes-cli + hermes | same |
-| Dotenv PATH | stripped (host-safe); container via service/docker env | same — strip PATH/HERMES_PY/AGENT_BROWSER from `.env`; host CLI uses hermes-cli PATH |
+| MCP gbrain | bare `gbrain serve` + PATH env | HTTP `gbrain-mcp-http` :3131 |
+| Host CLI | hermes-cli wrapper | official `hermes` via `addToSystemPackages` + sudo -u hermes |
+| sudo NOPASSWD | hermes-cli + hermes | `/run/current-system/sw/bin/hermes` only |
+| Dotenv PATH | stripped (host-safe); container via service/docker env | same — strip PATH/HERMES_PY/AGENT_BROWSER from `.env` |
 
-Intentional rocknas extras: host Brave CDP (composer `services.hermesPnP.browser`), OneDrive sync, HMC + gbrain-retrieval-reflex (resolve IPC) + memory-flush, hermes-webui. GBrain: MCP + native push-context (no exclusive CLI, no static pointer JSON).
+Intentional rocknas extras: host Brave CDP (composer `services.hermesPnP.browser`), OneDrive sync, HMC + gbrain-retrieval-reflex + memory-flush, hermes-webui. GBrain: MCP + native push-context (no exclusive CLI, no static pointer JSON).
 
 ## Host CLI routing note
 
 Upstream `is_container()` false-positives on Docker **hosts** (mountinfo contains
-`/var/lib/docker` / `containerd`), so host `hermes` never auto-execs into the
-container. **`/var/lib/hermes/bin/hermes-cli` forces `docker exec`** when
-`.container-mode` is present — agent terminal then sees `/data/toolbox/bin`.
+`/var/lib/docker` / `containerd`), so host `hermes` does not auto-exec into the
+container. Gateway PATH still includes `/data/toolbox/bin` via composer
+`toolbox`. Host CLI is the official binary as the hermes user
+(`./deploy hermes …` / `sudo -u hermes hermes`). The old
+`/var/lib/hermes/bin/hermes-cli` wrapper is gone.
