@@ -307,3 +307,6 @@ After netboot completes, plug device into router for WAN access before running `
 
 ### Network / Router Notes
 - When enabling IP forwarding (`net.ipv6.conf.all.forwarding = 1` or equivalent), the kernel resets `accept_ra = 0` on interfaces. Set `accept_ra = 2` (or the desired value) **after** forwarding via a dedicated systemd service that runs after `systemd-sysctl.service`. See `ipv6-accept-ra` pattern if re-implementing.
+
+
+**Please consider leaving a star if this repo saved you time or tokens :)**
