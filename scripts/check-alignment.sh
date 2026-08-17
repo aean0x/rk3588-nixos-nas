@@ -5,10 +5,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES="$ROOT/hosts/system/hermes"
-DEFAULT="$HERMES/default.nix"
+CONSUMER="$HERMES/hermes.nix"
 RUNTIME="$HERMES/runtime.nix"
-WEBUI="$HERMES/hermes-webui.nix"
-PKGFIX="$HERMES/overrides/package-fix.nix"
+GBRAIN="$HERMES/modules/gbrain.nix"
+COMPOSIO="$HERMES/modules/composio.nix"
 SOPS="$ROOT/secrets/sops.nix"
 ROOT_AGENTS="$ROOT/AGENTS.md"
 HERMES_AGENTS="$HERMES/AGENTS.md"
@@ -23,133 +23,140 @@ require_file() {
   fi
 }
 
-require_file "$DEFAULT"
+require_file "$CONSUMER"
 require_file "$RUNTIME"
-require_file "$WEBUI"
-require_file "$PKGFIX"
-require_file "$HERMES/integrations/hmc.nix"
+require_file "$GBRAIN"
+require_file "$COMPOSIO"
+require_file "$HERMES/modules/onedrive.nix"
+require_file "$HERMES/modules/workstation.nix"
+require_file "$HERMES/skills/workstation/SKILL.md"
 require_file "$SOPS"
-
-if [[ -e "$HERMES/context-manager.nix" ]]; then
-  fail "context-manager.nix still present (HMC is integrations/hmc.nix)"
-else
-  pass "HMC folded into integrations (no context-manager.nix)"
-fi
 require_file "$ROOT_AGENTS"
 require_file "$HERMES_AGENTS"
 
-# --- dashboard decommissioned ---
-if [[ -e "$HERMES/dashboard.nix" ]]; then
-  fail "dashboard.nix still present (decommissioned; WebUI is the UI)"
+if [[ -e "$ROOT/hosts/system/services/hermes.nix" ]]; then
+  fail "hosts/system/services/hermes.nix leftover (consumer is hermes/hermes.nix)"
 else
-  pass "dashboard.nix removed"
+  pass "no services/hermes.nix"
 fi
-if grep -q 'hermes-dashboard\|./dashboard.nix' "$DEFAULT" "$WEBUI" "$HERMES_AGENTS" 2>/dev/null; then
-  fail "hermes-dashboard still referenced in live hermes modules/docs"
+if [[ -e "$HERMES/default.nix" ]]; then
+  fail "hermes/default.nix leftover (import hermes.nix)"
 else
-  pass "no hermes-dashboard references in hermes modules/docs"
+  pass "no hermes/default.nix"
 fi
-if grep -q '9119' "$DEFAULT" "$WEBUI"; then
-  fail "gateway/webui still mention dashboard port 9119"
+if [[ -e "$HERMES/browser.nix" ]]; then
+  fail "browser.nix leftover (composer owns browser)"
 else
-  pass "no leftover :9119 in gateway/webui"
+  pass "no leftover browser.nix"
 fi
-
-# --- declaration: no Docker -p publish (module uses --network=host) ---
-if grep -E '^\s*"-p"' "$DEFAULT" >/dev/null 2>&1; then
-  fail "default.nix still publishes ports with -p (ignored under host network)"
+if [[ -e "$HERMES/plugins.nix" ]]; then
+  fail "plugins.nix leftover (HMC is hermesPnP.hmc)"
 else
-  pass "default.nix has no -p port publish under container.extraOptions"
+  pass "no leftover plugins.nix"
 fi
-
-# Resource caps live in runtime.nix and are consumed by both entrypoints
-if grep -q 'contextLimit = 200000' "$RUNTIME" \
-  && grep -q 'context_length = hermes.contextLimit' "$DEFAULT"; then
-  pass "200k contextLimit SoT wired to model.context_length"
+if [[ -e "$HERMES/mcp.nix" ]] || [[ -e "$HERMES/gbrain.nix" ]] || [[ -e "$HERMES/onedrive.nix" ]] || [[ -e "$HERMES/workstation.nix" ]] || [[ -e "$HERMES/hermes-webui.nix" ]]; then
+  fail "old hermes/*.nix leftovers (moved to hermes.nix / modules/)"
 else
-  fail "runtime.nix contextLimit / model.context_length missing"
+  pass "old hermes/*.nix moved"
 fi
-
-if grep -q 'memoryDocker = "2g"' "$RUNTIME" \
-  && grep -q 'cpus = 2' "$RUNTIME" \
-  && grep -q 'containerResourceOptions' "$DEFAULT" \
-  && grep -q 'systemdResourceConfig' "$WEBUI"; then
-  pass "shared 2G/2cpu resource map wired to gateway + WebUI"
+if [[ -e "$HERMES/overrides/package-fix.nix" ]]; then
+  fail "overrides/package-fix.nix leftover (composer owns the wrap)"
 else
-  fail "runtime.nix 2G map not wired to both entrypoints"
+  pass "no leftover package-fix"
 fi
-
-# --- dependency groups: messaging required; web not required (in [all]) ---
-if grep -q '"messaging"' "$DEFAULT"; then
-  pass "extraDependencyGroups includes messaging"
+if [[ -e "$HERMES/toolbox.nix" ]]; then
+  fail "toolbox.nix leftover (composer owns toolbox)"
 else
-  fail "extraDependencyGroups missing messaging"
+  pass "no leftover toolbox.nix"
 fi
-
-groups_block=$(awk '/extraDependencyGroups = \[/,/\];/' "$DEFAULT")
-if echo "$groups_block" | grep -q '"web"'; then
-  fail "extraDependencyGroups still lists web (already in hermes [all])"
+if [[ -d "$HERMES/integrations" ]]; then
+  fail "integrations/ leftover"
 else
-  pass "extraDependencyGroups does not redundantly list web"
+  pass "integrations/ removed"
+fi
+if [[ -e "$HERMES/workspace/soul.md" ]]; then
+  fail "workspace/soul.md leftover (SOUL not declarative)"
+else
+  pass "no soul.md"
+fi
+if [[ -d "$HERMES/skills/retrieval-reflex" ]] || [[ -d "$HERMES/skills/gbrain-http-auth" ]]; then
+  fail "ported skills still under hermes/skills/ (belong in hermes-pnp)"
+else
+  pass "only workstation skill remains on host"
 fi
 
-# --- HA env var names match Hermes HASS_* ---
-if grep -q 'HASS_TOKEN' "$SOPS" && grep -q 'HASS_URL' "$SOPS"; then
-  pass "hermesSecrets maps HASS_TOKEN and HASS_URL"
+if grep -q 'inputs.hermes-pnp.nixosModules.default' "$CONSUMER" \
+  && grep -q 'services.hermesPnP' "$CONSUMER"; then
+  pass "hermes.nix imports hermes-pnp composer"
 else
-  fail "hermesSecrets missing HASS_TOKEN/HASS_URL"
+  fail "hermes.nix must import hermes-pnp.nixosModules.default and set hermesPnP"
 fi
 
-hermes_block=$(awk '/hermesSecrets = \{/,/^  \};/' "$SOPS")
-if echo "$hermes_block" | grep -E '^\s+HA_TOKEN|^\s+HA_URL' >/dev/null; then
-  fail "hermesSecrets still uses HA_TOKEN/HA_URL (Hermes expects HASS_*)"
+if grep -q 'github:aean0x/hermes-pnp' "$ROOT/flake.nix" \
+  && ! grep -q 'feat/pnp-composer' "$ROOT/flake.nix"; then
+  pass "flake input hermes-pnp tracks main"
 else
-  pass "hermesSecrets no longer uses HA_TOKEN/HA_URL env names"
+  fail "flake.nix must pin github:aean0x/hermes-pnp (not feat/pnp-composer)"
 fi
 
-if grep -q 'hermesWebuiEnv\|hermes-webui.env' "$SOPS"; then
-  fail "sops still declares vestigial /run/hermes-webui.env"
+if grep -E '^\s*system\.activationScripts\.hermes-soul\s*=' "$CONSUMER" >/dev/null; then
+  fail "SOUL activation should be gone"
 else
-  pass "no hermes-webui.env sops template"
+  pass "no SOUL activation"
 fi
 
-# --- SOUL: declarative install disabled (fresh agent + GBrain era) ---
-if grep -E '^\s*system\.activationScripts\.hermes-soul\s*=' "$DEFAULT" >/dev/null; then
-  fail "SOUL activation should be disabled"
+if grep -q 'model-router' "$CONSUMER" \
+  && grep -q 'git-hook' "$CONSUMER"; then
+  pass "model-router + git-hook declared (WebUI extension is composer pairing)"
 else
-  pass "SOUL activation disabled (fresh agent)"
+  fail "missing model-router/git-hook"
+fi
+if grep -qE 'services\.hermes-webui\s*=' "$CONSUMER"; then
+  fail "hermes.nix still declares services.hermes-webui (composer pairs it)"
+else
+  pass "WebUI pairing left to hermes-pnp"
 fi
 
-if grep -q 'model-router' "$HERMES/integrations/default.nix" \
-  && grep -q 'hermesPnP.plugins' "$HERMES/integrations/default.nix" \
-  && grep -q 'HERMES_WEBUI_EXTENSION_DIR' "$WEBUI" \
-  && grep -q 'integrations' "$DEFAULT"; then
-  pass "model-router declared via hermes-pnp + WebUI extension"
+if grep -q 'hmc.enable' "$CONSUMER"; then
+  pass "HMC declared via hermesPnP.hmc"
 else
-  fail "model-router missing from hermes-pnp declaration or WebUI extension env"
+  fail "hermes.nix must set services.hermesPnP.hmc.enable"
 fi
-if [[ -f "$HERMES/integrations/mcp/composio.nix" ]] && grep -q 'mcpServers.composio' "$HERMES/integrations/mcp/composio.nix" \
-  && grep -q 'services.mcpProxy' "$HERMES/integrations/mcp/composio.nix" \
-  && grep -q 'hermes-pnp' "$ROOT/flake.nix" \
-  && [[ ! -e "$HERMES/integrations/mcp/proxy.nix" ]]; then
-  pass "composio MCP client via hermes-pnp mcp-proxy"
+
+if grep -q 'container.enable' "$CONSUMER"; then
+  pass "container.enable declared on hermesPnP"
 else
-  fail "missing composio → hermes-pnp mcp-proxy flake wiring"
+  fail "hermes.nix must set services.hermesPnP.container.enable"
 fi
-if grep -q 'api.policylayer.com\|policylayer-mcp' "$HERMES/integrations/mcp/"*.nix 2>/dev/null; then
-  fail "policylayer leftover under integrations/mcp"
+
+if grep -q 'projects-auto-commit' "$CONSUMER" "$COMPOSIO" "$GBRAIN"; then
+  fail "projects-auto-commit leftover (replaced by git-hook)"
 else
-  pass "no policylayer leftovers under integrations/mcp"
+  pass "no projects-auto-commit"
 fi
-if grep -qiE 'maton' "$HERMES/integrations/mcp/"*.nix "$HERMES/integrations/mcp/"*.sh 2>/dev/null; then
-  fail "maton leftovers under integrations/mcp"
+if grep -q '/var/lib/hermes/bin/hermes-cli' "$ROOT/deploy"; then
+  fail "deploy still calls leftover hermes-cli (use official hermes)"
 else
-  pass "no maton leftovers under integrations/mcp"
+  pass "deploy uses official hermes"
 fi
-if [[ -d "$HERMES/integrations/plugins" ]]; then
-  fail "in-tree integrations/plugins still present (moved to hermes-pnp)"
+
+if grep -q 'mcpServers.composio' "$COMPOSIO" \
+  && grep -q 'hermesPnP.mcpProxy.backends' "$COMPOSIO"; then
+  pass "composio MCP client via hermesPnP.mcpProxy.backends"
 else
-  pass "first-party plugins live in hermes-pnp"
+  fail "missing composio → hermesPnP.mcpProxy.backends wiring"
+fi
+if grep -q 'mcpProxy.enable' "$CONSUMER"; then
+  pass "mcpProxy.enable declared on hermesPnP"
+else
+  fail "hermes.nix must set services.hermesPnP.mcpProxy.enable"
+fi
+
+if grep -q 'proxyServices' "$CONSUMER" \
+  && grep -q 'cloudflareTunnel.proxyServices' "$CONSUMER"; then
+  pass "WebUI uses host Caddy + cloudflareTunnel proxyServices"
+else
+  fail "hermes.nix must use services.caddy.proxyServices + cloudflareTunnel.proxyServices"
 fi
 
 if grep -n 'services/hermes\.nix' "$ROOT_AGENTS" "$HERMES_AGENTS" 2>/dev/null; then
@@ -164,48 +171,67 @@ else
   fail "root AGENTS.md missing hermes/ path"
 fi
 
-if [[ -f "$HERMES/gbrain.nix" ]] && [[ -f "$HERMES/memory/AGENTS.md" ]] && [[ -f "$HERMES/BOOTSTRAP.md" ]]; then
-  pass "GBrain module + memory contract + BOOTSTRAP present"
+if [[ -f "$GBRAIN" ]] && [[ -f "$HERMES/BOOTSTRAP.md" ]]; then
+  pass "GBrain leftover module + BOOTSTRAP present"
 else
-  fail "missing GBrain docs/module surfaces"
+  fail "missing GBrain leftover module or BOOTSTRAP"
+fi
+if [[ -d "$HERMES/memory" ]]; then
+  fail "hermes/memory leftover (registry was unused; pruned)"
+else
+  pass "no hermes/memory registry"
+fi
+if [[ -e "$HERMES/TOOLS.md" ]]; then
+  fail "TOOLS.md leftover (toolbox is composer-owned)"
+else
+  pass "no leftover TOOLS.md"
+fi
+if [[ -d "$HERMES/reference" ]]; then
+  fail "hermes/reference leftover (operator docs folded / moved to hermes-pnp)"
+else
+  pass "no leftover hermes/reference"
+fi
+if [[ -e "$HERMES/scripts/gbrain-setup.sh" ]] || [[ -e "$HERMES/scripts/validate-gbrain-integration.sh" ]]; then
+  fail "gbrain setup/validate still under hermes/scripts (belong in hermes-pnp)"
+else
+  pass "gbrain operator scripts not vendored on host"
+fi
+if [[ -d "$HERMES/prompts" ]]; then
+  fail "hermes/prompts leftover (bootstrap query lives in hermes-pnp scripts/)"
+else
+  pass "no leftover hermes/prompts"
 fi
 
-for opt in enable container environmentFiles settings mcpServers extraDependencyGroups addToSystemPackages restart restartSec; do
-  if grep -q "$opt" "$DEFAULT"; then
+if grep -q 'gbrain.enable' "$CONSUMER"; then
+  pass "hermes.nix enables composer gbrain hook"
+else
+  fail "hermes.nix must set services.hermesPnP.gbrain.enable"
+fi
+
+if grep -q 'gbrain-mcp-http =' "$GBRAIN" || grep -q 'mcpServers.gbrain' "$GBRAIN"; then
+  fail "modules/gbrain.nix must not start serve or declare mcpServers.gbrain (composer owns those)"
+else
+  pass "gbrain leftover module does not overlap composer serve"
+fi
+
+for opt in enable extraDependencyGroups addToSystemPackages; do
+  if grep -q "$opt" "$CONSUMER"; then
     :
   else
     fail "declaration missing expected option surface: $opt"
   fi
 done
-pass "core hermes-agent option surfaces present in default.nix"
+pass "core hermes-agent option surfaces present in hermes.nix"
 
-if grep -q 'extraDependencyGroups = agentCfg.extraDependencyGroups' "$PKGFIX" \
-  && grep -q '_module.args.hermesRuntimeEnv' "$PKGFIX"; then
-  pass "package-fix bakes service extras and exports hermesRuntimeEnv"
+if grep -q 'package.override' "$CONSUMER"; then
+  fail "webui must not override the agent package"
 else
-  fail "package-fix must bake extraDependencyGroups and export hermesRuntimeEnv"
+  pass "webui does not override agent package"
 fi
-if grep -q 'agent.package = agentPkg' "$WEBUI" \
-  && ! grep -q 'package.override' "$WEBUI"; then
-  pass "webui consumes services.hermes-agent.package without override"
+if grep -q 'API_SERVER_' "$CONSUMER"; then
+  fail "consumer still redeclares API_SERVER_* (belongs in sops hermes.env only)"
 else
-  fail "webui must use agent.package = cfg.package (no extras override)"
-fi
-if grep -q 'hermesRuntimeEnv' "$WEBUI" \
-  && grep -q 'environmentFiles = config.services.hermes-agent.environmentFiles' "$WEBUI"; then
-  pass "webui inherits hermesRuntimeEnv + agent environmentFiles"
-else
-  fail "webui must inherit hermesRuntimeEnv and agent environmentFiles"
-fi
-if grep -q 'API_SERVER_' "$WEBUI"; then
-  fail "webui still redeclares API_SERVER_* (belongs in sops hermes.env only)"
-else
-  pass "webui does not redeclare API_SERVER_*"
-fi
-if grep -q 'extraPackages' "$HERMES/toolbox.nix"; then
-  fail "toolbox.nix still sets unused extraPackages (container mode)"
-else
-  pass "toolbox.nix has no unused extraPackages"
+  pass "consumer does not redeclare API_SERVER_*"
 fi
 
 if [[ "$FAIL" -ne 0 ]]; then
@@ -213,7 +239,6 @@ if [[ "$FAIL" -ne 0 ]]; then
   echo "ALIGNMENT CHECK FAILED"
   exit 1
 fi
-
 echo
-echo "ALIGNMENT CHECK OK (gbrain-era; SOUL off; dashboard gone)"
+echo "ALIGNMENT CHECK OK"
 exit 0

@@ -20,7 +20,6 @@ in
     # ./containers/filebrowser.nix  # replaced by NFS/SMB Files shares (services/filesharing.nix)
     # ./containers/teamspeak.nix
     ./containers/crowdsec.nix
-    ./hermes
     # ./containers/comet.nix  # Stremio addon decommissioned (comet + comet-postgres)
     # torbox-media-center removed — FUSE index idled ~1.5GiB; local /media share instead
     ./containers/ersatztv.nix

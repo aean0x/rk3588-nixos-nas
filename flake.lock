@@ -46,16 +46,22 @@
     },
     "hermes-pnp": {
       "inputs": {
+        "hermes-agent": [
+          "hermes-agent"
+        ],
+        "hermes-webui": [
+          "hermes-webui"
+        ],
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1786907838,
-        "narHash": "sha256-tAFpOSJMTL3rwbAGEYUbI+ZAay1nAFDeo+ZIb+HHauA=",
+        "lastModified": 1786993618,
+        "narHash": "sha256-OSgVlqT3p3rUFpX29wg8+Uevx5n4FSRYFesidtaV3Mo=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "f3296a09a312e0fd4d7d012f9cfed119a6188ee4",
+        "rev": "05a84e8551d5b376cf50f387b14530684ae6c6d7",
         "type": "github"
       },
       "original": {

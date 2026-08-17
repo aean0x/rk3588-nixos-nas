@@ -20,64 +20,63 @@
     hermes-pnp = {
       url = "github:aean0x/hermes-pnp";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.hermes-agent.follows = "hermes-agent";
+      inputs.hermes-webui.follows = "hermes-webui";
     };
   };
 
-  outputs =
-    {
-      self,
-      nixpkgs,
-      nixpkgs-stable,
-      sops-nix,
-      nixarr,
-      ...
-    }@inputs:
-    let
-      settings = import ./settings.nix;
-      system = settings.targetSystem;
+  outputs = {
+    self,
+    nixpkgs,
+    nixpkgs-stable,
+    sops-nix,
+    nixarr,
+    ...
+  } @ inputs: let
+    settings = import ./settings.nix;
+    system = settings.targetSystem;
 
-      overlays = [
-        (final: prev: {
-          stable = import nixpkgs-stable {
-            inherit system;
-            config.allowUnfree = true;
-          };
-        })
-      ];
+    overlays = [
+      (final: prev: {
+        stable = import nixpkgs-stable {
+          inherit system;
+          config.allowUnfree = true;
+        };
+      })
+    ];
 
-      # Shared modules for installer images (ISO + netboot)
-      installerModules = [
+    # Shared modules for installer images (ISO + netboot)
+    installerModules = [
+      ./hardware-configuration.nix
+      ./hosts/iso/default.nix
+      {
+        nixpkgs.crossSystem.system = settings.targetSystem;
+        nixpkgs.localSystem.system = settings.hostSystem;
+      }
+    ];
+  in {
+    nixosConfigurations.${settings.hostName} = nixpkgs.lib.nixosSystem {
+      inherit system;
+      specialArgs = {inherit inputs settings;};
+      modules = [
+        {nixpkgs.overlays = overlays;}
+        sops-nix.nixosModules.sops
+        nixarr.nixosModules.default
         ./hardware-configuration.nix
-        ./hosts/iso/default.nix
-        {
-          nixpkgs.crossSystem.system = settings.targetSystem;
-          nixpkgs.localSystem.system = settings.hostSystem;
-        }
+        ./hosts/system/default.nix
+        ./secrets/sops.nix
+        ./scripts/scripts.nix
       ];
-    in
-    {
-      nixosConfigurations.${settings.hostName} = nixpkgs.lib.nixosSystem {
-        inherit system;
-        specialArgs = { inherit inputs settings; };
-        modules = [
-          { nixpkgs.overlays = overlays; }
-          sops-nix.nixosModules.sops
-          nixarr.nixosModules.default
-          ./hardware-configuration.nix
-          ./hosts/system/default.nix
-          ./secrets/sops.nix
-          ./scripts/scripts.nix
-        ];
-      };
+    };
 
-      nixosConfigurations."${settings.hostName}-ISO" = nixpkgs.lib.nixosSystem {
-        system = settings.targetSystem;
-        specialArgs = { inherit inputs settings; };
-        modules = [
+    nixosConfigurations."${settings.hostName}-ISO" = nixpkgs.lib.nixosSystem {
+      system = settings.targetSystem;
+      specialArgs = {inherit inputs settings;};
+      modules =
+        [
           "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
           (
-            { config, ... }:
-            {
+            {config, ...}: {
               isoImage = {
                 volumeID = builtins.substring 0 32 "${settings.hostName}_${config.system.nixos.label}";
                 makeEfiBootable = true;
@@ -87,32 +86,31 @@
           )
         ]
         ++ installerModules;
-      };
+    };
 
-      nixosConfigurations."${settings.hostName}-netboot" = nixpkgs.lib.nixosSystem {
-        system = settings.targetSystem;
-        specialArgs = { inherit inputs settings; };
-        modules = [
+    nixosConfigurations."${settings.hostName}-netboot" = nixpkgs.lib.nixosSystem {
+      system = settings.targetSystem;
+      specialArgs = {inherit inputs settings;};
+      modules =
+        [
           "${nixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
         ]
         ++ installerModules;
-      };
-
-      packages.${settings.hostSystem} = {
-        iso = self.nixosConfigurations."${settings.hostName}-ISO".config.system.build.isoImage;
-        netboot =
-          let
-            cfg = self.nixosConfigurations."${settings.hostName}-netboot".config.system.build;
-            ipxeArm64 = nixpkgs.legacyPackages.${settings.hostSystem}.pkgsCross.aarch64-multiplatform.ipxe;
-          in
-          nixpkgs.legacyPackages.${settings.hostSystem}.runCommand "netboot-${settings.hostName}" { } ''
-            mkdir -p $out
-            ln -s ${cfg.kernel}/Image $out/Image
-            ln -s ${cfg.netbootRamdisk}/initrd $out/initrd
-            cp ${cfg.netbootIpxeScript}/netboot.ipxe $out/netboot.ipxe
-            cp ${ipxeArm64}/snp.efi $out/snp.efi
-          '';
-      };
-
     };
+
+    packages.${settings.hostSystem} = {
+      iso = self.nixosConfigurations."${settings.hostName}-ISO".config.system.build.isoImage;
+      netboot = let
+        cfg = self.nixosConfigurations."${settings.hostName}-netboot".config.system.build;
+        ipxeArm64 = nixpkgs.legacyPackages.${settings.hostSystem}.pkgsCross.aarch64-multiplatform.ipxe;
+      in
+        nixpkgs.legacyPackages.${settings.hostSystem}.runCommand "netboot-${settings.hostName}" {} ''
+          mkdir -p $out
+          ln -s ${cfg.kernel}/Image $out/Image
+          ln -s ${cfg.netbootRamdisk}/initrd $out/initrd
+          cp ${cfg.netbootIpxeScript}/netboot.ipxe $out/netboot.ipxe
+          cp ${ipxeArm64}/snp.efi $out/snp.efi
+        '';
+    };
+  };
 }

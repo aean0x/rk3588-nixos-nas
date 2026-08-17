@@ -84,16 +84,18 @@ case "$CMD" in
 
     validate-gbrain)
         check_ssh
-        info "Uploading and running GBrain integration validation..."
-        scp ${SSH_OPTS} "${REPO_ROOT}/hosts/system/hermes/scripts/validate-gbrain-integration.sh" \
-            "$TARGET:/tmp/validate-gbrain-integration.sh"
-        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/validate-gbrain-integration.sh"
+        info "Uploading and running GBrain validation (from hermes-pnp)..."
+        pnp=$(nix eval --raw --impure --expr "(builtins.getFlake \"${REPO_ROOT}\").inputs.hermes-pnp.outPath")
+        scp ${SSH_OPTS} "${pnp}/scripts/validate-gbrain.sh" \
+            "$TARGET:/tmp/validate-gbrain.sh"
+        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/validate-gbrain.sh"
         ;;
 
     gbrain-setup)
         check_ssh
-        info "Uploading and running GBrain post-install setup..."
-        scp ${SSH_OPTS} "${REPO_ROOT}/hosts/system/hermes/scripts/gbrain-setup.sh" \
+        info "Uploading and running GBrain post-install setup (from hermes-pnp)..."
+        pnp=$(nix eval --raw --impure --expr "(builtins.getFlake \"${REPO_ROOT}\").inputs.hermes-pnp.outPath")
+        scp ${SSH_OPTS} "${pnp}/scripts/gbrain-setup.sh" \
             "$TARGET:/tmp/gbrain-setup.sh"
         ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/gbrain-setup.sh"
         ;;
@@ -103,10 +105,9 @@ case "$CMD" in
         info "Soft-reset Hermes state (preserves gbrain ~/.bun + ~/brain)..."
         scp ${SSH_OPTS} \
             "${REPO_ROOT}/hosts/system/hermes/scripts/clean-hermes-state.sh" \
-            "${REPO_ROOT}/hosts/system/hermes/prompts/memory-gbrain.md" \
             "$TARGET:/tmp/"
         ssh -t ${SSH_OPTS} "$TARGET" \
-            "sudo MEMORY_GBRAIN=/tmp/memory-gbrain.md bash /tmp/clean-hermes-state.sh"
+            "sudo bash /tmp/clean-hermes-state.sh"
         ;;
 
     # On-device commands (forwarded via SSH)
@@ -164,12 +165,13 @@ case "$CMD" in
         fi
         ;;
 
-    # hermes CLI: alias only expands in interactive login shells; use hermes-cli
-    # (toolbox PATH) like Hetzner; run from hermes workspace to avoid host cwd PermissionError.
+    # hermes CLI: alias only expands in interactive login shells. Official
+    # addToSystemPackages binary as the service user; run from workspace
+    # so host cwd is not PermissionError. hermes-cli wrapper is gone.
     hermes)
         check_ssh
         ssh -tt ${SSH_OPTS} "$TARGET" \
-          "cd /var/lib/hermes/workspace && sudo -u hermes env HOME=/var/lib/hermes/home HERMES_HOME=/var/lib/hermes/.hermes /var/lib/hermes/bin/hermes-cli $(printf '%q ' "$@")"
+          "cd /var/lib/hermes/workspace && sudo -u hermes env HOME=/var/lib/hermes/home HERMES_HOME=/var/lib/hermes/.hermes /run/current-system/sw/bin/hermes $(printf '%q ' "$@")"
         ;;
 
     # Catch-all: forward to device (container exec, etc.)
