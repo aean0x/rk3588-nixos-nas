@@ -1,6 +1,7 @@
 # Host leftovers after hermes-pnp owns serve + MCP URL.
 # Composer starts gbrain-mcp-http when hermesPnP.gbrain.enable.
-# This file: 8GiB RAM cap, git-credential helper, config.yaml Bearer rewrite.
+# This file: 1G RAM cap, programs.git identity, PAT helper (unless
+# programs.git already sets credential.helper), config.yaml nits.
 {
   config,
   lib,
@@ -12,8 +13,33 @@ let
   home = "${agent.stateDir}/home";
   hermesHome = "${agent.stateDir}/.hermes";
   gitCredential = ../scripts/git-credential-github-env;
+
+  gitCfg = config.programs.git;
+  gitConfigMerged =
+    if builtins.isList gitCfg.config then
+      lib.foldl' lib.recursiveUpdate { } gitCfg.config
+    else
+      gitCfg.config;
+  nixosCredentialHelper =
+    gitCfg.enable && (((gitConfigMerged.credential or { }).helper or null) != null);
+  nixosGitIdentity =
+    gitCfg.enable
+    && (((gitConfigMerged.user or { }).name or null) != null)
+    && (((gitConfigMerged.user or { }).email or null) != null);
 in
 {
+  # Machine-wide identity (AGENTS.md). Writes /etc/gitconfig.
+  # ISO keeps programs.git.enable = false.
+  programs.git = {
+    enable = true;
+    config = {
+      user = {
+        name = "aean0x";
+        email = "3682177+aean0x@users.noreply.github.com";
+      };
+    };
+  };
+
   systemd.services.gbrain-mcp-http.serviceConfig = {
     MemoryMax = "1G";
     OOMScoreAdjust = 400;
@@ -27,9 +53,28 @@ in
     install -m 0755 -o hermes -g hermes ${gitCredential} \
       ${home}/.local/bin/git-credential-github-env
     if command -v git >/dev/null 2>&1; then
-      sudo -u hermes env HOME=${home} git config --global credential.helper \
-        /home/hermes/.local/bin/git-credential-github-env || true
-      sudo -u hermes env HOME=${home} git config --global credential.useHttpPath true || true
+      # Drop stale/forbidden user-level identity + dead safe.directory so
+      # /etc/gitconfig wins. Local override in projects does the same.
+      sudo -u hermes env HOME=${home} git config --global --unset-all user.name || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all user.email || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all safe.directory || true
+      if [ -d ${hermesHome}/projects/.git ]; then
+        sudo -u hermes env HOME=${home} git -C ${hermesHome}/projects config --local --unset-all user.name || true
+        sudo -u hermes env HOME=${home} git -C ${hermesHome}/projects config --local --unset-all user.email || true
+      fi
+      ${lib.optionalString (!nixosGitIdentity) ''
+        sudo -u hermes env HOME=${home} git config --global user.name aean0x || true
+        sudo -u hermes env HOME=${home} git config --global user.email 3682177+aean0x@users.noreply.github.com || true
+      ''}
+      ${lib.optionalString nixosCredentialHelper ''
+        sudo -u hermes env HOME=${home} git config --global --unset-all credential.helper || true
+        sudo -u hermes env HOME=${home} git config --global --unset-all credential.useHttpPath || true
+      ''}
+      ${lib.optionalString (!nixosCredentialHelper) ''
+        sudo -u hermes env HOME=${home} git config --global credential.helper \
+          /home/hermes/.local/bin/git-credential-github-env || true
+        sudo -u hermes env HOME=${home} git config --global credential.useHttpPath true || true
+      ''}
     fi
 
     install -d -m 2770 -o hermes -g hermes ${agent.stateDir}/workspace
@@ -92,6 +137,17 @@ elif isinstance(cur.get("headers"), dict) and cur.get("headers"):
         desired_mcp["headers"] = {"Authorization": auth}
 if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
+    changed = True
+
+# Stale pre-agent.max_turns key; agent.max_turns is authoritative.
+agent_block = data.get("agent")
+if isinstance(agent_block, dict) and "max_turns" in agent_block and "max_turns" in data:
+    del data["max_turns"]
+    changed = True
+
+# hermes doctor: missing key is reported as v0.
+if data.get("_config_version") in (None, 0):
+    data["_config_version"] = 33
     changed = True
 
 if changed:

@@ -61,6 +61,9 @@ in
     ];
 
     settings = {
+      # hermes doctor: missing key is reported as v0.
+      _config_version = 33;
+
       # Display + compressor window. Applies to the default model only
       # (grok-4.6); after a router hop the live catalog window wins.
       # Native fire is min(ratio × live window, this cap). 180k is the
