@@ -100,8 +100,6 @@ in {
   };
 
   system.activationScripts.hermes-memory-manifest = lib.stringAfter ["hermes-agent-setup"] ''
-        install -d -m 0755 -o hermes -g hermes ${config.services.hermesPnP.toolbox.binDir}
-
         # ── Always managed (memory contract / registry) ──
         install -d -m 0755 -o hermes -g hermes ${hermes.stateDir}/memory
         install -m 0644 ${registryFile} ${hermes.memoryRegistry.host}

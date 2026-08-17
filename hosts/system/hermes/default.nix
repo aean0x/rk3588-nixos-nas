@@ -49,7 +49,7 @@
     ];
   };
 
-  # hermes CLI routes into the container via docker exec (hermes-cli wrapper).
+  # hermes CLI runs as the hermes service user via sudo (reads .env, docker group for container exec).
   users.users.hermes.extraGroups = ["docker"];
 
   # adminUser needs hermes group membership so os.stat() can traverse .hermes/ (drwxrws---).
@@ -240,19 +240,11 @@
   ];
 
   # hermes CLI runs as the hermes service user via sudo so it can read .env (0600 hermes:hermes).
-  # Alias uses hermes-cli (toolbox PATH) like Hetzner; keep stock hermes for direct calls.
   security.sudo.extraRules = [
     {
       users = [settings.adminUser];
       runAs = "hermes";
       commands = [
-        {
-          command = "${config.services.hermesPnP.toolbox.binDir}/hermes-cli";
-          options = [
-            "NOPASSWD"
-            "SETENV"
-          ];
-        }
         {
           command = "/run/current-system/sw/bin/hermes";
           options = [
@@ -264,8 +256,8 @@
     }
   ];
 
-  # Toolbox PATH for host hermes chat/doctor (composer toolbox hermes-cli wrapper).
-  environment.shellAliases.hermes = "sudo -u hermes ${config.services.hermesPnP.toolbox.binDir}/hermes-cli";
+  # Host hermes chat/doctor → stock hermes binary as the service user.
+  environment.shellAliases.hermes = "sudo -u hermes /run/current-system/sw/bin/hermes";
 
   # SOUL.md declarative install is intentionally disabled.
   # Leave identity blank for a fresh agent; optional local draft: workspace/soul.md (not applied).
