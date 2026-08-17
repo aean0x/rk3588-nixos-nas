@@ -1,13 +1,17 @@
 # Hermes WebUI — native systemd (no docker). Reverse-proxied as
-# archimedes.<domain>. Same agent identity as the gateway: composer
-# pairs user/package/env; this file adds the public edge + remaps.
+# archimedes.<domain>. Composer pairs user/package/env; this file adds
+# the public edge, host remaps, and rocknas RAM caps.
 {
   config,
-  lib,
   settings,
   hermes,
   ...
-}: {
+}:
+let
+  port = 8787;
+  host = "archimedes.${settings.domain}";
+in
+{
   assertions = [
     {
       assertion = config.services.hermes-webui.enable;
@@ -22,36 +26,21 @@
   services.hermes-webui = {
     enable = true;
     host = "127.0.0.1";
-    port = 8787;
+    inherit port;
     openFirewall = false;
-    extraEnvironment =
-      config.services.hermes-agent.environment
-      // {
-        HERMES_WEBUI_TRUST_FORWARDED_PROTO = "1";
-        HERMES_WEBUI_SECURE = "1";
-        HERMES_WEBUI_EXTENSION_DIR = toString config.services.hermesPnP.pluginInstall.webuiExtensionDir;
-        HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
-        HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.container;
-        GBRAIN_AUDIT_DIR = hermes.gbrainAudit.container;
-        PATH = config.services.hermesPnP.toolbox.hostPath;
-      };
+    extraEnvironment = config.services.hermes-agent.environment // {
+      HERMES_WEBUI_TRUST_FORWARDED_PROTO = "true";
+      HERMES_WEBUI_SECURE = "true";
+      HERMES_WEBUI_EXTENSION_DIR = toString config.services.hermesPnP.pluginInstall.webuiExtensionDir;
+      HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
+      HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.host;
+      GBRAIN_AUDIT_DIR = hermes.gbrainAudit.host;
+      PATH = config.services.hermesPnP.toolbox.hostPath;
+    };
   };
 
-  systemd.services.hermes-webui.serviceConfig = {
-    MemoryMax = hermes.resources.memory;
-    MemoryHigh = hermes.resources.memory;
-    MemorySwapMax = "0";
-    TasksMax = 512;
-    LimitNOFILE = 65535;
-    OOMPolicy = "continue";
-  };
+  systemd.services.hermes-webui.serviceConfig = hermes.systemdResourceConfig;
 
-  services.caddy.virtualHosts."archimedes.${settings.domain}".extraConfig = ''
-    encode gzip
-    reverse_proxy 127.0.0.1:8787
-  '';
-
-  services.cloudflared.tunnels.${settings.cloudflareTunnelId}.ingress = {
-    "archimedes.${settings.domain}" = "http://127.0.0.1:8787";
-  };
+  services.caddy.proxyServices."${host}" = port;
+  services.cloudflareTunnel.proxyServices."${host}" = port;
 }

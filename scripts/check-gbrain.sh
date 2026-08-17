@@ -23,7 +23,7 @@ if grep -A15 'mcpServers.gbrain' "$H/gbrain.nix" | grep -qE 'command\s*='; then
 else
   pass "mcpServers.gbrain is HTTP (no stdio command)"
 fi
-grep -q 'gbrain-retrieval-reflex' "$H/integrations/default.nix" && pass "gbrain-retrieval-reflex declared via hermes-pnp" || fail_ "no retrieval-reflex plugin"
+grep -q 'gbrain.enable' "$H/gbrain.nix" && pass "gbrain.enable on composer (installs retrieval-reflex)" || fail_ "no composer gbrain hook"
 # Static pointer index must be gone
 if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/integrations/plugins/gbrain-reflex" ]; then
   fail_ "static gbrain-reflex / pointer-index still in tree"

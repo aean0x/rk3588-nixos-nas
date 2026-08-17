@@ -46,8 +46,12 @@
       "model-router"
       "tool-call-coherency"
       "secret-handoff"
-      "projects-auto-commit"
+      "git-hook"
     ];
+    skills.extraSkills = {
+      retrieval-reflex = ./skills/retrieval-reflex;
+      gbrain-http-auth = ./skills/gbrain-http-auth;
+    };
   };
 
   # hermes CLI runs as the hermes service user via sudo (reads .env, docker group for container exec).
@@ -144,18 +148,17 @@
 
       # ── Model routing ──
       # Per-turn chat: hermes-pnp model-router (low / medium / high).
-      # Session identity is high. Auxiliary + unpinned cron are low.
-      # Delegation children are medium. Vision omitted → inherits high.
+      # Session identity is high. Mechanical aux + unpinned cron are low.
+      # Reasoning aux (background_review, curator, kanban) + delegation
+      # children are medium. Vision omitted → inherits high.
       # Docs: https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
 
       # Sub-agent fleet (delegate_task). Model/provider: hermesPnP.models.medium.
-      # Leave the platform slot empty so they inherit the parent session and
-      # skip final-voice polish (model-router).
       delegation = {
         max_concurrent_children = 5;
       };
 
-      # Auxiliary + cron models: hermesPnP.models.low.
+      # Mechanical aux + cron models: hermesPnP.models.low.
       cron = {
         model_drift_guard = true;
         # Mobile noty: raw agent text (no Cronjob Response header/footer).

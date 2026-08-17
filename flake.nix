@@ -18,7 +18,7 @@
     # Media stack: Sonarr/Radarr (+ optional others) with declarative settings-sync
     nixarr.url = "github:nix-media-server/nixarr";
     hermes-pnp = {
-      url = "github:aean0x/hermes-pnp/feat/pnp-composer";
+      url = "github:aean0x/hermes-pnp";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.hermes-agent.follows = "hermes-agent";
       inputs.hermes-webui.follows = "hermes-webui";

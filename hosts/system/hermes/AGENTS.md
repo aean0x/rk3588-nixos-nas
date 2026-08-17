@@ -6,11 +6,11 @@
 - **Model routing:** plugin `model-router` classifies each main-agent turn (native providers, not OpenRouter):
   - **low** `deepseek` / `deepseek-v4-flash` — acks, trivias, docs/drafting.
   - **medium** `deepseek` / `deepseek-v4-pro` — debug, review, complex analysis, optimization, nuanced review.
-  - **high** `xai-oauth` / `grok-4.6` — architecture, security, high-stakes, migration, tool-error escalate, end-of-turn final-voice polish.
+  - **high** `xai-oauth` / `grok-4.6` — architecture, security, high-stakes, migration, tool-error escalate.
   - Pins: `/low` `/medium` `/high` `/auto` via `ctx.register_command` (CLI + gateway).
   - Classifier uses existing `auxiliary.triage_specifier` (low). No SOUL.md writes.
   - Cron + `delegate_task` children are skipped (stay on their declared fleet).
-  - **Aux / cron** pin low: `hermesPnP.models.low`.
+  - **Aux:** mechanical slots + cron pin low; `background_review` / `curator` / `kanban_decomposer` pin medium.
   - **Delegation** pins medium: `hermesPnP.models.medium`, `max_concurrent_children=5`. No per-child model pin.
   - **Vision:** left on main (high, Grok native vision).
   - Live switch uses `AIAgent.switch_model` + `hermes_cli.model_switch` (same as `/model`). If the agent is not bound yet, the first API call of that turn may still be high; later calls apply the classified model.
@@ -29,7 +29,7 @@ hosts/system/hermes/
 ├── runtime.nix          # site identity + 2G agent resource SoT (gateway + WebUI)
 ├── gbrain.nix           # gbrain-mcp-http + HTTP MCP client + memory registry
 ├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
-├── plugins.nix          # HMC extraPlugin (host pin) + host skills
+├── plugins.nix          # HMC extraPlugin (host pin)
 ├── mcp.nix              # composio via flake aean0x/hermes-pnp (mcp-proxy)
 ├── browser.nix          # Brave engine override (CDP + noVNC from the composer)
 ├── onedrive.nix         # workspace OneDrive sync

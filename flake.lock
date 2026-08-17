@@ -57,16 +57,15 @@
         ]
       },
       "locked": {
-        "lastModified": 1786963721,
-        "narHash": "sha256-Oy+yIa5hhPX1o4d4JUMFRTNv2nyTO5AiJPsqHv5bJjY=",
+        "lastModified": 1786980546,
+        "narHash": "sha256-oZApuwrmV+wtChBzBbLFOzrq2XHB1PEGBNAdCAWHKIw=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "485c2b8c0697b005eb01e4ef319bf45034a8138a",
+        "rev": "7880827465a9bedb0896eb6fb5fc607595c552a8",
         "type": "github"
       },
       "original": {
         "owner": "aean0x",
-        "ref": "feat/pnp-composer",
         "repo": "hermes-pnp",
         "type": "github"
       }

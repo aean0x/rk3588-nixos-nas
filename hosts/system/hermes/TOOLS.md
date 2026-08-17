@@ -41,7 +41,7 @@ python + python3 (+requests,pyyaml,toml), pandoc, bun, nodejs, git, ripgrep, jq,
 curl, wget, unzip, zip, imagemagick, tree, rsync, openssh, ffmpeg, sox,
 poppler-utils, gnupg, age, file, which, coreutils, findutils, gawk, gnused,
 gnutar, gzip, bzip2, xz, zstd, p7zip, htop, ncdu, lsof, strace, tcpdump, nmap,
-netcat-gnu, socat, chromium→chrome/google-chrome aliases.
+netcat-gnu, socat. Browser binary + aliases: composer `services.hermesPnP.browser`.
 
 ## Env (shared: gateway + WebUI)
 
@@ -55,7 +55,7 @@ WebUI inherits it as `extraEnvironment`; container also gets it via `--env`.
 |----------|--------|
 | `PATH` | agent path above |
 | `HERMES_PY` / `HERMES_PYTHON` | `/data/toolbox/bin/python3` |
-| `AGENT_BROWSER_EXECUTABLE_PATH` | `/data/toolbox/bin/chromium` |
+| `AGENT_BROWSER_EXECUTABLE_PATH` | composer browser bin (Brave here) |
 | `BROWSER_CDP_URL` | `http://127.0.0.1:9222` (composer browser) |
 | `browser.cdp_url` | same (config.yaml) |
 

@@ -1,4 +1,4 @@
-# Hermes plugins: composer catalog + HMC host pin + host skills.
+# Hermes plugins: composer catalog + HMC host pin.
 # Plugin *code* lives in flake input hermes-pnp. HMC is a host pin
 # (not in the composer catalog) because its config.yaml is site-specific.
 {
@@ -88,28 +88,15 @@
     cp ${hmcConfig} "$out/config.yaml"
   '';
 
-  skillsDir = ./skills;
-  managedSkills = [
-    "retrieval-reflex"
-    "gbrain-http-auth"
-  ];
 in {
   services.hermesPnP.extraPlugins.hermes-context-manager = hmcPluginSrc;
 
-  # Host skills + HMC state. Plugin trees are installed by hermes-pnp.
-  system.activationScripts.hermes-integrations-skills =
-    lib.stringAfter [
-      "users"
-      "groups"
-      "hermes-agent-setup"
-    ] ''
-      install -d -m 2770 -o hermes -g hermes ${hermes.hermesHome}/hmc_state
-
-      ${lib.concatMapStrings (name: ''
-          install -d -m 0755 -o hermes -g hermes ${hermes.skills.host}/${name}
-          install -m 0644 -o hermes -g hermes ${skillsDir}/${name}/SKILL.md \
-            ${hermes.skills.host}/${name}/SKILL.md
-        '')
-        managedSkills}
-    '';
+  # HMC runtime state only. Host skills go through hermesPnP.skills.extraSkills.
+  system.activationScripts.hermes-hmc-state = lib.stringAfter [
+    "users"
+    "groups"
+    "hermes-agent-setup"
+  ] ''
+    install -d -m 2770 -o hermes -g hermes ${hermes.hermesHome}/hmc_state
+  '';
 }
