@@ -8,7 +8,7 @@ Technical roadmap for AI agents working with this NixOS flake configuration.
 
 ### Git identity (mandatory)
 
-Commits use **only** this machine's `git config user.name` / `user.email`. Do not override `GIT_AUTHOR_*` / `GIT_COMMITTER_*`, do not add Claude/Copilot/agent `Co-authored-by` trailers, and do not commit as a bot.
+Commits use **only** `aean0x <3682177+aean0x@users.noreply.github.com>` (this machine's `git config user.name` / `user.email`). Do not override `GIT_AUTHOR_*` / `GIT_COMMITTER_*`, do not add Claude/Copilot/agent `Co-authored-by` trailers, do not commit as a bot, and never commit as `agent@local` / `hermes@local` / `hermes@rocknas.local`.
 
 ### Agent autonomy (mandatory)
 
