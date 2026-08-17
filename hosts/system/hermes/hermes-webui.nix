@@ -1,42 +1,20 @@
-# Hermes WebUI (nesquena/hermes-webui) — full-parity browser UI.
-#
-#   LAN:  Caddy archimedes.<domain> → 127.0.0.1:8787
-#   WAN:  Cloudflare Tunnel → 127.0.0.1:8787   # CGNAT-safe (Starlink)
-#
-# Native systemd (not a second Docker container). In-process agent against
-# HERMES_HOME. Package + hermesRuntimeEnv + resource caps come from the same
-# maps as the gateway (runtime.nix + overrides/package-fix.nix).
-#
-# openFirewall = false; bind loopback only. Pair with tunnel/Caddy for access.
+# Hermes WebUI — native systemd (no docker). Reverse-proxied as
+# archimedes.<domain>. Same agent identity as the gateway: composer
+# pairs user/package/env; this file adds the public edge + remaps.
 {
-  settings,
   config,
-  inputs,
+  lib,
+  settings,
   hermes,
-  hermesRuntimeEnv ? { },
   ...
-}:
-let
-  port = 8787;
-  domain = settings.domain;
-  host = "archimedes.${domain}";
-  agentPkg = config.services.hermes-agent.package;
-in
-{
-  imports = [ inputs.hermes-webui.nixosModules.default ];
-
-  # Pairing: same drv + store-env as the gateway. Do not .override extras here.
+}: {
   assertions = [
     {
-      assertion = hermesRuntimeEnv != { };
-      message = "hermes-webui requires overrides/package-fix.nix hermesRuntimeEnv.";
+      assertion = config.services.hermes-webui.enable;
+      message = "hermes-webui must stay enabled; it is the interactive surface.";
     }
     {
-      assertion = config.services.hermes-webui.agent.package == agentPkg;
-      message = "hermes-webui.agent.package must be services.hermes-agent.package (no extra override).";
-    }
-    {
-      assertion = config.services.hermesPnP.plugins.webuiExtensionDir != null;
+      assertion = config.services.hermesPnP.pluginInstall.webuiExtensionDir != null;
       message = "hermes-webui needs hermesPnP model-router plugin for HERMES_WEBUI_EXTENSION_DIR.";
     }
   ];
@@ -44,36 +22,36 @@ in
   services.hermes-webui = {
     enable = true;
     host = "127.0.0.1";
-    inherit port;
+    port = 8787;
     openFirewall = false;
-    stateDir = "/var/lib/hermes-webui";
-    user = "hermes";
-    group = "hermes";
-    hermesHome = hermes.hermesHome;
-    # Derives HERMES_WEBUI_PYTHON from passthru.hermesVenv on the shared package.
-    agent.package = agentPkg;
-    environmentFiles = config.services.hermes-agent.environmentFiles;
-    extraEnvironment = hermesRuntimeEnv // {
-      HERMES_WEBUI_TRUST_FORWARDED_PROTO = "true";
-      HERMES_WEBUI_SECURE = "true";
-      HERMES_WEBUI_EXTENSION_DIR = toString config.services.hermesPnP.plugins.webuiExtensionDir;
-      HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
-      # Host remaps of container-only paths (gateway sees /data and /home/hermes).
-      HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.host;
-      GBRAIN_AUDIT_DIR = hermes.gbrainAudit.host;
-      PATH = hermes.hostPath;
-    };
+    extraEnvironment =
+      config.services.hermes-agent.environment
+      // {
+        HERMES_WEBUI_TRUST_FORWARDED_PROTO = "1";
+        HERMES_WEBUI_SECURE = "1";
+        HERMES_WEBUI_EXTENSION_DIR = toString config.services.hermesPnP.pluginInstall.webuiExtensionDir;
+        HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
+        HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.container;
+        GBRAIN_AUDIT_DIR = hermes.gbrainAudit.container;
+        PATH = hermes.webuiPath;
+      };
   };
 
-  systemd.services.hermes-webui = {
-    after = [
-      "network-online.target"
-      "hermes-agent.service"
-    ];
-    wants = [ "network-online.target" ];
-    serviceConfig = hermes.systemdResourceConfig;
+  systemd.services.hermes-webui.serviceConfig = {
+    MemoryMax = hermes.agentMemoryMax;
+    MemoryHigh = hermes.agentMemoryHigh;
+    MemorySwapMax = "0";
+    TasksMax = 512;
+    LimitNOFILE = 65535;
+    OOMPolicy = "continue";
   };
 
-  services.caddy.proxyServices."${host}" = port;
-  services.cloudflareTunnel.proxyServices."${host}" = port;
+  services.caddy.virtualHosts."archimedes.${settings.domain}".extraConfig = ''
+    encode gzip
+    reverse_proxy 127.0.0.1:8787
+  '';
+
+  services.cloudflared.tunnels.${settings.cloudflareTunnelId}.ingress = {
+    "archimedes.${settings.domain}" = "http://127.0.0.1:8787";
+  };
 }

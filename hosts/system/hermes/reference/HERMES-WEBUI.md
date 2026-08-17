@@ -10,7 +10,7 @@ WAN:  Browser → CF edge → cloudflared → hermes-webui :8787 → HERMES_HOME
 LAN:  Browser → Caddy archimedes.<domain> → hermes-webui :8787 → HERMES_HOME agent
 ```
 
-Same agent package and store-safe env as the gateway (`overrides/package-fix.nix` + `runtime.nix`). WebUI does not re-override extras. Official `hermes dashboard` is removed.
+Same agent package and store-safe env as the gateway (hermes-pnp composer + `runtime.nix`). WebUI does not re-override extras. Official `hermes dashboard` is removed.
 
 Declared in `hermes-webui.nix`:
 
@@ -24,7 +24,7 @@ services.cloudflareTunnel.proxyServices."archimedes.${domain}" = 8787;
 - Port **8787** (WebUI default); state under `/var/lib/hermes-webui`; runs as `hermes:hermes`.
 - Same 2 GiB / 2 CPU / OOM +500 cap as the gateway (`runtime.nix`).
 - Optional loopback API server still on **:8642** for scripts/tools (not used by WebUI chat).
-- **Model Router extension:** `HERMES_WEBUI_EXTENSION_DIR` → `services.hermesPnP.plugins.webuiExtensionDir` (hermes-pnp store path). Injects `/auto` `/t1` `/t2` `/t3` composer buttons and overlays the model chip. No WebUI source patches.
+- **Model Router extension:** `HERMES_WEBUI_EXTENSION_DIR` → `services.hermesPnP.pluginInstall.webuiExtensionDir` (hermes-pnp store path). Injects `/auto` `/low` `/medium` `/high` composer buttons and overlays the model chip. No WebUI source patches.
 
 ## URL
 

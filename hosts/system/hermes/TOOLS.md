@@ -13,7 +13,7 @@ Aligned with Hetzner `modules/hermes-agent.nix` toolbox + MCP pattern.
 | **Host Brave CDP** | `hermes-browser.service` :9222 | `BROWSER_CDP_URL` + `browser.cdp_url` |
 | **Cookie warm** | `hermes-browser-import-cookies` | Netscape / Playwright JSON → CDP `Network.setCookie` |
 | **MCP** | `mcpServers.gbrain` → `gbrain serve` | Tools `mcp_gbrain_*` (via tool_search) |
-| **Hermes WebUI** | native `:8787` → Caddy/tunnel `archimedes.<domain>` | Same package + `hermesRuntimeEnv` as gateway; host toolbox PATH; TTS via `ELEVENLABS_API_KEY` |
+| **Hermes WebUI** | native `:8787` → Caddy/tunnel `archimedes.<domain>` | Same package + env as gateway; host toolbox PATH; TTS via `ELEVENLABS_API_KEY` |
 | **Hermes API** | `API_SERVER_*` loopback only | Bearer = `hermes_api_server_key` (sops); optional clients |
 
 ## PATH order (container / gateway)
@@ -45,7 +45,7 @@ netcat-gnu, socat, chromium→chrome/google-chrome aliases.
 
 ## Env (shared: gateway + WebUI)
 
-Store-safe map from `overrides/package-fix.nix` (`hermesRuntimeEnv`): `HERMES_BUNDLED_*`,
+Store-safe map from hermes-pnp composer: `HERMES_BUNDLED_*`,
 `HERMES_OPTIONAL_*`, `HERMES_WEB_DIST`, `HERMES_TUI_DIR`, silence `PYTHONPATH`.
 WebUI inherits it as `extraEnvironment`; container also gets it via `--env`.
 

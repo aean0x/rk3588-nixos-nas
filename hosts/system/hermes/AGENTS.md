@@ -4,16 +4,16 @@
 
 - **Runtime:** official `hermes-agent` NixOS module, container mode (`ubuntu:24.04`, `--network=host`).
 - **Model routing:** plugin `model-router` classifies each main-agent turn (native providers, not OpenRouter):
-  - **T1** `deepseek` / `deepseek-v4-flash` — acks, trivias, docs/drafting (old T1+T2).
-  - **T2** `deepseek` / `deepseek-v4-pro` — debug, review, complex analysis, optimization, nuanced review (old T3+T4 + low-signal T4).
-  - **T3** `xai-oauth` / `grok-4.6` — architecture, security, high-stakes, migration, tool-error escalate, end-of-turn final-voice polish.
-  - Pins: `/t1` `/t2` `/t3` `/auto` via `ctx.register_command` (CLI + gateway).
-  - Classifier uses existing `auxiliary.triage_specifier` (Flash). No SOUL.md writes.
+  - **low** `deepseek` / `deepseek-v4-flash` — acks, trivias, docs/drafting.
+  - **medium** `deepseek` / `deepseek-v4-pro` — debug, review, complex analysis, optimization, nuanced review.
+  - **high** `xai-oauth` / `grok-4.6` — architecture, security, high-stakes, migration, tool-error escalate, end-of-turn final-voice polish.
+  - Pins: `/low` `/medium` `/high` `/auto` via `ctx.register_command` (CLI + gateway).
+  - Classifier uses existing `auxiliary.triage_specifier` (low). No SOUL.md writes.
   - Cron + `delegate_task` children are skipped (stay on their declared fleet).
-  - **Aux / cron** pin Flash: `provider=deepseek`, `model=deepseek-v4-flash`.
-  - **Delegation** pins Pro: `provider=deepseek`, `model=deepseek-v4-pro`, `max_concurrent_children=5`. No per-child model pin.
-  - **Vision:** left on main (Grok native vision).
-  - Live switch uses `AIAgent.switch_model` + `hermes_cli.model_switch` (same as `/model`). If the agent is not bound yet, the first API call of that turn may still be Grok; later calls apply the classified tier.
+  - **Aux / cron** pin low: `hermesPnP.models.low`.
+  - **Delegation** pins medium: `hermesPnP.models.medium`, `max_concurrent_children=5`. No per-child model pin.
+  - **Vision:** left on main (high, Grok native vision).
+  - Live switch uses `AIAgent.switch_model` + `hermes_cli.model_switch` (same as `/model`). If the agent is not bound yet, the first API call of that turn may still be high; later calls apply the classified model.
   - WebUI UX is an official extension sidecar (`HERMES_WEBUI_EXTENSION_DIR`), not a core patch.
 - **Identity:** declarative **SOUL.md is disabled**. Fresh agent; no forced persona from Nix.
 - **Long-term memory:** **GBrain** — this is the primary integration focus.
@@ -51,7 +51,7 @@ hosts/system/hermes/
 Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
 Native systemd (not a second Docker container): in-process agent against the same `HERMES_HOME`.
 Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes.env` (WebUI inherits the agent's `environmentFiles`).
-Package + extras: `overrides/package-fix.nix` bakes `extraDependencyGroups` into `services.hermes-agent.package`; WebUI sets `agent.package` to that same drv. Store-safe env is `hermesRuntimeEnv`. Paths / PATH / 2 GiB caps: `runtime.nix`.
+Package + extras: hermes-pnp composer bakes `extraDependencyGroups` into `services.hermes-agent.package` and pairs WebUI to that drv. Store-safe env is `services.hermes-agent.environment`. Paths / PATH / 2 GiB caps: `runtime.nix`.
 Flake SoT TTS: `settings.tts.provider=elevenlabs` (`eleven_flash_v2_5`, voice `pNInz6obpgDQGcFmaJgB`).
 Web search: pin `web.search_backend=xai`.
 Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace).
@@ -112,7 +112,7 @@ If Hermes asks a coding agent for patchy flake edits to fix day-to-day ops (brai
 ### hermes-agent pin
 
 Unpinned to `github:NousResearch/hermes-agent` (tracking main / current lock).  
-`overrides/package-fix.nix` is the silence wrap + extras-baked package + `hermesRuntimeEnv`. Drop the wrap when upstream `_is_token` uses `_canonical_silence_candidates`. Paths / PATH / agent RAM: `runtime.nix`.
+Silence wrap + extras-baked package: hermes-pnp composer (`packageFixes.silenceMarkers`). Drop the wrap when upstream `_is_token` uses `_canonical_silence_candidates`. Paths / PATH / agent RAM: `runtime.nix`.
 
 ## GBrain (summary)
 

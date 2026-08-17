@@ -5,9 +5,8 @@
 # Env injection rule:
 #   environment / environmentFiles → host-safe, lands in $HERMES_HOME/.env
 #   container.extraOptions --env    → generated from the same maps (do not retype)
-#   WebUI extraEnvironment         → hermesRuntimeEnv + host remaps + UI-only
-{ lib, ... }:
-let
+#   WebUI extraEnvironment         → agent.environment + host remaps + UI-only
+{lib, ...}: let
   stateDir = "/var/lib/hermes";
   home = "${stateDir}/home";
   hermesHome = "${stateDir}/.hermes";
@@ -105,10 +104,12 @@ let
     AGENT_BROWSER_EXECUTABLE_PATH = "${toolbox.container}/chromium";
   };
 
-  mkDockerEnv = attrs: lib.flatten (lib.mapAttrsToList (k: v: [
-    "--env"
-    "${k}=${v}"
-  ]) attrs);
+  mkDockerEnv = attrs:
+    lib.flatten (lib.mapAttrsToList (k: v: [
+        "--env"
+        "${k}=${v}"
+      ])
+      attrs);
 
   hermes = {
     inherit
@@ -136,7 +137,6 @@ let
     bin = "${stateDir}/bin";
     plugins = "${stateDir}/plugins";
   };
-in
-{
+in {
   _module.args.hermes = hermes;
 }

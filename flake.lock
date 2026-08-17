@@ -46,20 +46,27 @@
     },
     "hermes-pnp": {
       "inputs": {
+        "hermes-agent": [
+          "hermes-agent"
+        ],
+        "hermes-webui": [
+          "hermes-webui"
+        ],
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1786907838,
-        "narHash": "sha256-tAFpOSJMTL3rwbAGEYUbI+ZAay1nAFDeo+ZIb+HHauA=",
+        "lastModified": 1786918562,
+        "narHash": "sha256-p+b2pbsSa1zLx0PyO/OpirfdElZo46CSLtS4cPO91l8=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "f3296a09a312e0fd4d7d012f9cfed119a6188ee4",
+        "rev": "6dfea9c67dbabaaccb58dc4dc656f35bda7a6701",
         "type": "github"
       },
       "original": {
         "owner": "aean0x",
+        "ref": "feat/pnp-composer",
         "repo": "hermes-pnp",
         "type": "github"
       }

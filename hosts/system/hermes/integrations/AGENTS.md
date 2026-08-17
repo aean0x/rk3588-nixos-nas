@@ -20,7 +20,9 @@ This host only declares which plugins to enable.
 
 ## Plugins (enabled)
 
-Declared once in `default.nix` (`enabledPlugins`):
+Declared in `hosts/system/hermes/default.nix` (`services.hermesPnP.plugins`)
+plus `gbrain.enable` (retrieval-reflex + memory-flush) and HMC via
+`extraPlugins`:
 
 | Name | Role |
 |------|------|
@@ -29,7 +31,7 @@ Declared once in `default.nix` (`enabledPlugins`):
 | `gbrain-memory-flush` | Prompt to flush durable notes via gbrain MCP |
 | `tool-call-coherency` | Fix double-wrapped / cold MCP tool calls |
 | `projects-auto-commit` | EOT monorepo commit for projects tree |
-| `model-router` | T1 Flash / T2 Pro / T3 Grok per-turn routing |
+| `model-router` | low / medium / high per-turn routing |
 | `secret-handoff` | Ephemeral login paste — clarify + direct CDP inject |
 
 **One install pattern for every plugin** (including HMC):
@@ -54,7 +56,7 @@ stale `.pyc` over freshly deployed source. Manual hot-fix must do the same
 (`touch` + purge pyc + restart) — see skill `hermes-plugin-ops` §6.
 
 **model-router WebUI** assets ship with hermes-pnp. `hermes-webui.nix`
-sets `HERMES_WEBUI_EXTENSION_DIR` from `services.hermesPnP.plugins.webuiExtensionDir`.
+sets `HERMES_WEBUI_EXTENSION_DIR` from `services.hermesPnP.pluginInstall.webuiExtensionDir`.
 
 ## MCP clients
 
@@ -103,9 +105,9 @@ unwrap; deny that surface tool if you need a hard guarantee.
 ## Adding something
 
 1. **Plugin (portable):** add it to `hermes-pnp` `plugins/<name>/`, then append
-   the name to `services.hermesPnP.plugins.enable` here.
+   the name to `services.hermesPnP.plugins` here.
 2. **Plugin (host-only):** put the tree anywhere and add
-   `services.hermesPnP.plugins.extraPlugins.<name> = ./path;`
+   `services.hermesPnP.extraPlugins.<name> = ./path;`
 3. **MCP client:** add `mcp/<name>.nix` that declares `services.mcpProxy.backends.<name>`
    (secret + filters) and points `services.hermes-agent.mcpServers.<name>` at the
    proxy path. Import it from `mcp/default.nix`.

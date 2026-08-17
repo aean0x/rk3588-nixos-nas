@@ -11,26 +11,48 @@
   inputs,
   hermes,
   ...
-}:
-{
+}: {
   imports = [
-    inputs.hermes-agent.nixosModules.default
+    inputs.hermes-pnp.nixosModules.default
     ./runtime.nix # paths, PATH maps, 2G agent resource SoT
-    ./overrides/package-fix.nix
     ./toolbox.nix # everyday CLI toolkit → toolbox.bin + agent PATH
     ./onedrive.nix
     ./gbrain.nix
     ./workstation.nix
     ./browser.nix # persistent Brave + loopback CDP for agent automation
-    ./hermes-webui.nix # Hermes WebUI (archimedes.<domain>) + ElevenLabs TTS
-    ./integrations # plugins (incl. HMC) + MCP clients + gbrain skills
+    ./hermes-webui.nix # public edge + remaps; composer pairs identity
+    ./integrations # HMC extraPlugin + MCP clients + gbrain skills
   ];
 
+  services.hermesPnP = {
+    enable = true;
+    models = {
+      low = {
+        provider = "deepseek";
+        model = "deepseek-v4-flash";
+      };
+      medium = {
+        provider = "deepseek";
+        model = "deepseek-v4-pro";
+      };
+      high = {
+        provider = "xai-oauth";
+        model = "grok-4.6";
+      };
+    };
+    plugins = [
+      "model-router"
+      "tool-call-coherency"
+      "secret-handoff"
+      "projects-auto-commit"
+    ];
+  };
+
   # hermes CLI routes into the container via docker exec (hermes-cli wrapper).
-  users.users.hermes.extraGroups = [ "docker" ];
+  users.users.hermes.extraGroups = ["docker"];
 
   # adminUser needs hermes group membership so os.stat() can traverse .hermes/ (drwxrws---).
-  users.users.${settings.adminUser}.extraGroups = [ "hermes" ];
+  users.users.${settings.adminUser}.extraGroups = ["hermes"];
 
   services.hermes-agent = {
     enable = true;
@@ -39,7 +61,7 @@
       enable = true;
       backend = "docker";
       image = "ubuntu:24.04";
-      hostUsers = [ settings.adminUser ];
+      hostUsers = [settings.adminUser];
       # Module always creates the container with --network=host (official module
       # hardcodes it). Publish flags (-p) are ignored under host networking.
       # Resource flags from runtime.nix (same numbers as WebUI systemd).
@@ -64,17 +86,11 @@
         cdp_url = "http://127.0.0.1:9222";
       };
 
+      # Session identity (provider/default/fallback) comes from
+      # hermesPnP.models.high. Keep only keys the composer does not seed.
       model = {
-        # Primary: xAI OAuth (run `hermes auth add xai-oauth` once after deploy).
-        provider = "xai-oauth";
-        default = "grok-4.6";
         # SoT window: WebUI + compressor + HMC all honor this (runtime.nix).
         context_length = hermes.contextLimit;
-      };
-
-      fallback_model = {
-        provider = "xai-oauth";
-        model = "grok-4.6";
       };
 
       stt = {
@@ -91,7 +107,7 @@
         };
       };
 
-      toolsets = [ "all" ];
+      toolsets = ["all"];
 
       terminal = {
         backend = "local";
@@ -133,68 +149,20 @@
       };
 
       # ── Model routing ──
-      # Per-turn chat: plugin `model-router` (T1 Flash / T2 Pro / T3 Grok).
-      # Native providers — not OpenRouter slugs. Plugin: hermes-pnp model-router.
-      # Cheap fleet (DeepSeek V4 Flash, provider=deepseek): aux + unpinned cron.
-      # Delegate fleet is Pro (see below). Vision stays on main (Grok native).
-      # `provider: auto` would inherit main for any unset aux slot — every
-      # volume task is pinned.
+      # Per-turn chat: hermes-pnp model-router (low / medium / high).
+      # Session identity is high. Auxiliary + unpinned cron are low.
+      # Delegation children are medium. Vision omitted → inherits high.
       # Docs: https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
 
-      # Sub-agent fleet (delegate_task). Parent stays on main model.
-      # No per-child model pin — every child inherits this block. Do not put
-      # Grok here (taxes coding + diversion children). Flash is the wrong
-      # default: children implement/review from a dumped prompt.
+      # Sub-agent fleet (delegate_task). Model/provider: hermesPnP.models.medium.
+      # Leave the platform slot empty so they inherit the parent session and
+      # skip final-voice polish (model-router).
       delegation = {
-        model = "deepseek-v4-pro";
-        provider = "deepseek";
         max_concurrent_children = 5;
       };
 
-      # Auxiliary slots (DEFAULT_CONFIG keys). reasoning_effort=none: Flash
-      # tasks are structured/low-stakes and do not benefit from CoT spend.
-      auxiliary =
-        let
-          flash = {
-            model = "deepseek-v4-flash";
-            provider = "deepseek";
-            reasoning_effort = "none";
-          };
-        in
-        {
-          # Almost always — session titles; default docs recommend flash.
-          title_generation = flash;
-          # Largest background token hitter on long sessions.
-          compression = flash;
-          # Smart approval classifier — haiku/flash class is enough.
-          approval = flash;
-          # Pure summarization; no reasoning required.
-          web_extract = flash;
-          # Skill search / matching.
-          skills_hub = flash;
-          # MCP helper / tool routing.
-          mcp = flash;
-          # Kanban triage expansion + decomposition graph.
-          triage_specifier = flash;
-          kanban_decomposer = flash;
-          # Short profile blurbs.
-          profile_describer = flash;
-          # Skill-usage review (can run minutes on reasoning models).
-          curator = flash;
-          # Post-turn self-improvement fork (memory/skill capture).
-          background_review = flash;
-          # Monitor catalog urgency scoring (high volume).
-          monitor = flash;
-          # Memory query rewrite (already cheap; keep on fleet).
-          memory_query_rewrite = flash;
-          # vision intentionally omitted → auto → main Grok 4.6.
-        };
-
-      # Cron fleet default: unpinned jobs must NOT inherit model.default=grok-4.6.
-      # Resolution at fire: job.model > cron.model > HERMES_MODEL > model.default
+      # Auxiliary + cron models: hermesPnP.models.low.
       cron = {
-        model = "deepseek-v4-flash";
-        model_provider = "deepseek";
         model_drift_guard = true;
         # Mobile noty: raw agent text (no Cronjob Response header/footer).
         wrap_response = false;
@@ -226,7 +194,7 @@
         hermes.skills.host
       ];
 
-      # Needs HERMES_BUNDLED_PLUGINS (overrides/package-fix hermesRuntimeEnv)
+      # Needs HERMES_BUNDLED_PLUGINS (composer package wrap)
       # so discovery finds share/…/plugins/web/*/plugin.yaml.
       web = {
         search_backend = "xai";
@@ -256,7 +224,7 @@
     # mcpServers: integrations/mcp/* (composio via flake hermes-pnp) + gbrain.nix.
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
-    # overrides/package-fix.nix bakes these into services.hermes-agent.package
+    # Composer bakes these into services.hermes-agent.package
     # so WebUI passthru.hermesVenv matches the gateway (do not re-override).
     # - messaging: Telegram/Discord/Slack — removed from `[all]` (2026-05-12); required for gateway.
     # - firecrawl: web_extract / Firecrawl provider (firecrawl-py); lazy install disabled in Nix.
@@ -278,7 +246,7 @@
   # Alias uses hermes-cli (toolbox PATH) like Hetzner; keep stock hermes for direct calls.
   security.sudo.extraRules = [
     {
-      users = [ settings.adminUser ];
+      users = [settings.adminUser];
       runAs = "hermes";
       commands = [
         {
@@ -305,5 +273,4 @@
   # SOUL.md declarative install is intentionally disabled.
   # Leave identity blank for a fresh agent; optional local draft: workspace/soul.md (not applied).
   # system.activationScripts.hermes-soul — removed.
-
 }
