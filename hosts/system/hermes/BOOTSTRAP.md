@@ -175,7 +175,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | Piece | Declarative? |
 |-------|----------------|
 | `mcpServers.gbrain` | Yes (`gbrain.nix`) |
-| `mcpServers.composio` | Yes (`integrations/mcp/composio.nix` via hermes-pnp) |
+| `mcpServers.composio` | Yes (`mcp.nix` via hermes-pnp) |
 | `services.mcpProxy` | Yes (flake `github:aean0x/hermes-pnp`) |
 | Registry + export schema + memory AGENTS.md (under `/var/lib/hermes/memory/`) | Yes (activation, always) |
 | Host exclusive gbrain CLI / dream timers | **No** (removed; MCP + Hermes cron only) |
@@ -189,7 +189,7 @@ See `memory/registry.json` and `memory/AGENTS.md` (canonical). Short form:
 | retrieval-reflex skill | Yes (always managed; gbrain-native policy) |
 | `gbrain` CLI install (bun) | **No** — agent or manual (this bootstrap) |
 | xAI OAuth tokens | **No** — `hermes auth add xai-oauth` once (or future `authFile`) |
-| Local Brave + CDP (`browser.nix`) | Yes (service + profile dir); warm via `hermes-browser-import-cookies` |
+| Local Brave + CDP (composer `services.hermesPnP.browser`) | Yes (service + profile dir); warm via `hermes-browser-import-cookies` |
 
 ---
 
@@ -252,7 +252,7 @@ After adding the hostname, re-run `./scripts/setup-cloudflare-tunnel.sh` so DNS 
 
 ## 8. Token lean + hermes-context-manager (HMC)
 
-Settings live in `default.nix` (`tool_output`, compression: 180k cap + DeepSeek 0.18, `model.context_length` = 200k from `runtime.nix`). HMC is `integrations/hmc.nix`, installed like any other plugin.
+Settings live in `default.nix` (`tool_output`, compression: 180k cap + DeepSeek 0.18, `model.context_length` = 200k from `runtime.nix`). HMC is `plugins.nix`, installed like any other plugin.
 
 ```bash
 # After remote-switch — restart so HMC hooks load:

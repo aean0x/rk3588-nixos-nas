@@ -56,18 +56,18 @@ WebUI inherits it as `extraEnvironment`; container also gets it via `--env`.
 | `PATH` | agent path above |
 | `HERMES_PY` / `HERMES_PYTHON` | `/data/toolbox/bin/python3` |
 | `AGENT_BROWSER_EXECUTABLE_PATH` | `/data/toolbox/bin/chromium` |
-| `BROWSER_CDP_URL` | `http://127.0.0.1:9222` (browser.nix) |
+| `BROWSER_CDP_URL` | `http://127.0.0.1:9222` (composer browser) |
 | `browser.cdp_url` | same (config.yaml) |
 
 ## MCP
 
-Declarative clients: `integrations/mcp/` (+ `gbrain.nix` for HTTP gbrain).
+Declarative clients: `mcp.nix` (+ `gbrain.nix` for HTTP gbrain).
 
 | Server | Command / URL | Notes |
 |--------|---------------|--------|
 | gbrain | HTTP `http://127.0.0.1:3131/mcp` | Sole serve: `gbrain-mcp-http` |
 | mcp-proxy | HTTP `http://127.0.0.1:3140/<backend>` | Secrets + toolkit filters; flake `github:aean0x/hermes-pnp` |
-| composio | HTTP via proxy → `https://connect.composio.dev/mcp` | Bearer from sops `composio_api_key`; mail-surface inbox/sent/drafts minus agent-blocked; `integrations/mcp/composio.nix` |
+| composio | HTTP via proxy → `https://connect.composio.dev/mcp` | Bearer from sops `composio_api_key`; mail-surface inbox/sent/drafts minus agent-blocked; `mcp.nix` |
 
 ## Gaps vs Hetzner (closed)
 
@@ -82,7 +82,7 @@ Declarative clients: `integrations/mcp/` (+ `gbrain.nix` for HTTP gbrain).
 | sudo NOPASSWD | hermes-cli + hermes | same |
 | Dotenv PATH | stripped (host-safe); container via service/docker env | same — strip PATH/HERMES_PY/AGENT_BROWSER from `.env`; host CLI uses hermes-cli PATH |
 
-Intentional rocknas extras: host sticky Brave CDP (`browser.nix`), OneDrive sync, HMC + gbrain-retrieval-reflex (resolve IPC) + memory-flush, hermes-webui. GBrain: MCP + native push-context (no exclusive CLI, no static pointer JSON).
+Intentional rocknas extras: host Brave CDP (composer `services.hermesPnP.browser`), OneDrive sync, HMC + gbrain-retrieval-reflex (resolve IPC) + memory-flush, hermes-webui. GBrain: MCP + native push-context (no exclusive CLI, no static pointer JSON).
 
 ## Host CLI routing note
 

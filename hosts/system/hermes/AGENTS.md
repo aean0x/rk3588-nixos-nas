@@ -26,17 +26,14 @@ Operator bootstrap: **`BOOTSTRAP.md`**.
 ```
 hosts/system/hermes/
 ├── default.nix          # module import, model routing settings, no SOUL activation
-├── runtime.nix          # paths, PATH maps, 2G agent resource SoT (gateway + WebUI)
-├── toolbox.nix          # everyday CLI toolkit → toolbox.bin + agent PATH
-├── overrides/           # explicit upstream workarounds (silence wrap, HMC overlay)
+├── runtime.nix          # site identity + 2G agent resource SoT (gateway + WebUI)
 ├── gbrain.nix           # gbrain-mcp-http + HTTP MCP client + memory registry
-├── integrations/hmc.nix # HMC upstream pin + config.yaml (no source overlay)
 ├── hermes-webui.nix     # Hermes WebUI :8787 → archimedes.<domain> (Caddy + tunnel)
-├── browser.nix          # Brave sticky profile + CDP + cookie import
+├── plugins.nix          # HMC extraPlugin (host pin) + host skills
+├── mcp.nix              # composio via flake aean0x/hermes-pnp (mcp-proxy)
+├── browser.nix          # Brave engine override (CDP + noVNC from the composer)
 ├── onedrive.nix         # workspace OneDrive sync
 ├── workstation.nix      # SSH helpers to workstation Grok agent
-├── integrations/        # first-party plugins + MCP clients (see integrations/AGENTS.md)
-│   └── mcp/             # composio via flake aean0x/hermes-pnp (mcp-proxy + plugins)
 ├── skills/              # retrieval-reflex + workstation + gbrain-http-auth
 ├── memory/              # declarative memory plane
 ├── scripts/
@@ -51,7 +48,7 @@ hosts/system/hermes/
 Flake input `hermes-webui` (`github:nesquena/hermes-webui`); service user `hermes` shares `HERMES_HOME`.
 Native systemd (not a second Docker container): in-process agent against the same `HERMES_HOME`.
 Sops `elevenlabs_api_key` → `ELEVENLABS_API_KEY` in `/run/hermes.env` (WebUI inherits the agent's `environmentFiles`).
-Package + extras: hermes-pnp composer bakes `extraDependencyGroups` into `services.hermes-agent.package` and pairs WebUI to that drv. Store-safe env is `services.hermes-agent.environment`. Paths / PATH / 2 GiB caps: `runtime.nix`.
+Package + extras: hermes-pnp composer bakes `extraDependencyGroups` into `services.hermes-agent.package` and pairs WebUI to that drv. Store-safe env is `services.hermes-agent.environment`. Paths / 2 GiB caps: `runtime.nix`; PATH: composer `toolbox`.
 Flake SoT TTS: `settings.tts.provider=elevenlabs` (`eleven_flash_v2_5`, voice `pNInz6obpgDQGcFmaJgB`).
 Web search: pin `web.search_backend=xai`.
 Operator runbook: `reference/HERMES-WEBUI.md` (not installed into live workspace).
@@ -60,17 +57,18 @@ Official `hermes dashboard` (`hermes.<domain>` :9119) is **removed** — WebUI i
 ## Token lean + plugins (0.19)
 
 - `tool_output` + compression prune/idle in `default.nix`
-- Plugin allow-list + install: **`integrations/default.nix`** (catalog: `integrations/AGENTS.md`)
+- Plugin allow-list + install: **`plugins.nix`** (catalog: flake hermes-pnp)
 - After deploy: `systemctl restart hermes-agent`, then `/hmc status` in chat
 
 ## Everyday tools (toolbox)
 
-Activation links a Nix `buildEnv` at `/var/lib/hermes/toolbox/bin` → container
-`/data/toolbox/bin`. Gateway `environment.PATH` includes that dir plus
+Composer `services.hermesPnP.toolbox` links a Nix `buildEnv` at
+`/var/lib/hermes/toolbox/bin` → container `/data/toolbox/bin`. Gateway
+`environment.PATH` includes that dir plus
 `~/.bun/bin` (gbrain) and `~/.local/bin` (nix-pc wrappers).
 
-Verify: `./scripts/check-tools.sh` (structural) or
-`REMOTE_CHECK=1 ./scripts/check-tools.sh` after deploy.
+Toolbox is composer-owned; verify with `nix flake check` in hermes-pnp
+(the `modules` check asserts the buildEnv materializes + PATH wiring).
 
 ## Resource limits / OOM policy (8 GiB board)
 
@@ -81,7 +79,7 @@ prefer killing or hard-capping it over taking down DNS or HA.
 |---------|------------------|--------|
 | hermes-agent container | **2 GiB** / 2 CPU / OOM **+500** | `runtime.nix` → `containerResourceOptions` |
 | hermes-webui (in-process agent) | **2 GiB** / 2 CPU / OOM **+500** | `runtime.nix` → `systemdResourceConfig` |
-| hermes-browser (Brave) | **1 GiB** `MemoryMax`, OOM adj **+500** | `browser.nix` |
+| hermes-browser (Brave) | **1 GiB** `MemoryMax`, OOM adj **+500** | `services.hermesPnP.browser` (composer) |
 | gbrain-mcp-http | 1 GiB, OOM **+400** | `gbrain.nix` |
 | AdGuard Home | OOM **−500**, `MemoryMin=128M` | `services/adguard.nix` |
 | Home Assistant | docker `--oom-score-adj=-500` | `containers/home-assistant.nix` |
