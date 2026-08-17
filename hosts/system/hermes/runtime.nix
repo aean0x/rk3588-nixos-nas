@@ -27,8 +27,7 @@ in {
     OOMScoreAdjust = resources.oomScoreAdjust;
   };
 
-  # hermes CLI runs as the hermes service user via sudo (reads .env, docker group).
-  users.users.hermes.extraGroups = [ "docker" ];
+  # hermes CLI runs as the hermes service user via sudo (reads .env).
   users.users.${settings.adminUser}.extraGroups = [ "hermes" ];
 
   security.sudo.extraRules = [
