@@ -15,14 +15,12 @@
 # (subjectContains those phrases, move + stop).
 {
   config,
-  inputs,
   ...
 }:
 {
-  imports = [ inputs.hermes-pnp.nixosModules.mcp-proxy ];
+  services.hermesPnP.mcpProxy.enable = true;
 
   services.mcpProxy = {
-    enable = true;
     backends.composio = {
       upstream = "https://connect.composio.dev/mcp";
       secrets.Authorization = {

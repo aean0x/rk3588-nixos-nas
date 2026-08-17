@@ -6,6 +6,7 @@
 # Plugins: composer gbrain.enable installs retrieval-reflex + memory-flush.
 # No exclusive consolidate/dream host wrappers. No static pointer JSON.
 {
+  config,
   lib,
   pkgs,
   hermes,
@@ -25,7 +26,7 @@
   gbrainHttpScript = pkgs.writeShellScript "gbrain-mcp-http" ''
     set -euo pipefail
     export HOME="${hermes.home}"
-    export PATH="${hermes.hostPath}"
+    export PATH="${config.services.hermesPnP.toolbox.hostPath}"
     if [ ! -x "${gbrainBin}" ] && ! command -v gbrain >/dev/null 2>&1; then
       echo "gbrain-mcp-http: gbrain not installed under ${hermes.home}/.bun/bin (bootstrap first)" >&2
       exit 1
@@ -71,7 +72,7 @@ in {
       EnvironmentFile = ["-/run/hermes.env"];
       Environment = [
         "HOME=${hermes.home}"
-        "PATH=${hermes.hostPath}"
+        "PATH=${config.services.hermesPnP.toolbox.hostPath}"
       ];
       WorkingDirectory = hermes.home;
       ExecStart = "${gbrainHttpScript}";
@@ -99,7 +100,7 @@ in {
   };
 
   system.activationScripts.hermes-memory-manifest = lib.stringAfter ["hermes-agent-setup"] ''
-        install -d -m 0755 -o hermes -g hermes ${hermes.bin}
+        install -d -m 0755 -o hermes -g hermes ${config.services.hermesPnP.toolbox.binDir}
 
         # ── Always managed (memory contract / registry) ──
         install -d -m 0755 -o hermes -g hermes ${hermes.stateDir}/memory
@@ -217,7 +218,7 @@ in {
         mcp["gbrain"] = desired_mcp
         changed = True
 
-    # plugins.enabled: integrations/default.nix (single-root $HERMES_HOME/plugins)
+    # plugins.enabled: plugins.nix (single-root $HERMES_HOME/plugins)
 
     if changed:
         path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))

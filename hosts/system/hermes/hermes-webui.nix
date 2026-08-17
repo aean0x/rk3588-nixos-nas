@@ -33,13 +33,13 @@
         HERMES_WEBUI_EXTENSION_MANIFEST = "extensions.json";
         HERMES_MEMORY_REGISTRY = hermes.memoryRegistry.container;
         GBRAIN_AUDIT_DIR = hermes.gbrainAudit.container;
-        PATH = hermes.webuiPath;
+        PATH = config.services.hermesPnP.toolbox.hostPath;
       };
   };
 
   systemd.services.hermes-webui.serviceConfig = {
-    MemoryMax = hermes.agentMemoryMax;
-    MemoryHigh = hermes.agentMemoryHigh;
+    MemoryMax = hermes.resources.memory;
+    MemoryHigh = hermes.resources.memory;
     MemorySwapMax = "0";
     TasksMax = 512;
     LimitNOFILE = 65535;

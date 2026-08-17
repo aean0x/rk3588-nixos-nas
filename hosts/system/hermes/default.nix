@@ -5,6 +5,7 @@
 # Identity (SOUL.md): intentionally NOT declaratively installed — fresh agent owns its persona.
 # Long-term memory: G-Brain via ./gbrain.nix (see ./memory/AGENTS.md + ./BOOTSTRAP.md).
 {
+  config,
   lib,
   pkgs,
   settings,
@@ -14,14 +15,14 @@
 }: {
   imports = [
     inputs.hermes-pnp.nixosModules.default
-    ./runtime.nix # paths, PATH maps, 2G agent resource SoT
-    ./toolbox.nix # everyday CLI toolkit → toolbox.bin + agent PATH
+    ./runtime.nix # site identity + 2G agent resource SoT
     ./onedrive.nix
     ./gbrain.nix
     ./workstation.nix
-    ./browser.nix # persistent Brave + loopback CDP for agent automation
+    ./browser.nix # Brave engine override (CDP + noVNC come from the composer)
     ./hermes-webui.nix # public edge + remaps; composer pairs identity
-    ./integrations # HMC extraPlugin + MCP clients + gbrain skills
+    ./plugins.nix # HMC extraPlugin + host skills
+    ./mcp.nix # composio MCP proxy
   ];
 
   services.hermesPnP = {
@@ -76,15 +77,11 @@
     # so secret rotation only needs `systemctl restart hermes-agent`.
     environmentFiles = [
       "/run/hermes.env"
-      "/run/hermes-browser.env" # BROWSER_CDP_URL + noVNC URL (no password)
+      # /run/hermes-browser.env is added by services.hermesPnP.browser.
     ];
 
     settings = {
-      # Attach browser_* tools to host Chromium CDP (see browser.nix).
-      # browser_tool.py reads browser.cdp_url or env BROWSER_CDP_URL.
-      browser = {
-        cdp_url = "http://127.0.0.1:9222";
-      };
+      # browser.cdp_url + BROWSER_CDP_URL come from services.hermesPnP.browser.
 
       # Session identity (provider/default/fallback) comes from
       # hermesPnP.models.high. Keep only keys the composer does not seed.
@@ -188,7 +185,7 @@
       };
 
       # Skills dirs on the hermes volume (see toolbox + gbrain activation).
-      # Plugins enabled list + install: ./integrations (single source of truth).
+      # Plugins enabled list + install: ./plugins.nix (single source of truth).
       skills.external_dirs = [
         hermes.skills.container
         hermes.skills.host
@@ -221,7 +218,7 @@
       };
     };
 
-    # mcpServers: integrations/mcp/* (composio via flake hermes-pnp) + gbrain.nix.
+    # mcpServers: ./mcp.nix (composio via flake hermes-pnp) + gbrain.nix.
 
     # Optional pyproject extras beyond the sealed default `[all]` set.
     # Composer bakes these into services.hermes-agent.package
@@ -250,7 +247,7 @@
       runAs = "hermes";
       commands = [
         {
-          command = "${hermes.bin}/hermes-cli";
+          command = "${config.services.hermesPnP.toolbox.binDir}/hermes-cli";
           options = [
             "NOPASSWD"
             "SETENV"
@@ -267,8 +264,8 @@
     }
   ];
 
-  # Toolbox PATH for host hermes chat/doctor (see toolbox.nix hermes-cli wrapper).
-  environment.shellAliases.hermes = "sudo -u hermes ${hermes.bin}/hermes-cli";
+  # Toolbox PATH for host hermes chat/doctor (composer toolbox hermes-cli wrapper).
+  environment.shellAliases.hermes = "sudo -u hermes ${config.services.hermesPnP.toolbox.binDir}/hermes-cli";
 
   # SOUL.md declarative install is intentionally disabled.
   # Leave identity blank for a fresh agent; optional local draft: workspace/soul.md (not applied).
