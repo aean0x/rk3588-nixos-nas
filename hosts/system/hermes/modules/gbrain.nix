@@ -1,7 +1,8 @@
 # Host leftovers after hermes-pnp owns serve + MCP URL.
 # Composer starts gbrain-mcp-http when hermesPnP.gbrain.enable.
-# This file: 1G RAM cap, programs.git identity, PAT helper (unless
-# programs.git already sets credential.helper), config.yaml nits.
+# This file: 1G RAM cap, native programs.git identity + PAT helper
+# (store path, /nix/store bind-mounted into the gateway container),
+# /etc/gitconfig bind-mounted into the container, config.yaml nits.
 {
   config,
   lib,
@@ -10,25 +11,24 @@
 }:
 let
   agent = config.services.hermes-agent;
-  home = "${agent.stateDir}/home";
+  home = "${agent.stateDir}/home";           # /var/lib/hermes/home  (container: /home/hermes)
   hermesHome = "${agent.stateDir}/.hermes";
-  gitCredential = ../scripts/git-credential-github-env;
 
-  gitCfg = config.programs.git;
-  gitConfigMerged =
-    if builtins.isList gitCfg.config then
-      lib.foldl' lib.recursiveUpdate { } gitCfg.config
-    else
-      gitCfg.config;
-  nixosCredentialHelper =
-    gitCfg.enable && (((gitConfigMerged.credential or { }).helper or null) != null);
-  nixosGitIdentity =
-    gitCfg.enable
-    && (((gitConfigMerged.user or { }).name or null) != null)
-    && (((gitConfigMerged.user or { }).email or null) != null);
+  # PAT credential helper as a store path. /nix/store is bind-mounted ro into
+  # the gateway container, so the SAME path resolves on host and in-container.
+  # No install step, no git config --global -- one path for both surfaces.
+  gitCredentialHelper = pkgs.writeShellApplication {
+    name = "git-credential-github-env";
+    runtimeInputs = [ pkgs.gnugrep pkgs.coreutils ];
+    checkPhase = "";
+    text = lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ../scripts/git-credential-github-env);
+  };
 in
 {
-  # Machine-wide identity (AGENTS.md). Writes /etc/gitconfig.
+  # Machine-wide identity + credential helper (AGENTS.md aean0x rule).
+  # Native -> /etc/gitconfig. The gateway git-hook runs in a container with
+  # its own /etc, so /etc/gitconfig is bind-mounted in below (extraVolumes).
+  # Override = edit the values here (single source of truth in this flake).
   # ISO keeps programs.git.enable = false.
   programs.git = {
     enable = true;
@@ -37,8 +37,18 @@ in
         name = "aean0x";
         email = "3682177+aean0x@users.noreply.github.com";
       };
+      credential = {
+        helper = "${gitCredentialHelper}/bin/git-credential-github-env";
+        useHttpPath = true;
+      };
     };
   };
+
+  # The gateway container ships its own /etc (Ubuntu image), so the host's
+  # native /etc/gitconfig would never reach the git-hook. Share it read-only.
+  services.hermes-agent.container.extraVolumes = [
+    "/etc/gitconfig:/etc/gitconfig:ro"
+  ];
 
   systemd.services.gbrain-mcp-http.serviceConfig = {
     MemoryMax = "1G";
@@ -46,35 +56,19 @@ in
   };
 
   system.activationScripts.hermes-gbrain-site = lib.stringAfter [ "hermes-gbrain" ] ''
-    install -d -m 0755 -o hermes -g hermes ${hermesHome}/scripts
-    install -d -m 0755 -o hermes -g hermes ${home}/.local/bin
-    install -m 0755 -o hermes -g hermes ${gitCredential} \
-      ${hermesHome}/scripts/git-credential-github-env
-    install -m 0755 -o hermes -g hermes ${gitCredential} \
-      ${home}/.local/bin/git-credential-github-env
     if command -v git >/dev/null 2>&1; then
-      # Drop stale/forbidden user-level identity + dead safe.directory so
-      # /etc/gitconfig wins. Local override in projects does the same.
+      # Drop stale per-user + local identity that would shadow /etc/gitconfig
+      # (git precedence: local > global > system). One-time migration; the
+      # native system config above is the going-forward source of truth.
       sudo -u hermes env HOME=${home} git config --global --unset-all user.name || true
       sudo -u hermes env HOME=${home} git config --global --unset-all user.email || true
       sudo -u hermes env HOME=${home} git config --global --unset-all safe.directory || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all credential.helper || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all credential.useHttpPath || true
       if [ -d ${hermesHome}/projects/.git ]; then
         sudo -u hermes env HOME=${home} git -C ${hermesHome}/projects config --local --unset-all user.name || true
         sudo -u hermes env HOME=${home} git -C ${hermesHome}/projects config --local --unset-all user.email || true
       fi
-      ${lib.optionalString (!nixosGitIdentity) ''
-        sudo -u hermes env HOME=${home} git config --global user.name aean0x || true
-        sudo -u hermes env HOME=${home} git config --global user.email 3682177+aean0x@users.noreply.github.com || true
-      ''}
-      ${lib.optionalString nixosCredentialHelper ''
-        sudo -u hermes env HOME=${home} git config --global --unset-all credential.helper || true
-        sudo -u hermes env HOME=${home} git config --global --unset-all credential.useHttpPath || true
-      ''}
-      ${lib.optionalString (!nixosCredentialHelper) ''
-        sudo -u hermes env HOME=${home} git config --global credential.helper \
-          /home/hermes/.local/bin/git-credential-github-env || true
-        sudo -u hermes env HOME=${home} git config --global credential.useHttpPath true || true
-      ''}
     fi
 
     install -d -m 2770 -o hermes -g hermes ${agent.stateDir}/workspace
