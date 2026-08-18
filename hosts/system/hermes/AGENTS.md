@@ -28,7 +28,7 @@ hosts/system/hermes/
 - Models: PnP `low`/`medium`/`high` (deepseek flash / pro / xai-oauth grok-4.6). WebUI extension sidecar from composer.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs (`DfE5EkknFF950NR6OMui`, `eleven_flash_v2_5`). Search: `web.search_backend=xai`.
-- Toolbox + browser CDP/noVNC: composer. Engine here is Brave.
+- Toolbox + browser CDP + agent-browser gate: composer. Engine here is Brave. Gate is Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 
@@ -37,8 +37,8 @@ Prefer killing Hermes over DNS or Home Assistant.
 | Surface | Cap | Where |
 |---------|-----|--------|
 | hermes-agent container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
-| hermes-webui | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
-| hermes-browser (Brave) | 1 GiB / OOM +500 | `hermesPnP.browser` |
+| hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` (`webui.container.extraOptions`) |
+| hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` (`browser.container.extraOptions`) |
 | gbrain-mcp-http | 1 GiB / OOM +400 | `modules/gbrain.nix` (unit is composer) |
 | AdGuard / HA | OOM −500 | their modules |
 | Host swap | 8 GiB | `partitions.nix` |

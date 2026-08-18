@@ -29,7 +29,7 @@ let
       guard = lib.optionalString (!isExt) ''
         @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} not remote_ip ${
           if (settings.enableRouter or false) then "192.168.2.0/24" else "192.168.1.0/24"
-        } 127.0.0.1
+        } 127.0.0.1 100.64.0.0/10
         respond @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} 403
       '';
     in

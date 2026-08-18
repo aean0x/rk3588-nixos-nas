@@ -158,6 +158,27 @@ if grep -q 'proxyServices' "$CONSUMER" \
 else
   fail "hermes.nix must use services.caddy.proxyServices + cloudflareTunnel.proxyServices"
 fi
+if grep -q 'browser.gate.publicUrl' "$CONSUMER" \
+  && grep -q 'proxyServices."browser' "$CONSUMER"; then
+  pass "browser gate fronted by Caddy :4848"
+else
+  fail "hermes.nix must set browser.gate.publicUrl + caddy proxyServices browser.* = 4848"
+fi
+if grep -q 'cloudflareTunnel.proxyServices."browser' "$CONSUMER"; then
+  fail "browser gate must not be on Cloudflare tunnel"
+else
+  pass "browser gate is LAN/Tailscale only"
+fi
+if grep -qE 'noVNC|:6080|NOVNC' "$CONSUMER" "$HERMES_AGENTS" "$HERMES/BOOTSTRAP.md"; then
+  fail "stale noVNC / :6080 leftover after agent-browser gate"
+else
+  pass "no leftover noVNC / :6080"
+fi
+if grep -q 'extraGroups = \[ "docker" \]' "$RUNTIME"; then
+  fail "hermes still in docker group (socket is root-equivalent)"
+else
+  pass "hermes not in docker group"
+fi
 
 if grep -n 'services/hermes\.nix' "$ROOT_AGENTS" "$HERMES_AGENTS" 2>/dev/null; then
   fail "docs still reference stale path services/hermes.nix"

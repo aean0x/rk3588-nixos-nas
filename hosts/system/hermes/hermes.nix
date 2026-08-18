@@ -38,6 +38,7 @@ in
     toolbox.extraPackages = [ pkgs.sops ];
 
     browser.package = pkgs.brave;
+    browser.gate.publicUrl = "https://browser.${settings.domain}/";
 
     container.enable = true;
 
@@ -144,5 +145,6 @@ in
   };
 
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
+  services.caddy.proxyServices."browser.${settings.domain}" = 4848;
   services.cloudflareTunnel.proxyServices."${webuiHost}" = webuiPort;
 }
