@@ -30,9 +30,10 @@ in
   services.adguardhome = {
     enable = true;
     mutableSettings = true;
-    # Caddy fronts the UI. Binding *:3000 also opened an unauthenticated
-    # control API on the LAN (users = []). Host-net jails still reach
-    # loopback — set a UI password to close that remaining hole.
+    # Caddy fronts the UI on loopback. Do not declare `users` here —
+    # yaml-merge would overwrite a password set in the UI. Set one at
+    # Settings → General settings → Authentication. That value lives in
+    # /var/lib/AdGuardHome and survives rebuilds.
     host = "127.0.0.1";
     port = port;
     settings = {
