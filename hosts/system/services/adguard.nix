@@ -9,12 +9,48 @@
 # - For additive per-PC blocks without touching Nix: use Custom filtering rules
 #   in the UI with the $client modifier (see bottom of file).
 {
+  config,
+  pkgs,
   settings,
   ...
 }:
 let
   port = 3000;
   lanIP = if (settings.enableRouter or false) then "192.168.2.1" else settings.network.address;
+  authUser = "admin";
+  py = pkgs.python3.withPackages (ps: [
+    ps.bcrypt
+    ps.pyyaml
+  ]);
+  applyAuth = pkgs.writeText "adguard-apply-auth.py" ''
+    import sys
+    from pathlib import Path
+
+    import bcrypt
+    import yaml
+
+    path, name, password = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+    data = yaml.safe_load(path.read_text()) if path.is_file() else {}
+    if data is None:
+        data = {}
+    users = data.get("users") or []
+    hashed = (users[0] or {}).get("password") if users else ""
+    if (
+        len(users) == 1
+        and users[0].get("name") == name
+        and hashed
+        and bcrypt.checkpw(password.encode(), hashed.encode())
+    ):
+        raise SystemExit(0)
+    data["users"] = [
+        {
+            "name": name,
+            "password": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+        }
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, default_flow_style=False))
+  '';
 in
 {
   services.caddy.proxyServices = {
@@ -27,13 +63,37 @@ in
     MemoryMin = "128M";
   };
 
+  # Plaintext in sops; hashed into AdGuardHome.yaml at start.
+  # Do not declare settings.users — yaml-merge would freeze the hash
+  # in the Nix store and wipe this apply on every restart.
+  sops.secrets.adguard_password = { };
+
+  systemd.services.adguardhome-auth = {
+    description = "Apply AdGuard UI password from sops";
+    before = [ "adguardhome.service" ];
+    requiredBy = [ "adguardhome.service" ];
+    after = [ "local-fs.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set -euo pipefail
+      cfg=/var/lib/AdGuardHome/AdGuardHome.yaml
+      pass=$(cat ${config.sops.secrets.adguard_password.path})
+      ${py}/bin/python3 ${applyAuth} "$cfg" ${authUser} "$pass"
+      chmod 600 "$cfg"
+      if [ -d /var/lib/AdGuardHome ]; then
+        chown --reference=/var/lib/AdGuardHome "$cfg" || true
+      fi
+    '';
+  };
+
   services.adguardhome = {
     enable = true;
     mutableSettings = true;
-    # Caddy fronts the UI on loopback. Do not declare `users` here —
-    # yaml-merge would overwrite a password set in the UI. Set one at
-    # Settings → General settings → Authentication. That value lives in
-    # /var/lib/AdGuardHome and survives rebuilds.
+    # Caddy fronts the UI on loopback. Password is sops adguard_password
+    # (user ${authUser}), applied by adguardhome-auth before start.
     host = "127.0.0.1";
     port = port;
     settings = {
