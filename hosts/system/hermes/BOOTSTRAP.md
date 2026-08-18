@@ -64,9 +64,11 @@ PGLite “WASM Aborted”: stop stack, pkill orphans, restart `gbrain-mcp-http`.
 | Concern | Host | Container |
 |---------|------|-----------|
 | Hermes home | `/var/lib/hermes/.hermes` | `/data/.hermes` |
+| Skills (extraSkills) | `/var/lib/hermes/skills` | `/data/skills` |
 | GBrain home | `/var/lib/hermes/home/.gbrain` | `/home/hermes/.gbrain` |
 | Brain git | `/var/lib/hermes/home/brain` | `/home/hermes/brain` |
 | bun / gbrain | `…/home/.bun` | `/home/hermes/.bun/bin` |
+| Jail identity | `/var/lib/hermes-oci/<name>` | (root 0700) |
 
 ## 5. Browser (CDP + agent-browser gate)
 

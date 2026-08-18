@@ -123,6 +123,17 @@ else
   fail "hermes.nix must set services.hermesPnP.hmc.enable"
 fi
 
+if grep -q 'skills.extraSkills.workstation' "$HERMES/modules/workstation.nix"; then
+  pass "workstation skill via hermesPnP.skills.extraSkills"
+else
+  fail "workstation.nix must set hermesPnP.skills.extraSkills.workstation"
+fi
+if grep -q 'skills/devops/workstation' "$HERMES/modules/workstation.nix"; then
+  fail "workstation still installs into .hermes/skills/devops (use extraSkills)"
+else
+  pass "no leftover .hermes/skills/devops install"
+fi
+
 if grep -q 'container.enable' "$CONSUMER"; then
   pass "container.enable declared on hermesPnP"
 else

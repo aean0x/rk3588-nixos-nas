@@ -2,7 +2,7 @@
 
 Composer SoT: **`hermes.nix`** (`services.hermesPnP` + official settings + public edge).  
 Host runtime (2G caps, sudo CLI): **`runtime.nix`**.  
-Leftovers: **`modules/`** (GBrain Bearer/git-credential/1G, Composio, OneDrive, workstation).
+Leftovers: **`modules/`** (GBrain Bearer/git-credential/1G, Composio, OneDrive, workstation extraSkills).
 
 First-boot: **`BOOTSTRAP.md`**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
@@ -16,19 +16,21 @@ hosts/system/hermes/
 │   ├── gbrain.nix       # site leftovers (Bearer rewrite, git-credential, 1G)
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
 │   ├── onedrive.nix
-│   └── workstation.nix
-├── skills/workstation/  # other skills live in hermes-pnp
+│   └── workstation.nix  # wrappers + hermesPnP.skills.extraSkills
+├── skills/workstation/  # extraSkills tree (SKILL.md at root)
 ├── scripts/             # clean-hermes-state + git-credential helper
 └── BOOTSTRAP.md
 ```
 
 ## Runtime
 
-- Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes`.
+- Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail).
+- WebUI + browser: composer OCI jails (`/var/lib/hermes-oci/<name>` identity). Privilege locks are injected after extraOptions.
 - Models: PnP `low`/`medium`/`high` (deepseek flash / pro / xai-oauth grok-4.6). WebUI extension sidecar from composer.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs (`DfE5EkknFF950NR6OMui`, `eleven_flash_v2_5`). Search: `web.search_backend=xai`.
-- Toolbox + browser CDP + agent-browser gate: composer. Engine here is Brave. Gate is Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
+- Toolbox + browser CDP + agent-browser gate: composer. Engine here is Brave. Gate is Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel). `cdpAllowOrigins` includes `gate.publicUrl`.
+- mcp-proxy: composer `clientAuth=token`. Site backends + filters stay in `modules/composio.nix`.
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 
@@ -90,7 +92,7 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 
 ## Workstation
 
-`modules/workstation.nix` + skill `workstation`. Not MCP. Host on; checkout latch; key never in hermes HOME.
+`modules/workstation.nix` + `skills.extraSkills.workstation`. Not MCP. Host on; checkout latch; key never in hermes HOME.
 
 ```bash
 checkout-workstation

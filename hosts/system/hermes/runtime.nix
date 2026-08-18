@@ -5,6 +5,8 @@
 # Paths, toolbox PATH, browser CDP/gate, GBrain serve, WebUI pairing — hermes-pnp.
 # WebUI + browser are OCI-jailed when hermesPnP.container.enable (this host).
 # Host systemd MemoryMax does not apply to those containers — cap via extraOptions.
+# Official extraOptions is concat-only (composer hashes remapped --env there).
+# Browser extraOptions: replace the 2g shm default so it fits the 1g cgroup.
 {
   lib,
   settings,
@@ -27,8 +29,12 @@ in {
 
   services.hermesPnP.webui.container.extraOptions = lib.mkAfter (dockerCap resources.memoryDocker);
 
-  services.hermesPnP.browser.container.extraOptions = lib.mkAfter (
-    dockerCap resources.browserMemoryDocker
+  services.hermesPnP.browser.container.extraOptions = lib.mkForce (
+    [
+      "--shm-size=256m"
+      "--init"
+    ]
+    ++ dockerCap resources.browserMemoryDocker
   );
 
   # hermes CLI runs as the hermes service user via sudo (reads .env).

@@ -12,7 +12,6 @@ let
   workstationHost = "192.168.1.71";
   workstationUser = "agent";
   secretPath = "/run/secrets/nix_pc_agent_ssh_key";
-  skillSrc = ../skills/workstation/SKILL.md;
 
   sshConfig = pkgs.writeText "hermes-workstation-ssh-config" ''
     Host workstation
@@ -71,10 +70,6 @@ in
     chown hermes:hermes /var/lib/hermes/home/.ssh/known_hosts
     chmod 0644 /var/lib/hermes/home/.ssh/known_hosts
 
-    install -d -m 0755 -o hermes -g hermes /var/lib/hermes/.hermes/skills/devops/workstation
-    install -m 0644 -o hermes -g hermes ${skillSrc} \
-      /var/lib/hermes/.hermes/skills/devops/workstation/SKILL.md
-
     install -d -m 2770 -o hermes -g hermes /var/lib/hermes/workspace
     if [ ! -f /var/lib/hermes/workspace/WORKSTATION.md ]; then
       cat > /var/lib/hermes/workspace/WORKSTATION.md <<'EOF'
@@ -103,6 +98,9 @@ EOF
   services.hermes-agent.container.extraVolumes = [
     "${secretPath}:${secretPath}:ro"
   ];
+
+  # First-party + extraSkills materialize to $stateDir/skills (jail /data/skills).
+  services.hermesPnP.skills.extraSkills.workstation = ../skills/workstation;
 
   environment.systemPackages = [ pkgs.openssh ];
 }

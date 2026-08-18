@@ -37,6 +37,9 @@ in
 
     toolbox.extraPackages = [ pkgs.sops ];
 
+    # extraSkills: modules/workstation.nix (site wrappers + SKILL.md).
+    # clientAuth: composer mkDefault "token"; header lands on mcpServers.<backend>.
+
     browser.package = pkgs.brave;
     browser.gate.publicUrl = "https://browser.${settings.domain}/";
 

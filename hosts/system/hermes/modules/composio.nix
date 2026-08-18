@@ -1,6 +1,7 @@
 # Composio Connect via the local MCP proxy.
 # hermesPnP.mcpProxy.enable is set in hermes.nix; backends stay here
 # (site policy, not the composer).
+# Composer clientAuth=token injects X-MCP-Proxy-Token onto mcpServers.composio.
 #
 # First-party Gmail filter (API cannot create it — missing gmail.settings.basic).
 # Label agent-blocked (id Label_16) already exists.
