@@ -1,6 +1,8 @@
 # Host leftovers after hermes-pnp owns serve + MCP URL.
 # Composer starts gbrain-mcp-http when hermesPnP.gbrain.enable.
-# This file: 8GiB RAM cap, git-credential helper, config.yaml Bearer rewrite.
+# This file: 1G RAM cap, native programs.git identity + PAT helper
+# (store path, /nix/store bind-mounted into the gateway container),
+# /etc/gitconfig bind-mounted into the container, config.yaml nits.
 {
   config,
   lib,
@@ -9,27 +11,64 @@
 }:
 let
   agent = config.services.hermes-agent;
-  home = "${agent.stateDir}/home";
+  home = "${agent.stateDir}/home";           # /var/lib/hermes/home  (container: /home/hermes)
   hermesHome = "${agent.stateDir}/.hermes";
-  gitCredential = ../scripts/git-credential-github-env;
+
+  # PAT credential helper as a store path. /nix/store is bind-mounted ro into
+  # the gateway container, so the SAME path resolves on host and in-container.
+  # No install step, no git config --global -- one path for both surfaces.
+  gitCredentialHelper = pkgs.writeShellApplication {
+    name = "git-credential-github-env";
+    runtimeInputs = [ pkgs.gnugrep pkgs.coreutils ];
+    checkPhase = "";
+    text = lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ../scripts/git-credential-github-env);
+  };
 in
 {
+  # Machine-wide identity + credential helper (AGENTS.md aean0x rule).
+  # Native -> /etc/gitconfig. The gateway git-hook runs in a container with
+  # its own /etc, so /etc/gitconfig is bind-mounted in below (extraVolumes).
+  # Override = edit the values here (single source of truth in this flake).
+  # ISO keeps programs.git.enable = false.
+  programs.git = {
+    enable = true;
+    config = {
+      user = {
+        name = "aean0x";
+        email = "3682177+aean0x@users.noreply.github.com";
+      };
+      credential = {
+        helper = "${gitCredentialHelper}/bin/git-credential-github-env";
+        useHttpPath = true;
+      };
+    };
+  };
+
+  # The gateway container ships its own /etc (Ubuntu image), so the host's
+  # native /etc/gitconfig would never reach the git-hook. Share it read-only.
+  services.hermes-agent.container.extraVolumes = [
+    "/etc/gitconfig:/etc/gitconfig:ro"
+  ];
+
   systemd.services.gbrain-mcp-http.serviceConfig = {
     MemoryMax = "1G";
     OOMScoreAdjust = 400;
   };
 
   system.activationScripts.hermes-gbrain-site = lib.stringAfter [ "hermes-gbrain" ] ''
-    install -d -m 0755 -o hermes -g hermes ${hermesHome}/scripts
-    install -d -m 0755 -o hermes -g hermes ${home}/.local/bin
-    install -m 0755 -o hermes -g hermes ${gitCredential} \
-      ${hermesHome}/scripts/git-credential-github-env
-    install -m 0755 -o hermes -g hermes ${gitCredential} \
-      ${home}/.local/bin/git-credential-github-env
     if command -v git >/dev/null 2>&1; then
-      sudo -u hermes env HOME=${home} git config --global credential.helper \
-        /home/hermes/.local/bin/git-credential-github-env || true
-      sudo -u hermes env HOME=${home} git config --global credential.useHttpPath true || true
+      # Drop stale per-user + local identity that would shadow /etc/gitconfig
+      # (git precedence: local > global > system). One-time migration; the
+      # native system config above is the going-forward source of truth.
+      sudo -u hermes env HOME=${home} git config --global --unset-all user.name || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all user.email || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all safe.directory || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all credential.helper || true
+      sudo -u hermes env HOME=${home} git config --global --unset-all credential.useHttpPath || true
+      if [ -d ${hermesHome}/projects/.git ]; then
+        sudo -u hermes env HOME=${home} git -C ${hermesHome}/projects config --local --unset-all user.name || true
+        sudo -u hermes env HOME=${home} git -C ${hermesHome}/projects config --local --unset-all user.email || true
+      fi
     fi
 
     install -d -m 2770 -o hermes -g hermes ${agent.stateDir}/workspace
@@ -92,6 +131,17 @@ elif isinstance(cur.get("headers"), dict) and cur.get("headers"):
         desired_mcp["headers"] = {"Authorization": auth}
 if mcp.get("gbrain") != desired_mcp:
     mcp["gbrain"] = desired_mcp
+    changed = True
+
+# Stale pre-agent.max_turns key; agent.max_turns is authoritative.
+agent_block = data.get("agent")
+if isinstance(agent_block, dict) and "max_turns" in agent_block and "max_turns" in data:
+    del data["max_turns"]
+    changed = True
+
+# hermes doctor: missing key is reported as v0.
+if data.get("_config_version") in (None, 0):
+    data["_config_version"] = 33
     changed = True
 
 if changed:
