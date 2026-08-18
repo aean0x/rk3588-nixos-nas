@@ -105,6 +105,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `ha_token`, `ha_url` — Home Assistant API
 - `cloudflare_dns_api_token` — Cloudflare API for ACME DNS-01 challenge
 - `filebrowser_password` — FileBrowser admin password
+- `adguard_password` — AdGuard UI (`admin`); hashed at start, not declared in Nix `users`
 - `onedrive_rclone_config` — rclone config for OneDrive sync (mode 0444)
 - `cloudflared_tunnel_credentials` — Cloudflare Tunnel credentials JSON (from `./scripts/setup-cloudflare-tunnel.sh`)
 - `nix_pc_agent_ssh_key` — Hermes → workstation `agent` SSH key at `/run/secrets/…` only; **wrappers** inject it (not copied into hermes HOME). See `hosts/system/hermes/modules/workstation.nix`.
@@ -124,9 +125,8 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
 | CrowdSec | Docker+Native | `containers/crowdsec.nix` | Engine in container, nftables bouncer native |
-| Remote Desktop | Native | `services/remote-desktop.nix` | XFCE + xrdp |
 
-Disabled but available: Cockpit, Cloudflared, arr-suite, Transmission.
+Disabled but available: Remote Desktop (XFCE + xrdp), Transmission, FileBrowser, Comet.
 
 **containers.nix** is pure infrastructure — Docker engine, auto-prune, unified `refresh-containers` timer. Container definitions live in their respective modules. `containerNames` and `uniqueImages` are auto-discovered from all imported modules. The single `refresh-containers` timer (Sun 02:00) pulls all images and restarts all containers.
 

@@ -205,7 +205,7 @@ imports = [
   ./services/cloudflare.nix     # Apex DDNS
   ./services/cloudflared.nix    # Public HTTPS via Cloudflare Tunnel (CGNAT)
   ./services/adguard.nix        # AdGuard Home DNS
-  ./services/remote-desktop.nix # XFCE + xrdp
+  # ./services/remote-desktop.nix # XFCE + xrdp
   # ./services/cockpit.nix
   # ./services/arr-suite.nix
   # ./services/transmission.nix
