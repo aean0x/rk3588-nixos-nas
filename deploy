@@ -95,8 +95,10 @@ case "$CMD" in
         check_ssh
         info "Uploading and running GBrain post-install setup (from hermes-pnp)..."
         pnp=$(nix eval --raw --impure --expr "(builtins.getFlake \"${REPO_ROOT}\").inputs.hermes-pnp.outPath")
-        scp ${SSH_OPTS} "${pnp}/scripts/gbrain-setup.sh" \
-            "$TARGET:/tmp/gbrain-setup.sh"
+        scp ${SSH_OPTS} \
+            "${pnp}/scripts/gbrain-setup.sh" \
+            "${pnp}/scripts/gbrain-wire-config.py" \
+            "$TARGET:/tmp/"
         ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/gbrain-setup.sh"
         ;;
 

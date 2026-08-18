@@ -4,14 +4,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
 CONSUMER="$H/hermes.nix"
-GBRAIN="$H/modules/gbrain.nix"
 fail=0
 pass() { echo "PASS $*"; }
 fail_() { echo "FAIL $*"; fail=1; }
 
-for f in modules/gbrain.nix BOOTSTRAP.md; do
-  [ -f "$H/$f" ] && pass "present $f" || fail_ "missing $f"
-done
+[ -f "$H/BOOTSTRAP.md" ] && pass "present BOOTSTRAP.md" || fail_ "missing BOOTSTRAP.md"
+if [ -e "$H/modules/gbrain.nix" ]; then
+  fail_ "modules/gbrain.nix leftover (HTTP + Bearer are hermes-pnp)"
+else
+  pass "no leftover modules/gbrain.nix"
+fi
 grep -q 'gbrain-setup' "$ROOT/deploy" && pass "deploy gbrain-setup" || fail_ "deploy missing gbrain-setup"
 
 if [ -d "$H/memory" ]; then
@@ -37,30 +39,23 @@ else
 fi
 
 grep -q 'gbrain.enable' "$CONSUMER" && pass "gbrain.enable on composer" || fail_ "no composer gbrain hook"
-if grep -q 'gbrain-mcp-http =' "$GBRAIN" || grep -q 'mcpServers.gbrain' "$GBRAIN"; then
-  fail_ "modules/gbrain.nix still owns serve / mcpServers.gbrain"
-else
-  pass "serve + mcpServers.gbrain left to composer"
-fi
 
 if [ -e "$H/workspace/gbrain-pointer-index.json" ] || [ -d "$H/integrations/plugins/gbrain-reflex" ]; then
   fail_ "static gbrain-reflex / pointer-index still in tree"
 else
   pass "static pointer workaround removed from tree"
 fi
-if grep -q 'GBRAIN_POINTER_INDEX' "$GBRAIN"; then
-  fail_ "GBRAIN_POINTER_INDEX still in gbrain.nix"
+if grep -q 'GBRAIN_POINTER_INDEX' "$CONSUMER" "$H/runtime.nix"; then
+  fail_ "GBRAIN_POINTER_INDEX still in consumer"
 else
   pass "no GBRAIN_POINTER_INDEX"
 fi
 
-if grep -E 'writeShellApplication|environment\.systemPackages' "$GBRAIN" | grep -qE 'exclusive|nightly|consolidate|gbrain-dream|gbrain-embed'; then
-  fail_ "gbrain.nix still packages exclusive CLI surface"
+if grep -q './modules/gbrain.nix' "$CONSUMER"; then
+  fail_ "hermes.nix still imports leftover modules/gbrain.nix"
 else
-  pass "no exclusive CLI packaging in gbrain.nix"
+  pass "hermes.nix does not import leftover gbrain module"
 fi
-
-grep -q './modules/gbrain.nix' "$CONSUMER" && pass "hermes.nix imports modules/gbrain" || fail_ "gbrain leftover not imported"
 grep -q 'validate-gbrain' "$ROOT/deploy" && pass "deploy validate-gbrain" || fail_ "deploy missing validate-gbrain"
 if grep -qE 'gbrain-consolidate|hermes-gbrain-consolidate' "$ROOT/deploy"; then
   fail_ "deploy still references gbrain-consolidate"

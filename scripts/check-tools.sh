@@ -5,7 +5,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
 CONSUMER="$H/hermes.nix"
-GBRAIN="$H/modules/gbrain.nix"
 FAIL=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAIL=1; }
@@ -26,8 +25,8 @@ if grep -q 'toolbox.extraPackages' "$CONSUMER"; then
 else
   fail "hermes.nix should extend hermesPnP.toolbox (extraPackages)"
 fi
-if grep -q 'mcpServers.gbrain' "$GBRAIN"; then
-  fail "modules/gbrain.nix still declares mcpServers.gbrain (composer owns HTTP url)"
+if grep -q 'mcpServers.gbrain' "$CONSUMER" "$H/runtime.nix"; then
+  fail "consumer still declares mcpServers.gbrain (composer owns HTTP url)"
 else
   pass "MCP gbrain URL left to composer"
 fi

@@ -2,7 +2,7 @@
 
 Composer SoT: **`hermes.nix`** (`services.hermesPnP` + official settings + public edge).  
 Host runtime (2G caps, sudo CLI): **`runtime.nix`**.  
-Leftovers: **`modules/`** (GBrain Bearer/1G, Composio, OneDrive, workstation extraSkills, site `user.name`).
+Leftovers: **`modules/`** (Composio, OneDrive). Site git author is `settings.programs.git`. GBrain HTTP is composer `gbrain.enable`.
 
 First-boot: **`BOOTSTRAP.md`**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
@@ -11,13 +11,10 @@ First-boot: **`BOOTSTRAP.md`**. GBrain operator scripts live in flake input **he
 ```
 hosts/system/hermes/
 ├── hermes.nix           # composer + official settings + Caddy/tunnel
-├── runtime.nix          # 2G agent RAM/CPU + sudo hermes CLI
+├── runtime.nix          # 2G agent RAM/CPU + sudo hermes CLI + gbrain 1G
 ├── modules/
-│   ├── gbrain.nix       # site leftovers (Bearer rewrite, git identity, 1G)
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
-│   ├── onedrive.nix
-│   └── workstation.nix  # wrappers + hermesPnP.skills.extraSkills
-├── skills/workstation/  # extraSkills tree (SKILL.md at root)
+│   └── onedrive.nix
 ├── scripts/             # clean-hermes-state
 └── BOOTSTRAP.md
 ```
@@ -41,7 +38,7 @@ Prefer killing Hermes over DNS or Home Assistant.
 | hermes-agent container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` (`webui.container.extraOptions`) |
 | hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` (`browser.container.extraOptions`) |
-| gbrain-mcp-http | 1 GiB / OOM +400 | `modules/gbrain.nix` (unit is composer) |
+| gbrain-mcp-http | 1 GiB / OOM +400 | `runtime.nix` (unit is composer) |
 | AdGuard / HA | OOM −500 | their modules |
 | Host swap | 8 GiB | `partitions.nix` |
 
@@ -55,14 +52,14 @@ Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.
 | Model routing, tool_output/compression | Brain pages, pointer index content |
 | MCP declarations, extraDependencyGroups | Day-to-day put_page / query |
 | Plugin **code** in hermes-pnp | Cron prompts, gbrain CLI version |
-| Toolbox PATH, browser CDP, workstation wrappers | Cookies, OAuth tokens, ad-hoc apt/pip |
+| Toolbox PATH, browser CDP | Cookies, OAuth tokens, ad-hoc apt/pip |
 
 Do not bake operational content into the flake. Do not put environment policy only in agent memory.
 
 ## GBrain
 
-`hermesPnP.gbrain.enable` starts `gbrain-mcp-http` (`gbrain serve --http :3131`).  
-Host leftover re-applies literal Bearer into `config.yaml`.
+`hermesPnP.gbrain.enable` starts `gbrain-mcp-http` (`gbrain serve --http :3131`),
+sets MCP URL, and re-applies a literal Bearer into `config.yaml` after official merge.
 
 - CLI: bun-global under hermes HOME (`./deploy gbrain-setup`).
 - Embeddings: `ZEROENTROPY_API_KEY` via `/run/hermes.env`.
@@ -86,19 +83,8 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |
 | `XAI_API_KEY` | `xai_api_key` | Fallback (OAuth is primary) |
 | `TELEGRAM_*` | telegram | Gateway |
-| file | `nix_pc_agent_ssh_key` | `ssh-workstation` IdentityFile only |
 
 `cd secrets && ./decrypt` → edit → `./encrypt` → `./deploy remote-test`.
-
-## Workstation
-
-`modules/workstation.nix` + `skills.extraSkills.workstation`. Not MCP. Host on; checkout latch; key never in hermes HOME.
-
-```bash
-checkout-workstation
-ssh-workstation 'bash -lc "grok --always-approve -p …"'
-release-workstation
-```
 
 ## Talk to the agent
 

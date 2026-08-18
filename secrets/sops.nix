@@ -107,14 +107,6 @@ in
         # Native DeepSeek API key → DEEPSEEK_API_KEY in /run/hermes.env.
         deepseek_api_key = { };
         composio_api_key = { };
-        # Hermes → workstation agent SSH private key (/run/secrets/…).
-        # Used only by ssh-workstation wrappers (IdentityFile). Do not copy into
-        # hermes HOME — keep out of the model’s normal workspace tree.
-        nix_pc_agent_ssh_key = {
-          owner = "hermes";
-          group = "hermes";
-          mode = "0600";
-        };
       }
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };

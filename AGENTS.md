@@ -84,6 +84,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 **settings.nix** — Values needed at Nix eval time:
 - `repoUrl` — Single string "owner/repo" for flake references
 - `hostName`, `adminUser`, `setupPassword` — Must be known at build time
+- `programs.git` — Site commit identity (`user.name` / `user.email`). hermes-pnp adds the github.com PAT helper.
 - `domain` — Public domain for ACME certs (subdomains defined per-service)
 - `network` — Static IP config (interface, address, prefixLength, gateway, DNS)
 - `enableWifi`, `wifiSsid` — Optional WiFi (PSK is a secret)
@@ -108,8 +109,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `adguard_password` — AdGuard UI (`admin`); hashed at start, not declared in Nix `users`
 - `onedrive_rclone_config` — rclone config for OneDrive sync (mode 0444)
 - `cloudflared_tunnel_credentials` — Cloudflare Tunnel credentials JSON (from `./scripts/setup-cloudflare-tunnel.sh`)
-- `nix_pc_agent_ssh_key` — Hermes → workstation `agent` SSH key at `/run/secrets/…` only; **wrappers** inject it (not copied into hermes HOME). See `hosts/system/hermes/modules/workstation.nix`.
-- Workstation hop: skill **`workstation`**, commands `checkout-workstation` / `release-workstation` / `ssh-workstation`; no Wake-on-LAN.
+
 
 ### Service Architecture
 
@@ -146,12 +146,12 @@ Examples: `hermes-agent-setup` (via the official module) + our activation writes
 
 ### Hermes Agent Architecture
 
-Hermes Agent (from `github:NousResearch/hermes-agent`) is composed by flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Host leftovers (GBrain Bearer rewrite, Composio policy, OneDrive, workstation) stay under `hosts/system/hermes/modules/`.
+Hermes Agent (from `github:NousResearch/hermes-agent`) is composed by flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Host leftovers (Composio policy, OneDrive) stay under `hosts/system/hermes/modules/`.
 
 - **Deployment mode**: `container.enable = true` (Ubuntu 24.04, module `--network=host`). State under `/var/lib/hermes`.
 - **Model**: `settings.model.provider = "xai-oauth"`, `default = "grok-4.6"`. One-time `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: **No declarative SOUL.md** — activation does not install persona docs. Agent owns identity.
-- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`; host `modules/gbrain.nix` is leftovers (Bearer rewrite, site git identity, 1G cap). github.com HTTPS PAT helper is composer `hermesPnP.git.credentialHelper` (always installed; bash no-ops if `GITHUB_PAT` is unset). **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
+- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL, and re-applies a literal Bearer after official config merge. Site RAM cap is `runtime.nix`. github.com HTTPS PAT helper is composer `hermesPnP.git.credentialHelper` (always installed; bash no-ops if `GITHUB_PAT` is unset). Site git author is `settings.programs.git`. **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (`./deploy gbrain-setup`), not a Nix package.
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI routing**: `addToSystemPackages = true`; host `hermes` routes into the container.
 - **Caddy**: WebUI on 8787 → `archimedes.${domain}` (LAN) + Cloudflare Tunnel (WAN). Official `hermes dashboard` / `hermes.${domain}:9119` is decommissioned.

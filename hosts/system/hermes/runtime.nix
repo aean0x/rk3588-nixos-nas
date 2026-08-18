@@ -8,6 +8,7 @@
 # Official extraOptions is concat-only (composer hashes remapped --env there).
 # Browser extraOptions: replace the 2g shm default so it fits the 1g cgroup.
 {
+  config,
   lib,
   settings,
   ...
@@ -36,6 +37,12 @@ in {
     ]
     ++ dockerCap resources.browserMemoryDocker
   );
+
+  # Site RAM cap. Unit itself is composer `hermesPnP.gbrain.enable`.
+  systemd.services.gbrain-mcp-http.serviceConfig = lib.mkIf config.services.hermesPnP.gbrain.enable {
+    MemoryMax = "1G";
+    OOMScoreAdjust = 400;
+  };
 
   # hermes CLI runs as the hermes service user via sudo (reads .env).
   # Do not put hermes in the docker group — the socket is root-equivalent.
