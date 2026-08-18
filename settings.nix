@@ -11,6 +11,16 @@
   adminUser = "user";
   setupPassword = "nixos"; # Temp password for ISO SSH access
 
+  # Site commit identity. Wired in hosts/system/default.nix.
+  # github.com HTTPS PAT helper is hermes-pnp (credential.helper).
+  programs.git = {
+    enable = true;
+    config.user = {
+      name = "aean0x";
+      email = "3682177+aean0x@users.noreply.github.com";
+    };
+  };
+
   # SSH configuration
   allowPasswordAuth = false;
 

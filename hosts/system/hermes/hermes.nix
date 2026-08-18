@@ -1,8 +1,7 @@
 # Hermes Agent — hermes-pnp consumer + official settings + public edge.
 #
 # Host runtime (RAM caps, sudo CLI) is ./runtime.nix.
-# Other host leftovers (GBrain yaml/identity, Composio, OneDrive,
-# workstation) are modules/.
+# Other host leftovers (Composio, OneDrive) are modules/.
 {
   config,
   pkgs,
@@ -18,10 +17,8 @@ in
   imports = [
     inputs.hermes-pnp.nixosModules.default
     ./runtime.nix
-    ./modules/gbrain.nix
     ./modules/composio.nix
     ./modules/onedrive.nix
-    ./modules/workstation.nix
   ];
 
   services.hermesPnP = {
@@ -37,7 +34,6 @@ in
 
     toolbox.extraPackages = [ pkgs.sops ];
 
-    # extraSkills: modules/workstation.nix (site wrappers + SKILL.md).
     # clientAuth: composer mkDefault "token"; header lands on mcpServers.<backend>.
 
     browser.package = pkgs.brave;

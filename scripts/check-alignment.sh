@@ -7,7 +7,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES="$ROOT/hosts/system/hermes"
 CONSUMER="$HERMES/hermes.nix"
 RUNTIME="$HERMES/runtime.nix"
-GBRAIN="$HERMES/modules/gbrain.nix"
 COMPOSIO="$HERMES/modules/composio.nix"
 SOPS="$ROOT/secrets/sops.nix"
 ROOT_AGENTS="$ROOT/AGENTS.md"
@@ -25,14 +24,21 @@ require_file() {
 
 require_file "$CONSUMER"
 require_file "$RUNTIME"
-require_file "$GBRAIN"
 require_file "$COMPOSIO"
 require_file "$HERMES/modules/onedrive.nix"
-require_file "$HERMES/modules/workstation.nix"
-require_file "$HERMES/skills/workstation/SKILL.md"
 require_file "$SOPS"
 require_file "$ROOT_AGENTS"
 require_file "$HERMES_AGENTS"
+if [[ -e "$HERMES/modules/gbrain.nix" ]]; then
+  fail "modules/gbrain.nix leftover (HTTP + Bearer are hermes-pnp)"
+else
+  pass "no leftover modules/gbrain.nix"
+fi
+if [[ -e "$HERMES/modules/workstation.nix" ]] || [[ -d "$HERMES/skills/workstation" ]]; then
+  fail "workstation leftover (sunset)"
+else
+  pass "workstation checkout/ssh gone"
+fi
 
 if [[ -e "$ROOT/hosts/system/services/hermes.nix" ]]; then
   fail "hosts/system/services/hermes.nix leftover (consumer is hermes/hermes.nix)"
@@ -79,10 +85,10 @@ if [[ -e "$HERMES/workspace/soul.md" ]]; then
 else
   pass "no soul.md"
 fi
-if [[ -d "$HERMES/skills/retrieval-reflex" ]] || [[ -d "$HERMES/skills/gbrain-http-auth" ]]; then
-  fail "ported skills still under hermes/skills/ (belong in hermes-pnp)"
+if [[ -d "$HERMES/skills" ]]; then
+  fail "hermes/skills leftover (workstation sunset; first-party skills in hermes-pnp)"
 else
-  pass "only workstation skill remains on host"
+  pass "no host hermes/skills"
 fi
 
 if grep -q 'inputs.hermes-pnp.nixosModules.default' "$CONSUMER" \
@@ -123,15 +129,11 @@ else
   fail "hermes.nix must set services.hermesPnP.hmc.enable"
 fi
 
-if grep -q 'skills.extraSkills.workstation' "$HERMES/modules/workstation.nix"; then
-  pass "workstation skill via hermesPnP.skills.extraSkills"
+if grep -qE 'extraSkills\.workstation|checkout-workstation|ssh-workstation|nix_pc_agent_ssh_key' \
+  "$CONSUMER" "$RUNTIME" "$COMPOSIO" "$SOPS" "$ROOT_AGENTS" "$HERMES_AGENTS" "$HERMES/BOOTSTRAP.md"; then
+  fail "workstation checkout/ssh still referenced"
 else
-  fail "workstation.nix must set hermesPnP.skills.extraSkills.workstation"
-fi
-if grep -q 'skills/devops/workstation' "$HERMES/modules/workstation.nix"; then
-  fail "workstation still installs into .hermes/skills/devops (use extraSkills)"
-else
-  pass "no leftover .hermes/skills/devops install"
+  pass "no workstation checkout/ssh references"
 fi
 
 if grep -q 'container.enable' "$CONSUMER"; then
@@ -140,7 +142,7 @@ else
   fail "hermes.nix must set services.hermesPnP.container.enable"
 fi
 
-if grep -q 'projects-auto-commit' "$CONSUMER" "$COMPOSIO" "$GBRAIN"; then
+if grep -q 'projects-auto-commit' "$CONSUMER" "$COMPOSIO"; then
   fail "projects-auto-commit leftover (replaced by git-hook)"
 else
   pass "no projects-auto-commit"
@@ -203,10 +205,10 @@ else
   fail "root AGENTS.md missing hermes/ path"
 fi
 
-if [[ -f "$GBRAIN" ]] && [[ -f "$HERMES/BOOTSTRAP.md" ]]; then
-  pass "GBrain leftover module + BOOTSTRAP present"
+if [[ -f "$HERMES/BOOTSTRAP.md" ]]; then
+  pass "BOOTSTRAP present"
 else
-  fail "missing GBrain leftover module or BOOTSTRAP"
+  fail "missing BOOTSTRAP.md"
 fi
 if [[ -d "$HERMES/memory" ]]; then
   fail "hermes/memory leftover (registry was unused; pruned)"
@@ -240,10 +242,10 @@ else
   fail "hermes.nix must set services.hermesPnP.gbrain.enable"
 fi
 
-if grep -q 'gbrain-mcp-http =' "$GBRAIN" || grep -q 'mcpServers.gbrain' "$GBRAIN"; then
-  fail "modules/gbrain.nix must not start serve or declare mcpServers.gbrain (composer owns those)"
+if grep -q 'activationScripts.hermes-gbrain-site' "$CONSUMER" "$RUNTIME" "$COMPOSIO"; then
+  fail "consumer still rewrites config.yaml Bearer (composer owns that)"
 else
-  pass "gbrain leftover module does not overlap composer serve"
+  pass "no consumer GBrain yaml rewrite"
 fi
 
 for opt in enable extraDependencyGroups addToSystemPackages; do
