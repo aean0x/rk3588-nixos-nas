@@ -14,6 +14,15 @@ in
 {
   # Site commit identity only. github.com HTTPS PAT helper is hermes-pnp
   # (hermesPnP.git.credentialHelper). ISO keeps programs.git.enable = false.
+  programs.git = {
+    enable = true;
+    config = {
+      user = {
+        name = "aean0x";
+        email = "3682177+aean0x@users.noreply.github.com";
+      };
+    };
+  };
 
   systemd.services.gbrain-mcp-http.serviceConfig = {
     MemoryMax = "1G";
