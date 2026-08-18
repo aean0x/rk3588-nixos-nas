@@ -2,7 +2,7 @@
 
 Composer SoT: **`hermes.nix`** (`services.hermesPnP` + official settings + public edge).  
 Host runtime (2G caps, sudo CLI): **`runtime.nix`**.  
-Leftovers: **`modules/`** (GBrain Bearer/git-credential/1G, Composio, OneDrive, workstation extraSkills).
+Leftovers: **`modules/`** (GBrain Bearer/1G, Composio, OneDrive, workstation extraSkills, site `user.name`).
 
 First-boot: **`BOOTSTRAP.md`**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
@@ -13,12 +13,12 @@ hosts/system/hermes/
 ├── hermes.nix           # composer + official settings + Caddy/tunnel
 ├── runtime.nix          # 2G agent RAM/CPU + sudo hermes CLI
 ├── modules/
-│   ├── gbrain.nix       # site leftovers (Bearer rewrite, git-credential, 1G)
+│   ├── gbrain.nix       # site leftovers (Bearer rewrite, git identity, 1G)
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
 │   ├── onedrive.nix
 │   └── workstation.nix  # wrappers + hermesPnP.skills.extraSkills
 ├── skills/workstation/  # extraSkills tree (SKILL.md at root)
-├── scripts/             # clean-hermes-state + git-credential helper
+├── scripts/             # clean-hermes-state
 └── BOOTSTRAP.md
 ```
 
