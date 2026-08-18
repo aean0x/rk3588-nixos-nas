@@ -1,7 +1,7 @@
 # Hermes Agent — hermes-pnp consumer + official settings + public edge.
 #
 # Host runtime (RAM caps, sudo CLI) is ./runtime.nix.
-# Other host leftovers (GBrain yaml/credential, Composio, OneDrive,
+# Other host leftovers (GBrain yaml/identity, Composio, OneDrive,
 # workstation) are modules/.
 {
   config,

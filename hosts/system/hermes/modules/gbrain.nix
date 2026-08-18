@@ -1,8 +1,6 @@
-# Host leftovers after hermes-pnp owns serve + MCP URL.
+# Host leftovers after hermes-pnp owns serve + MCP URL + PAT helper.
 # Composer starts gbrain-mcp-http when hermesPnP.gbrain.enable.
-# This file: 1G RAM cap, native programs.git identity + PAT helper
-# (store path, /nix/store bind-mounted into the gateway container),
-# /etc/gitconfig bind-mounted into the container, config.yaml nits.
+# This file: 1G RAM cap, site git identity, config.yaml nits.
 {
   config,
   lib,
@@ -12,42 +10,10 @@
 let
   agent = config.services.hermes-agent;
   hermesHome = "${agent.stateDir}/.hermes";
-
-  # PAT credential helper as a store path. /nix/store is bind-mounted ro into
-  # the gateway container, so the SAME path resolves on host and in-container.
-  # No install step, no git config --global -- one path for both surfaces.
-  gitCredentialHelper = pkgs.writeShellApplication {
-    name = "git-credential-github-env";
-    runtimeInputs = [ pkgs.gnugrep pkgs.coreutils ];
-    checkPhase = "";
-    text = lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ../scripts/git-credential-github-env);
-  };
 in
 {
-  # Machine-wide identity + credential helper (AGENTS.md aean0x rule).
-  # Native -> /etc/gitconfig. The gateway git-hook runs in a container with
-  # its own /etc, so /etc/gitconfig is bind-mounted in below (extraVolumes).
-  # Override = edit the values here (single source of truth in this flake).
-  # ISO keeps programs.git.enable = false.
-  programs.git = {
-    enable = true;
-    config = {
-      user = {
-        name = "aean0x";
-        email = "3682177+aean0x@users.noreply.github.com";
-      };
-      credential = {
-        helper = "${gitCredentialHelper}/bin/git-credential-github-env";
-        useHttpPath = true;
-      };
-    };
-  };
-
-  # The gateway container ships its own /etc (Ubuntu image), so the host's
-  # native /etc/gitconfig would never reach the git-hook. Share it read-only.
-  services.hermes-agent.container.extraVolumes = [
-    "/etc/gitconfig:/etc/gitconfig:ro"
-  ];
+  # Site commit identity only. github.com HTTPS PAT helper is hermes-pnp
+  # (hermesPnP.git.credentialHelper). ISO keeps programs.git.enable = false.
 
   systemd.services.gbrain-mcp-http.serviceConfig = {
     MemoryMax = "1G";
