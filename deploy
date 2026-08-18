@@ -86,20 +86,22 @@ case "$CMD" in
         check_ssh
         info "Uploading and running GBrain validation (from hermes-pnp)..."
         pnp=$(nix eval --raw --impure --expr "(builtins.getFlake \"${REPO_ROOT}\").inputs.hermes-pnp.outPath")
-        scp ${SSH_OPTS} "${pnp}/scripts/validate-gbrain.sh" \
-            "$TARGET:/tmp/validate-gbrain.sh"
-        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/validate-gbrain.sh"
+        dest="/tmp/validate-gbrain.$$.sh"
+        scp ${SSH_OPTS} "${pnp}/scripts/validate-gbrain.sh" "$TARGET:$dest"
+        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash $dest; rm -f $dest"
         ;;
 
     gbrain-setup)
         check_ssh
         info "Uploading and running GBrain post-install setup (from hermes-pnp)..."
         pnp=$(nix eval --raw --impure --expr "(builtins.getFlake \"${REPO_ROOT}\").inputs.hermes-pnp.outPath")
+        dest="/tmp/gbrain-setup.$$"
+        ssh ${SSH_OPTS} "$TARGET" "mkdir -p $dest"
         scp ${SSH_OPTS} \
             "${pnp}/scripts/gbrain-setup.sh" \
             "${pnp}/scripts/gbrain-wire-config.py" \
-            "$TARGET:/tmp/"
-        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash /tmp/gbrain-setup.sh"
+            "$TARGET:$dest/"
+        ssh -t ${SSH_OPTS} "$TARGET" "sudo bash $dest/gbrain-setup.sh; rm -rf $dest"
         ;;
 
     clean-hermes-state)
