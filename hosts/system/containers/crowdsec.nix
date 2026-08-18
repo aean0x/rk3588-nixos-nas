@@ -29,8 +29,6 @@ let
     "${builtins.elemAt parts 0}.${builtins.elemAt parts 1}.${builtins.elemAt parts 2}.0/${toString settings.network.prefixLength}";
 
   # LAPI listen override (default 8080 conflicts with otbr-web).
-  # Prometheus defaults to :6060 and the same mux serves /debug/pprof
-  # (heap). Nothing scrapes it; the bouncer talks to LAPI :8180 only.
   configLocal = pkgs.writeText "config.yaml.local" ''
     api:
       server:
