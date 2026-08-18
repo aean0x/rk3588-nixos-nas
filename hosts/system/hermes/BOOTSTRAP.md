@@ -68,16 +68,16 @@ PGLite “WASM Aborted”: stop stack, pkill orphans, restart `gbrain-mcp-http`.
 | Brain git | `/var/lib/hermes/home/brain` | `/home/hermes/brain` |
 | bun / gbrain | `…/home/.bun` | `/home/hermes/.bun/bin` |
 
-## 5. Browser (CDP + noVNC)
+## 5. Browser (CDP + agent-browser gate)
 
-Composer `hermesPnP.browser` — Brave, profile `/var/lib/hermes/browser-profile`, CDP `:9222`, noVNC `:6080`.
+Composer `hermesPnP.browser` — Brave, profile `/var/lib/hermes/browser-profile`, CDP `:9222`, gate `:4848` via Caddy `https://browser.<domain>/` (LAN/Tailscale only, no tunnel).
 
 ```bash
 hermes-browser-status
 sudo -u hermes hermes-browser-import-cookies /var/lib/hermes/browser-cookies/ra-axs.json
 ```
 
-Phone captcha: agent sends `HERMES_BROWSER_NOVNC_URL` + password (Tailscale/LAN).
+Phone captcha: agent sends `HERMES_BROWSER_GATE_URL` (Tailscale/LAN).
 
 ## 6. WebUI
 
