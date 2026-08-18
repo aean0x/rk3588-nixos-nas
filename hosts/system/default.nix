@@ -142,7 +142,7 @@
   time.timeZone = settings.timeZone;
   system.stateVersion = settings.stateVersion;
 
-  # Site git author (settings.nix). hermes-pnp adds credential.helper
-  # when the composer is on. ISO sets programs.git.enable = false.
+  # Site git author (settings.nix). hermes-pnp adds credential.helper.
+  # ISO sets programs.git.enable = false.
   programs.git = settings.programs.git or { };
 }

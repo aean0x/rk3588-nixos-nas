@@ -14,6 +14,6 @@
     ./services/adguard.nix # AdGuard Home DNS (port 53, web UI 3000) — enable after deploy
     ./services/filesharing.nix # NFS + Samba guest share of entire /media pool
     ./services/router.nix # Router: NAT + WiFi AP + DHCP — enable in settings.nix
-    ./hermes/hermes.nix # Hermes Agent via hermes-pnp composer + host leftovers
+    ./hermes/hermes.nix # Hermes Agent (hermes-pnp consumer)
   ];
 }

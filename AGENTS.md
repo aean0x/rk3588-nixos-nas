@@ -58,7 +58,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 │   │   │   ├── home-assistant.nix # Home Assistant, Matter Server, OTBR
 │   │   │   ├── filebrowser.nix    # (disabled) legacy web file manager
 │   │   │   └── crowdsec.nix       # CrowdSec IDS/IPS engine + native nftables bouncer
-│   │   ├── hermes/          # Hermes consumer (hermes.nix) + host leftovers
+│   │   ├── hermes/          # Hermes Agent (hermes-pnp consumer)
 │   │   └── services/        # Native service modules
 │   │       ├── tailscale.nix      # Tailscale VPN (native NixOS)
 │   │       ├── adguard.nix        # AdGuard Home DNS (native NixOS)
@@ -146,18 +146,17 @@ Examples: `hermes-agent-setup` (via the official module) + our activation writes
 
 ### Hermes Agent Architecture
 
-Hermes Agent (from `github:NousResearch/hermes-agent`) is composed by flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Host leftovers (Composio policy, OneDrive) stay under `hosts/system/hermes/modules/`.
+Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Site extras (Composio, OneDrive, RAM caps) sit beside that file.
 
-- **Deployment mode**: `container.enable = true` (Ubuntu 24.04, module `--network=host`). State under `/var/lib/hermes`.
-- **Model**: `settings.model.provider = "xai-oauth"`, `default = "grok-4.6"`. One-time `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
-- **Identity**: **No declarative SOUL.md** — activation does not install persona docs. Agent owns identity.
-- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL, and re-applies a literal Bearer after official config merge. Site RAM cap is `runtime.nix`. github.com HTTPS PAT helper is composer `hermesPnP.git.credentialHelper` (always installed; bash no-ops if `GITHUB_PAT` is unset). Site git author is `settings.programs.git`. **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (`./deploy gbrain-setup`), not a Nix package.
-- **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
-- **CLI routing**: `addToSystemPackages = true`; host `hermes` routes into the container.
-- **Caddy**: WebUI on 8787 → `archimedes.${domain}` (LAN) + Cloudflare Tunnel (WAN). Official `hermes dashboard` / `hermes.${domain}:9119` is decommissioned.
-- **Bootstrap / ops docs**: `hosts/system/hermes/BOOTSTRAP.md` + `hosts/system/hermes/AGENTS.md`.
-- **Deploy helpers**: `./deploy validate-gbrain` / `gbrain-setup` (scripts from locked hermes-pnp), `./deploy clean-hermes-state`.
-- **Memory / OOM (8 GiB board):** Hermes is tertiary vs AdGuard + HA. Gateway + WebUI agent processes **2 GiB** / 2 CPU / OOM +500 (`runtime.nix`); browser **1 GiB**; host **8 GiB** swapfile on root SSD (`partitions.nix`). Full table: `hosts/system/hermes/AGENTS.md` § Resource limits / OOM policy. Heavy nix eval/build → workstation, not on-box Hermes.
+- **Deployment**: `hermesPnP.container.enable` (Ubuntu 24.04, host net). State under `/var/lib/hermes`.
+- **Models**: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6). One-time `hermes auth add xai-oauth` after deploy (`hosts/system/hermes/BOOTSTRAP.md`).
+- **Identity**: no declarative SOUL.md. Agent owns persona docs.
+- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL + literal Bearer. 1G cap is `runtime.nix`. github.com HTTPS PAT helper is hermes-pnp (fail-open if `GITHUB_PAT` is unset). Site git author is `settings.programs.git`. Agent never shells `gbrain`. CLI is bun-global (`./deploy gbrain-setup`).
+- **Secrets**: sops `hermesEnv` → `/run/hermes.env`. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
+- **CLI**: `addToSystemPackages = true`; host `hermes` routes into the container.
+- **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
+- **Docs / ops**: `hosts/system/hermes/BOOTSTRAP.md` + `AGENTS.md`. `./deploy validate-gbrain` / `gbrain-setup` / `clean-hermes-state`.
+- **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent/WebUI **2 GiB**, browser **1 GiB**, gbrain **1 GiB** (`runtime.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
 
 
 ### Caddy Reverse Proxy (LAN)

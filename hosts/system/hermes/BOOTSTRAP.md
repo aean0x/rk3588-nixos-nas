@@ -1,4 +1,4 @@
-# Bootstrap: fresh Hermes + GBrain on rocknas
+# Bootstrap: fresh Hermes + GBrain
 
 End state: xAI OAuth + Grok 4.6, no declarative SOUL, GBrain HTTP MCP up,
 ZeroEntropy in `/run/hermes.env`.
@@ -46,7 +46,7 @@ Nix already starts `gbrain-mcp-http` and the two plugins. Still needed once:
 Scripts come from the locked **hermes-pnp** input (`scripts/gbrain-setup.sh`).
 Agent-assisted: `./deploy hermes chat` with hermes-pnp `scripts/gbrain-bootstrap-query.txt`.
 
-Never: `gbrain autopilot --install`; exclusive consolidate/dream; a second serve.
+Never: `gbrain autopilot --install`; a second serve.
 
 ## 3. Day-2
 
@@ -72,7 +72,7 @@ PGLite “WASM Aborted”: stop stack, pkill orphans, restart `gbrain-mcp-http`.
 
 ## 5. Browser (CDP + agent-browser gate)
 
-Composer `hermesPnP.browser` — Brave, profile `/var/lib/hermes/browser-profile`, CDP `:9222`, gate `:4848` via Caddy `https://browser.<domain>/` (LAN/Tailscale only, no tunnel).
+`hermesPnP.browser` — Brave, profile `/var/lib/hermes/browser-profile`, CDP `:9222`, gate `:4848` via Caddy `https://browser.<domain>/` (LAN/Tailscale only, no tunnel).
 
 ```bash
 hermes-browser-status
