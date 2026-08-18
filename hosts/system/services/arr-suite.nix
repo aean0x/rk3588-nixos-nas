@@ -5,10 +5,10 @@
 #   /media/Videos/library/shows   → bind of Shows
 #   /media/Videos/downloads       → RDT-Client (containers/rdtclient.nix)
 #
-# UIs (LAN):
-#   https://sonarr.<domain>  :8989
-#   https://radarr.<domain>  :7878
-#   https://rdt.<domain>     :6500  (see containers/rdtclient.nix)
+# UIs (Caddy, backends on loopback):
+#   https://sonarr.<domain>  127.0.0.1:8989
+#   https://radarr.<domain>  127.0.0.1:7878
+#   https://rdt.<domain>     127.0.0.1:6500  (see containers/rdtclient.nix)
 #
 # RDT container + TorBox bootstrap live in hosts/system/containers/rdtclient.nix.
 # Docs: hosts/system/services/ARR.md
@@ -70,7 +70,7 @@ in
 
     sonarr = {
       enable = true;
-      openFirewall = true;
+      openFirewall = false;
       settings-sync = {
         downloadClients = [
           {
@@ -92,7 +92,7 @@ in
 
     radarr = {
       enable = true;
-      openFirewall = true;
+      openFirewall = false;
       settings-sync = {
         downloadClients = [
           {
@@ -113,9 +113,19 @@ in
     };
   };
 
-  # Local API for settings-sync (and LAN convenience)
-  services.sonarr.settings.auth.required = "DisabledForLocalAddresses";
-  services.radarr.settings.auth.required = "DisabledForLocalAddresses";
+  # Caddy is the LAN door. Host-net jails share loopback, so "local"
+  # is not a trust boundary — require a login even on 127.0.0.1.
+  # Live Radarr had drifted to AuthenticationMethod=None.
+  services.sonarr.settings = {
+    auth.method = "Forms";
+    auth.required = "Enabled";
+    server.bindaddress = "127.0.0.1";
+  };
+  services.radarr.settings = {
+    auth.method = "Forms";
+    auth.required = "Enabled";
+    server.bindaddress = "127.0.0.1";
+  };
 
   # Wire *arr settings-sync after RDT is bootstrapped
   systemd.services.sonarr-sync-config = {
@@ -205,11 +215,6 @@ in
       fi
     '';
   };
-
-  networking.firewall.allowedTCPPorts = [
-    sonarrPort
-    radarrPort
-  ];
 
   services.caddy.proxyServices = {
     "sonarr.${domain}" = sonarrPort;

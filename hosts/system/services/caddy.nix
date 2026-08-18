@@ -87,6 +87,14 @@ in
       enable = true;
       package = caddyWithCloudflare;
 
+      # Declarative Caddyfile only. Default admin (127.0.0.1:2019) is
+      # unauthenticated; host-net jails share that loopback. Reload uses
+      # the admin API, so turn it off and restart on config change.
+      enableReload = false;
+      globalConfig = ''
+        admin off
+      '';
+
       # Single wildcard site — one cert issuance, avoids per-host zone detection bugs
       extraConfig = ''
         *.${domain}, ${domain} {
