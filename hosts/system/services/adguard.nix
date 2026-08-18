@@ -30,10 +30,13 @@ in
   services.adguardhome = {
     enable = true;
     mutableSettings = true;
+    # Caddy fronts the UI. Binding *:3000 also opened an unauthenticated
+    # control API on the LAN (users = []). Host-net jails still reach
+    # loopback — set a UI password to close that remaining hole.
+    host = "127.0.0.1";
+    port = port;
     settings = {
       schema_version = 32;
-
-      http.address = "0.0.0.0:${toString port}";
 
       dns = {
         # Bind all IPv4 (incl. loopback). Host resolv uses 127.0.0.1 so hermes
@@ -184,10 +187,7 @@ in
   };
 
   networking.firewall = {
-    allowedTCPPorts = [
-      53
-      port
-    ];
+    allowedTCPPorts = [ 53 ];
     allowedUDPPorts = [ 53 ];
   };
 }

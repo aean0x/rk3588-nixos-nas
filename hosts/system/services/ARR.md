@@ -4,9 +4,9 @@
 
 | Service | Port | URL |
 |---------|------|-----|
-| **Sonarr** | 8989 | `https://sonarr.<domain>` / `http://IP:8989` |
-| **Radarr** | 7878 | `https://radarr.<domain>` / `http://IP:7878` |
-| **RDT-Client** | 6500 | `https://rdt.<domain>` / `http://IP:6500` |
+| **Sonarr** | 8989 (loopback) | `https://sonarr.<domain>` |
+| **Radarr** | 7878 (loopback) | `https://radarr.<domain>` |
+| **RDT-Client** | 6500 (loopback) | `https://rdt.<domain>` |
 
 RDT-Client talks to **TorBox** (`torbox_api_key` in sops) and pretends to be **qBittorrent** so Sonarr/Radarr can send magnets/torrents.
 

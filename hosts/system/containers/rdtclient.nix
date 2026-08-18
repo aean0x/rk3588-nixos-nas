@@ -51,7 +51,7 @@ in
       "${dataDir}:/data/db"
       "${downloads}:/data/downloads"
     ];
-    ports = [ "${toString port}:6500" ];
+    ports = [ "127.0.0.1:${toString port}:6500" ];
     autoStart = true;
   };
 
@@ -131,8 +131,6 @@ in
       echo "RDT-Client bootstrap done."
     '';
   };
-
-  networking.firewall.allowedTCPPorts = [ port ];
 
   services.caddy.proxyServices = {
     "${host}" = port;

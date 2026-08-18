@@ -162,6 +162,8 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is composed by flake inpu
 
 ### Caddy Reverse Proxy (LAN)
 
+Admin API is off (`admin off`, `enableReload = false`). Config is the Caddyfile only — host-net jails share loopback, so `:2019` is not a boundary.
+
 Custom option `services.caddy.proxyServices` maps hostnames → backend ports. Each entry gets HTTPS (Cloudflare DNS-01) and reverse_proxy to localhost. Non-`externalHosts` clients outside LAN get 403.
 
 ```nix
