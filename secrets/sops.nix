@@ -49,7 +49,7 @@ let
     FIRECRAWL_API_KEY = "firecrawl_api_key";
     # Hermes OpenAI-compatible API server (loopback clients).
     # Distinct from OPENAI_API_KEY above (that one is OpenRouter for LLM routing).
-    API_SERVER_KEY = "hermes_api_server_key";
+    # API_SERVER_KEY = "hermes_api_server_key";
     # Hermes WebUI / agent TTS (server-side ElevenLabs).
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
@@ -88,6 +88,7 @@ in
         zeroentropy_api_key = { };
         firecrawl_api_key = { };
         filebrowser_password = { }; # legacy (filebrowser container commented out)
+        adguard_password = { }; # AdGuard UI (admin), hashed at start
         # Arr / RDT-Client (also declared with modes in services/arr-suite.nix)
         torbox_api_key = { };
         rdtclient_username = { };
