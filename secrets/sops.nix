@@ -102,9 +102,6 @@ in
         x_bearer_token = { };
         github_pat = { };
         btc_wallet_key = { };
-        # Shared bearer for Hermes API_SERVER_KEY (loopback OpenAI-compatible API).
-        # Generate: openssl rand -hex 32
-        hermes_api_server_key = { };
         # ElevenLabs TTS for Hermes WebUI (and agent when it uses the same env).
         elevenlabs_api_key = { };
         # Native DeepSeek API key → DEEPSEEK_API_KEY in /run/hermes.env.
@@ -136,20 +133,11 @@ in
           group = "hermes";
           mode = "0640";
           path = "/run/hermes.env";
-          # HERMES_MANAGED durable path for API server: secret + static knobs
-          # land in ${stateDir}/.hermes/.env at activation (not `hermes config set`).
+          # Secrets land in ${stateDir}/.hermes/.env at activation.
           content = lib.concatStringsSep "\n" (
             (lib.mapAttrsToList (
               envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
             ) hermesSecrets)
-            ++ [
-              ""
-              "# Hermes OpenAI-compatible API server (loopback clients)"
-              "API_SERVER_ENABLED=true"
-              "API_SERVER_HOST=127.0.0.1"
-              "API_SERVER_PORT=8642"
-              "API_SERVER_MODEL_NAME=hermes-agent"
-            ]
           );
         };
       }
