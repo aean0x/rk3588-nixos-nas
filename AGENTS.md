@@ -151,7 +151,7 @@ Hermes Agent (from `github:NousResearch/hermes-agent`) is composed by flake inpu
 - **Deployment mode**: `container.enable = true` (Ubuntu 24.04, module `--network=host`). State under `/var/lib/hermes`.
 - **Model**: `settings.model.provider = "xai-oauth"`, `default = "grok-4.6"`. One-time `hermes auth add xai-oauth` after deploy (see `hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: **No declarative SOUL.md** — activation does not install persona docs. Agent owns identity.
-- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`; host `modules/gbrain.nix` is leftovers (Bearer rewrite, git-credential, 1G cap). **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
+- **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`; host `modules/gbrain.nix` is leftovers (Bearer rewrite, site git identity, 1G cap). github.com HTTPS PAT helper is composer `hermesPnP.git.credentialHelper` (always installed; bash no-ops if `GITHUB_PAT` is unset). **No** host exclusive consolidate/dream/embed timers. Agent never shells `gbrain`. CLI install is bun-global (bootstrap only), not a Nix package.
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`, including `ZEROENTROPY_API_KEY` for embeddings. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI routing**: `addToSystemPackages = true`; host `hermes` routes into the container.
 - **Caddy**: WebUI on 8787 → `archimedes.${domain}` (LAN) + Cloudflare Tunnel (WAN). Official `hermes dashboard` / `hermes.${domain}:9119` is decommissioned.
