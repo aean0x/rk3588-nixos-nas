@@ -156,7 +156,7 @@ Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Si
 - **CLI**: `addToSystemPackages = true`; host `hermes` routes into the container.
 - **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
 - **Docs / ops**: `hosts/system/hermes/BOOTSTRAP.md` + `AGENTS.md`. `./deploy validate-gbrain` / `gbrain-setup` / `clean-hermes-state`.
-- **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent/WebUI **2 GiB**, browser **1 GiB**, gbrain **1 GiB** (`runtime.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
+- **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent **1 GiB**, WebUI **2 GiB**, browser **1 GiB**, gbrain **512 MiB** (`runtime.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
 
 
 ### Caddy Reverse Proxy (LAN)

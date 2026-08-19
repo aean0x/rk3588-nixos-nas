@@ -1,5 +1,5 @@
 # Hermes Agent — hermes-pnp consumer.
-# RAM/CPU caps and sudo CLI: ./runtime.nix
+# RAM/CPU caps, admin socket, sudo CLI: ./runtime.nix
 # Site extras (Composio, OneDrive): ./modules/
 {
   config,
