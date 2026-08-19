@@ -1,6 +1,6 @@
 # Hermes Agent
 
-`hermes.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge.
+`hermes.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge. RAM caps and `hermes-admin` live in `runtime.nix`.
 
 First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
@@ -9,7 +9,7 @@ First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **herm
 ```
 hosts/system/hermes/
 ├── hermes.nix           # hermesPnP + official settings + Caddy/tunnel
-├── runtime.nix          # 2G agent/WebUI, 1G browser, 1G gbrain, sudo CLI
+├── runtime.nix          # RAM caps + hermes-admin + sudo CLI
 ├── modules/
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
 │   └── onedrive.nix
@@ -23,6 +23,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail).
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
+- Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
 - Models: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6).
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
@@ -35,10 +36,10 @@ Prefer killing Hermes over DNS or Home Assistant.
 
 | Surface | Cap | Where |
 |---------|-----|--------|
-| hermes-agent container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
+| hermes-agent container | 1 GiB / 1 CPU / OOM +500 | `runtime.nix` |
 | hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` |
-| gbrain-mcp-http | 1 GiB / OOM +400 | `runtime.nix` |
+| gbrain-mcp-http | 512 MiB / OOM +400 | `runtime.nix` |
 | AdGuard / HA | OOM −500 | their modules |
 | Host swap | 8 GiB | `partitions.nix` |
 
