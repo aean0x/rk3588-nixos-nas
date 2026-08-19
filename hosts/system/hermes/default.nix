@@ -28,6 +28,7 @@ in
 
     browser.package = pkgs.brave;
     browser.gate.publicUrl = "https://browser.${settings.domain}/";
+    browser.gate.maxTabs = 3;
 
     models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron + mechanical aux
     models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation + reasoning aux
