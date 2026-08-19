@@ -28,6 +28,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
+- OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `hermes.nix`; Composio backends + filters in `modules/composio.nix`.
 
 ## Resource limits (8 GiB — Hermes is tertiary)
