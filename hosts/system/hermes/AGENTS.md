@@ -1,17 +1,15 @@
-# Hermes Agent — rocknas
+# Hermes Agent
 
-Composer SoT: **`hermes.nix`** (`services.hermesPnP` + official settings + public edge).  
-Host runtime (2G caps, sudo CLI): **`runtime.nix`**.  
-Leftovers: **`modules/`** (Composio, OneDrive). Site git author is `settings.programs.git`. GBrain HTTP is composer `gbrain.enable`.
+`hermes.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge.
 
-First-boot: **`BOOTSTRAP.md`**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
+First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
 ## Layout
 
 ```
 hosts/system/hermes/
-├── hermes.nix           # composer + official settings + Caddy/tunnel
-├── runtime.nix          # 2G agent RAM/CPU + sudo hermes CLI + gbrain 1G
+├── hermes.nix           # hermesPnP + official settings + Caddy/tunnel
+├── runtime.nix          # 2G agent/WebUI, 1G browser, 1G gbrain, sudo CLI
 ├── modules/
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
 │   └── onedrive.nix
@@ -19,15 +17,17 @@ hosts/system/hermes/
 └── BOOTSTRAP.md
 ```
 
+Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`). The github.com PAT helper is hermes-pnp.
+
 ## Runtime
 
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail).
-- WebUI + browser: composer OCI jails (`/var/lib/hermes-oci/<name>` identity). Privilege locks are injected after extraOptions.
-- Models: PnP `low`/`medium`/`high` (deepseek flash / pro / xai-oauth grok-4.6). WebUI extension sidecar from composer.
+- WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
+- Models: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6).
 - No declarative SOUL.md.
-- WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs (`DfE5EkknFF950NR6OMui`, `eleven_flash_v2_5`). Search: `web.search_backend=xai`.
-- Toolbox + browser CDP + agent-browser gate: composer. Engine here is Brave. Gate is Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel). `cdpAllowOrigins` includes `gate.publicUrl`.
-- mcp-proxy: composer `clientAuth=token`. Site backends + filters stay in `modules/composio.nix`.
+- WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
+- Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
+- mcp-proxy: enable in `hermes.nix`; Composio backends + filters in `modules/composio.nix`.
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 
@@ -36,9 +36,9 @@ Prefer killing Hermes over DNS or Home Assistant.
 | Surface | Cap | Where |
 |---------|-----|--------|
 | hermes-agent container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
-| hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` (`webui.container.extraOptions`) |
-| hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` (`browser.container.extraOptions`) |
-| gbrain-mcp-http | 1 GiB / OOM +400 | `runtime.nix` (unit is composer) |
+| hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
+| hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` |
+| gbrain-mcp-http | 1 GiB / OOM +400 | `runtime.nix` |
 | AdGuard / HA | OOM −500 | their modules |
 | Host swap | 8 GiB | `partitions.nix` |
 
@@ -51,7 +51,7 @@ Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.
 | Module enablement, ports, Caddy/tunnel, secrets wiring | SOUL / persona, USER.md, MEMORY.md body |
 | Model routing, tool_output/compression | Brain pages, pointer index content |
 | MCP declarations, extraDependencyGroups | Day-to-day put_page / query |
-| Plugin **code** in hermes-pnp | Cron prompts, gbrain CLI version |
+| Plugin code in hermes-pnp | Cron prompts, gbrain CLI version |
 | Toolbox PATH, browser CDP | Cookies, OAuth tokens, ad-hoc apt/pip |
 
 Do not bake operational content into the flake. Do not put environment policy only in agent memory.
@@ -59,13 +59,13 @@ Do not bake operational content into the flake. Do not put environment policy on
 ## GBrain
 
 `hermesPnP.gbrain.enable` starts `gbrain-mcp-http` (`gbrain serve --http :3131`),
-sets MCP URL, and re-applies a literal Bearer into `config.yaml` after official merge.
+sets the MCP URL, and writes a literal Bearer into `config.yaml`.
 
 - CLI: bun-global under hermes HOME (`./deploy gbrain-setup`).
 - Embeddings: `ZEROENTROPY_API_KEY` via `/run/hermes.env`.
 - **Never** shell `gbrain` while the agent is up (PGLite single-writer).
-- Hygiene: MCP tools or Hermes cron **via MCP only**. No exclusive consolidate/dream/embed.
-- Protocol SoT: GBrain page `ops/gbrain-protocol`. Composer operator doc: hermes-pnp `docs/gbrain.md`.
+- Hygiene: MCP tools or Hermes cron **via MCP only**.
+- Protocol SoT: GBrain page `ops/gbrain-protocol`. Operator doc: hermes-pnp `docs/gbrain.md`.
 
 ```
 Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-http
@@ -98,11 +98,10 @@ Drive these via `./deploy` — do not wait for the human.
 | Logs | `./deploy journal hermes-agent` |
 | Soft reset | `./deploy clean-hermes-state` |
 
-## Lessons
+## Gotchas
 
 - Container is `--network=host` — no docker `-p`.
 - `messaging` and `firecrawl` must be in `extraDependencyGroups`.
-- Do not write a Nix manifesto to `$HERMES_HOME/AGENTS.md`.
-- No Nix one-shots for leftover state — `./deploy` SSH once.
 - `HASS_*` for Home Assistant tools (not `HA_*`).
 - Do not raise Hermes/browser caps without revisiting HA/AdGuard headroom.
+- No Nix one-shots for retired files — `./deploy` SSH once.

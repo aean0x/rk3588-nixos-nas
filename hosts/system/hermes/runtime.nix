@@ -1,12 +1,6 @@
-# Host runtime policy: 8GiB RAM/CPU caps, sudo hermes CLI, group membership.
-# Applies the options it owns — do not re-export numbers through _module.args.
-#
-# Compression / context window live in hermes.nix (official settings).
-# Paths, toolbox PATH, browser CDP/gate, GBrain serve, WebUI pairing — hermes-pnp.
-# WebUI + browser are OCI-jailed when hermesPnP.container.enable (this host).
-# Host systemd MemoryMax does not apply to those containers — cap via extraOptions.
-# Official extraOptions is concat-only (composer hashes remapped --env there).
-# Browser extraOptions: replace the 2g shm default so it fits the 1g cgroup.
+# Host RAM/CPU caps, sudo hermes CLI, hermes group.
+# WebUI/browser are OCI jails — cap via extraOptions, not host MemoryMax.
+# Browser shm default is 2g; force 256m so it fits the 1g cgroup.
 {
   config,
   lib,
@@ -38,7 +32,6 @@ in {
     ++ dockerCap resources.browserMemoryDocker
   );
 
-  # Site RAM cap. Unit itself is composer `hermesPnP.gbrain.enable`.
   systemd.services.gbrain-mcp-http.serviceConfig = lib.mkIf config.services.hermesPnP.gbrain.enable {
     MemoryMax = "1G";
     OOMScoreAdjust = 400;

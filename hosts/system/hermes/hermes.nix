@@ -1,7 +1,6 @@
-# Hermes Agent — hermes-pnp consumer + official settings + public edge.
-#
-# Host runtime (RAM caps, sudo CLI) is ./runtime.nix.
-# Other host leftovers (Composio, OneDrive) are modules/.
+# Hermes Agent — hermes-pnp consumer.
+# RAM/CPU caps and sudo CLI: ./runtime.nix
+# Site extras (Composio, OneDrive): ./modules/
 {
   config,
   pkgs,
@@ -25,6 +24,15 @@ in
     enable = true;
     environmentFiles = [ config.sops.templates.hermesEnv.path ];
 
+    container.enable = true;
+
+    browser.package = pkgs.brave;
+    browser.gate.publicUrl = "https://browser.${settings.domain}/";
+
+    models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron + mechanical aux
+    models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation + reasoning aux
+    models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice + fallback
+
     plugins = [
       "model-router"
       "tool-call-coherency"
@@ -34,18 +42,9 @@ in
 
     toolbox.extraPackages = [ pkgs.sops ];
 
-    # clientAuth: composer mkDefault "token"; header lands on mcpServers.<backend>.
-
-    browser.package = pkgs.brave;
-    browser.gate.publicUrl = "https://browser.${settings.domain}/";
-
-    container.enable = true;
-
-    hmc.enable = true;
-
-    gbrain.enable = true;
-
     mcpProxy.enable = true;
+    hmc.enable = true;
+    gbrain.enable = true;
   };
 
   services.hermes-agent = {
@@ -61,14 +60,10 @@ in
     ];
 
     settings = {
-      # hermes doctor: missing key is reported as v0.
+      # hermes doctor reports v0 if this key is missing
       _config_version = 33;
 
-      # Display + compressor window. Applies to the default model only
-      # (grok-4.6); after a router hop the live catalog window wins.
-      # Native fire is min(ratio × live window, this cap). 180k is the
-      # DeepSeek ceiling; Grok on the 200k pin hits the <512k 75% floor
-      # first (~150k).
+      # Default-model window (grok-4.6). Router hops use the live catalog.
       model.context_length = 200000;
 
       stt = {
@@ -86,7 +81,6 @@ in
 
       toolsets = [ "all" ];
 
-      # official terminal.timeout = 180; 300s for long NAS jobs
       terminal.timeout = 300;
 
       tool_output = {
@@ -100,12 +94,10 @@ in
         model_thresholds = {
           "deepseek-v4" = 0.18;
         };
-        # official target_ratio = 0.20; 0.15 keeps more headroom on 8GiB
         target_ratio = 0.15;
         protect_last_n = 8;
         proactive_prune_tokens = 24000;
         proactive_prune_min_result_chars = 2000;
-        # official min_reclaim = 4096; 2048 fires more often on this board
         proactive_prune_min_reclaim_tokens = 2048;
         idle_compact_after_seconds = 1800;
       };
@@ -119,7 +111,6 @@ in
         allow_private_urls = true;
       };
 
-      # official approvals.timeout = 300; 120s is tighter for this box
       approvals.timeout = 120;
 
       web = {
@@ -127,7 +118,7 @@ in
         extract_backend = "firecrawl";
       };
 
-      timezone = "Europe/Berlin";
+      timezone = settings.timeZone;
 
       agent = {
         max_turns = 80;
@@ -143,6 +134,7 @@ in
     };
   };
 
+  # WebUI: LAN Caddy + Cloudflare Tunnel. Browser gate: LAN/Tailscale only.
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
   services.caddy.proxyServices."browser.${settings.domain}" = 4848;
   services.cloudflareTunnel.proxyServices."${webuiHost}" = webuiPort;
