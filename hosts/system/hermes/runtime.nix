@@ -22,12 +22,12 @@
   services.hermesPnP.webui.container.cpus = 2;
   services.hermesPnP.webui.container.oomScoreAdj = 500;
 
-  # Browser: consumer maxTabs = 3. 1g holds with shm 256m.
+  # Browser: consumer maxTabs = 3. 1g holds. shm is /tmp
+  # (--disable-dev-shm-usage); do not also set shmSize.
   services.hermesPnP.browser.container.memory = "1g";
   services.hermesPnP.browser.container.memorySwap = "1g";
   services.hermesPnP.browser.container.cpus = 2;
   services.hermesPnP.browser.container.oomScoreAdj = 500;
-  services.hermesPnP.browser.container.shmSize = "256m";
 
   # Allowlisted restart from the jails. Not sudo, not docker.sock.
   services.hermesPnP.admin.enable = true;
