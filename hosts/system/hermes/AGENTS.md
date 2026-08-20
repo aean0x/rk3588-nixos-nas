@@ -1,6 +1,6 @@
 # Hermes Agent
 
-`hermes.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge. RAM caps and `hermes-admin` live in `runtime.nix`.
+`default.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge. RAM caps and `hermes-admin` live in `runtime.nix`.
 
 First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
@@ -8,7 +8,7 @@ First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **herm
 
 ```
 hosts/system/hermes/
-├── hermes.nix           # hermesPnP + official settings + Caddy/tunnel
+├── default.nix          # hermesPnP + official settings + Caddy/tunnel
 ├── runtime.nix          # RAM caps + hermes-admin + sudo CLI
 ├── modules/
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
