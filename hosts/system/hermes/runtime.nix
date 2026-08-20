@@ -22,7 +22,7 @@
   services.hermesPnP.webui.container.cpus = 2;
   services.hermesPnP.webui.container.oomScoreAdj = 500;
 
-  # Browser: 2-tab policy (maxTabs default). 1g holds with shm 256m.
+  # Browser: consumer maxTabs = 3. 1g holds with shm 256m.
   services.hermesPnP.browser.container.memory = "1g";
   services.hermesPnP.browser.container.memorySwap = "1g";
   services.hermesPnP.browser.container.cpus = 2;
