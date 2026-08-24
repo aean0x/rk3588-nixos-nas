@@ -112,6 +112,12 @@ in
         allow_private_urls = true;
       };
 
+      # Browser backend: "off" = built-in browser_* tools driving the sticky
+      # headed Brave at :9222 directly (gate-visible, no --headless). Unset
+      # defaults to the Browser-Use CLI, which opens background tabs the
+      # agent-browser gate does not surface. No browser-stack rewrite.
+      browser.backend = "off";
+
       approvals.timeout = 120;
 
       web = {
