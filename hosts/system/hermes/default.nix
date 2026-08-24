@@ -30,9 +30,10 @@ in
     browser.gate.publicUrl = "https://browser.${settings.domain}/";
     browser.maxTabs = 3;
 
-    models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron + mechanical aux
-    models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation + reasoning aux
+    models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron
+    models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation
     models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice + fallback
+    # models.auxiliary defaults like low; reasoning_effort = "none"
 
     plugins = [
       "model-router"

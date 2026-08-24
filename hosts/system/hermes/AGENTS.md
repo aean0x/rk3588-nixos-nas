@@ -24,7 +24,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail).
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
 - Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
-- Models: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6).
+- Models: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6). Auxiliary slots are `models.auxiliary` (default flash, effort none), not low.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
