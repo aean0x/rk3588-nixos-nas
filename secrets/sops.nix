@@ -41,7 +41,7 @@ let
     # X_ACCESS_TOKEN = "x_access_token";
     # X_ACCESS_SECRET = "x_access_secret";
     # X_BEARER_TOKEN = "x_bearer_token";
-    GITHUB_PAT = "github_pat";
+    GITHUB_TOKEN = "github_pat";
     BTC_WALLET_KEY = "btc_wallet_key";
     # GBrain embeddings (gbrain embed --stale / dream).
     ZEROENTROPY_API_KEY = "zeroentropy_api_key";
