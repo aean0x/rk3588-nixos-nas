@@ -33,7 +33,6 @@ in
     models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron
     models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation
     models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice + fallback
-    # models.auxiliary defaults like low; reasoning_effort = "none"
 
     plugins = [
       "model-router"
@@ -65,8 +64,9 @@ in
       # hermes doctor reports v0 if this key is missing
       _config_version = 33;
 
-      # Default-model window (grok-4.6). Router hops use the live catalog.
-      model.context_length = 200000;
+      # grok-4.6 window is 500k; 200k is the input-price cliff, not the limit.
+      # Router hops use the live catalog. threshold_tokens keeps grok under the cliff.
+      model.context_length = 500000;
 
       stt = {
         provider = "openai";

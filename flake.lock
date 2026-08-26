@@ -58,11 +58,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787564611,
-        "narHash": "sha256-lYtH6amlPhjMP3Hf6V7Kft6kOiitVnB2cTz4tkilc6o=",
+        "lastModified": 1787722005,
+        "narHash": "sha256-LQok7nycCoJsne8pOi4dmKNtG9WS+9enuNULJqygbh8=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "5e86a1290e7409db13b136872af309f70d003066",
+        "rev": "9275df67108932df874cfa455bb59f669b04a87c",
         "type": "github"
       },
       "original": {
