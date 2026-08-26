@@ -24,6 +24,11 @@ in
     enable = true;
     environmentFiles = [ config.sops.templates.hermesEnv.path ];
 
+    # One workspace for gateway (terminal.cwd) + WebUI; stateDir root
+    # remaps to /data in the OCI jails (whole-tree view). OneDrive still
+    # lands in ${stateDir}/workspace/onedrive.
+    workspace = "${config.services.hermes-agent.stateDir}";
+
     container.enable = true;
 
     browser.package = pkgs.brave;
