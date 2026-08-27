@@ -27,6 +27,9 @@ pkgs.mkShell {
     # PXE netboot server
     dnsmasq
     python3
+
+    # PR lint gate (statix.toml)
+    statix
   ];
 
   shellHook = ''
@@ -36,6 +39,7 @@ pkgs.mkShell {
     echo "  ./deploy <cmd>        - Unified management (build-iso, netboot, install, remote-build, etc.)"
     echo "  ./secrets/encrypt     - Encrypt secrets"
     echo "  ./secrets/decrypt     - Decrypt secrets for editing"
+    echo "  statix check .        - Nix lint (PR merge gate)"
     echo ""
   '';
 }
