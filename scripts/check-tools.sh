@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
-CONSUMER="$H/hermes.nix"
+CONSUMER="$H/default.nix"
 FAIL=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAIL=1; }
@@ -16,14 +16,14 @@ else
 fi
 if grep -q 'inputs.hermes-pnp.nixosModules.default' "$CONSUMER" \
   && grep -q 'services.hermesPnP' "$CONSUMER"; then
-  pass "hermes.nix imports composer (toolbox)"
+  pass "default.nix imports composer (toolbox)"
 else
-  fail "composer not imported from hermes.nix"
+  fail "composer not imported from default.nix"
 fi
 if grep -q 'toolbox.extraPackages' "$CONSUMER"; then
   pass "consumer extends composer toolbox"
 else
-  fail "hermes.nix should extend hermesPnP.toolbox (extraPackages)"
+  fail "default.nix should extend hermesPnP.toolbox (extraPackages)"
 fi
 if grep -q 'mcpServers.gbrain' "$CONSUMER" "$H/runtime.nix"; then
   fail "consumer still declares mcpServers.gbrain (composer owns HTTP url)"
@@ -33,7 +33,7 @@ fi
 if grep -q 'gbrain.enable' "$CONSUMER"; then
   pass "composer gbrain hook enabled"
 else
-  fail "hermes.nix must set services.hermesPnP.gbrain.enable"
+  fail "default.nix must set services.hermesPnP.gbrain.enable"
 fi
 
 if [[ "${REMOTE_CHECK:-}" == 1 ]]; then

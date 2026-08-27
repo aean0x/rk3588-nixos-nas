@@ -100,7 +100,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `openrouter_api_key`, `anthropic_api_key`, `deepseek_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
 - `browserless_api_token` — Remote browser CDP service (Browserless cloud; good for soft CF, weak alone on AXS-class ticketing)
-- Local browser: `services.hermesPnP.browser` (declared in `hosts/system/hermes/hermes.nix`, Brave engine) — sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **agent-browser gate on :4848** (`https://browser.<domain>/`, LAN/Tailscale, no Cloudflare tunnel). Primary for checkout; Browserless is secondary scraping only.
+- Local browser: `services.hermesPnP.browser` (declared in `hosts/system/hermes/default.nix`, Brave engine) — sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **agent-browser gate on :4848** (`https://browser.<domain>/`, LAN/Tailscale, no Cloudflare tunnel). Primary for checkout; Browserless is secondary scraping only.
 - `telegram_bot_token`, `telegram_admin_id` — Telegram bot + admin allowlist
 - `composio_api_key` — hermes-pnp mcp-proxy injects Composio MCP Bearer; also Hermes env for API
 - `ha_token`, `ha_url` — Home Assistant API
@@ -120,7 +120,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | Docker engine | Native | `containers.nix` | Auto-prune, unified refresh timer |
 | Home Assistant + Matter + OTBR | Docker | `containers/home-assistant.nix` | Host network for mDNS/Thread |
 | Files (NFS+SMB) | Native | `services/filesharing.nix` | Guest-only drop zone `/media/Files/Share` |
-| Hermes Agent + GBrain | NixOS module + container | `hermes/hermes.nix` (hermes-pnp) + `hermes/modules/` | xAI OAuth / Grok, low/medium/high router, GBrain MCP + reflex, WebUI; SOUL not declarative |
+| Hermes Agent + GBrain | NixOS module + container | `hermes/default.nix` (hermes-pnp) + `hermes/modules/` | xAI OAuth / Grok, low/medium/high router, GBrain MCP + reflex, WebUI; SOUL not declarative |
 | Tailscale VPN | Native | `services/tailscale.nix` | |
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
@@ -146,10 +146,10 @@ Examples: `hermes-agent-setup` (via the official module) + our activation writes
 
 ### Hermes Agent Architecture
 
-Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/hermes.nix`. Site extras (Composio, OneDrive, RAM caps) sit beside that file.
+Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/default.nix`. Site extras (Composio, OneDrive, RAM caps) sit beside that file.
 
 - **Deployment**: `hermesPnP.container.enable` (Ubuntu 24.04, host net). State under `/var/lib/hermes`.
-- **Models**: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6). One-time `hermes auth add xai-oauth` after deploy (`hosts/system/hermes/BOOTSTRAP.md`).
+- **Models**: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6). model-router v0.7.0: Auto classifies low vs medium; `high` is `escalate_model` or `/high`. Do not set `model.context_length`. One-time `hermes auth add xai-oauth` after deploy (`hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: no declarative SOUL.md. Agent owns persona docs.
 - **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL + literal Bearer. 1G cap is `runtime.nix`. github.com HTTPS PAT helper is hermes-pnp (fail-open if `GITHUB_TOKEN` is unset). Site git author is `settings.programs.git`. Agent never shells `gbrain`. CLI is bun-global (`./deploy gbrain-setup`).
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.

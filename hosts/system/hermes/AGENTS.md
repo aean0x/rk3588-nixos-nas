@@ -24,12 +24,12 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail). Default workspace is the stateDir root (`/data`) so WebUI and gateway cwd see the whole tree (`home/`, `skills/`, `plugins/`, `workspace/`). OneDrive still copies into `workspace/onedrive`.
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
 - Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
-- Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three.
+- Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. model-router **v0.7.0**: Auto classifies low vs medium; `high` is `escalate_model` or `/high`. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
-- mcp-proxy: enable in `hermes.nix`; Composio backends + filters in `modules/composio.nix`.
+- mcp-proxy: enable in `default.nix`; Composio backends + filters in `modules/composio.nix`.
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 
@@ -51,7 +51,7 @@ Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.
 | Nix owns | Hermes owns |
 |----------|-------------|
 | Module enablement, ports, Caddy/tunnel, secrets wiring | SOUL / persona, USER.md, MEMORY.md body |
-| Model routing, tool_output/compression | Brain pages, pointer index content |
+| Model routing, compression.threshold_tokens | Brain pages, pointer index content |
 | MCP declarations, extraDependencyGroups | Day-to-day put_page / query |
 | Plugin code in hermes-pnp | Cron prompts, gbrain CLI version |
 | Toolbox PATH, browser CDP | Cookies, OAuth tokens, ad-hoc apt/pip |
