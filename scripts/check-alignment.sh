@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES="$ROOT/hosts/system/hermes"
-CONSUMER="$HERMES/hermes.nix"
+CONSUMER="$HERMES/default.nix"
 RUNTIME="$HERMES/runtime.nix"
 COMPOSIO="$HERMES/modules/composio.nix"
 SOPS="$ROOT/secrets/sops.nix"
@@ -41,14 +41,14 @@ else
 fi
 
 if [[ -e "$ROOT/hosts/system/services/hermes.nix" ]]; then
-  fail "hosts/system/services/hermes.nix leftover (consumer is hermes/hermes.nix)"
+  fail "hosts/system/services/hermes.nix leftover (consumer is hermes/default.nix)"
 else
   pass "no services/hermes.nix"
 fi
-if [[ -e "$HERMES/default.nix" ]]; then
-  fail "hermes/default.nix leftover (import hermes.nix)"
+if [[ -e "$HERMES/hermes.nix" ]]; then
+  fail "hermes/hermes.nix leftover (consumer is hermes/default.nix)"
 else
-  pass "no hermes/default.nix"
+  pass "no hermes/hermes.nix"
 fi
 if [[ -e "$HERMES/browser.nix" ]]; then
   fail "browser.nix leftover (composer owns browser)"
@@ -61,7 +61,7 @@ else
   pass "no leftover plugins.nix"
 fi
 if [[ -e "$HERMES/mcp.nix" ]] || [[ -e "$HERMES/gbrain.nix" ]] || [[ -e "$HERMES/onedrive.nix" ]] || [[ -e "$HERMES/workstation.nix" ]] || [[ -e "$HERMES/hermes-webui.nix" ]]; then
-  fail "old hermes/*.nix leftovers (moved to hermes.nix / modules/)"
+  fail "old hermes/*.nix leftovers (moved to default.nix / modules/)"
 else
   pass "old hermes/*.nix moved"
 fi
@@ -93,9 +93,9 @@ fi
 
 if grep -q 'inputs.hermes-pnp.nixosModules.default' "$CONSUMER" \
   && grep -q 'services.hermesPnP' "$CONSUMER"; then
-  pass "hermes.nix imports hermes-pnp composer"
+  pass "default.nix imports hermes-pnp composer"
 else
-  fail "hermes.nix must import hermes-pnp.nixosModules.default and set hermesPnP"
+  fail "default.nix must import hermes-pnp.nixosModules.default and set hermesPnP"
 fi
 
 if grep -q 'github:aean0x/hermes-pnp' "$ROOT/flake.nix" \
@@ -117,8 +117,13 @@ if grep -q 'model-router' "$CONSUMER" \
 else
   fail "missing model-router/git-hook"
 fi
+if grep -qE '^[[:space:]]*model\.context_length[[:space:]]*=' "$CONSUMER"; then
+  fail "consumer sets model.context_length (stamps every model; use compression.threshold_tokens)"
+else
+  pass "no global model.context_length"
+fi
 if grep -qE 'services\.hermes-webui\s*=' "$CONSUMER"; then
-  fail "hermes.nix still declares services.hermes-webui (composer pairs it)"
+  fail "default.nix still declares services.hermes-webui (composer pairs it)"
 else
   pass "WebUI pairing left to hermes-pnp"
 fi
@@ -126,7 +131,7 @@ fi
 if grep -q 'hmc.enable' "$CONSUMER"; then
   pass "HMC declared via hermesPnP.hmc"
 else
-  fail "hermes.nix must set services.hermesPnP.hmc.enable"
+  fail "default.nix must set services.hermesPnP.hmc.enable"
 fi
 
 if grep -qE 'extraSkills\.workstation|checkout-workstation|ssh-workstation|nix_pc_agent_ssh_key' \
@@ -139,7 +144,7 @@ fi
 if grep -q 'container.enable' "$CONSUMER"; then
   pass "container.enable declared on hermesPnP"
 else
-  fail "hermes.nix must set services.hermesPnP.container.enable"
+  fail "default.nix must set services.hermesPnP.container.enable"
 fi
 
 if grep -q 'projects-auto-commit' "$CONSUMER" "$COMPOSIO"; then
@@ -162,20 +167,20 @@ fi
 if grep -q 'mcpProxy.enable' "$CONSUMER"; then
   pass "mcpProxy.enable declared on hermesPnP"
 else
-  fail "hermes.nix must set services.hermesPnP.mcpProxy.enable"
+  fail "default.nix must set services.hermesPnP.mcpProxy.enable"
 fi
 
 if grep -q 'proxyServices' "$CONSUMER" \
   && grep -q 'cloudflareTunnel.proxyServices' "$CONSUMER"; then
   pass "WebUI uses host Caddy + cloudflareTunnel proxyServices"
 else
-  fail "hermes.nix must use services.caddy.proxyServices + cloudflareTunnel.proxyServices"
+  fail "default.nix must use services.caddy.proxyServices + cloudflareTunnel.proxyServices"
 fi
 if grep -q 'browser.gate.publicUrl' "$CONSUMER" \
   && grep -q 'proxyServices."browser' "$CONSUMER"; then
   pass "browser gate fronted by Caddy :4848"
 else
-  fail "hermes.nix must set browser.gate.publicUrl + caddy proxyServices browser.* = 4848"
+  fail "default.nix must set browser.gate.publicUrl + caddy proxyServices browser.* = 4848"
 fi
 if grep -q 'cloudflareTunnel.proxyServices."browser' "$CONSUMER"; then
   fail "browser gate must not be on Cloudflare tunnel"
@@ -237,9 +242,9 @@ else
 fi
 
 if grep -q 'gbrain.enable' "$CONSUMER"; then
-  pass "hermes.nix enables composer gbrain hook"
+  pass "default.nix enables composer gbrain hook"
 else
-  fail "hermes.nix must set services.hermesPnP.gbrain.enable"
+  fail "default.nix must set services.hermesPnP.gbrain.enable"
 fi
 
 if grep -q 'activationScripts.hermes-gbrain-site' "$CONSUMER" "$RUNTIME" "$COMPOSIO"; then
@@ -255,7 +260,7 @@ for opt in enable extraDependencyGroups addToSystemPackages; do
     fail "declaration missing expected option surface: $opt"
   fi
 done
-pass "core hermes-agent option surfaces present in hermes.nix"
+pass "core hermes-agent option surfaces present in default.nix"
 
 if grep -q 'package.override' "$CONSUMER"; then
   fail "webui must not override the agent package"

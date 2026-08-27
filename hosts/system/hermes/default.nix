@@ -66,13 +66,6 @@ in
     ];
 
     settings = {
-      # hermes doctor reports v0 if this key is missing
-      _config_version = 33;
-
-      # grok-4.6 window is 500k; 200k is the input-price cliff, not the limit.
-      # Router hops use the live catalog. threshold_tokens keeps grok under the cliff.
-      model.context_length = 500000;
-
       stt = {
         provider = "openai";
         model = "whisper-1";
@@ -88,27 +81,15 @@ in
 
       toolsets = [ "all" ];
 
+      # Preference: long builds. Upstream default is 180s.
       terminal.timeout = 300;
 
-      tool_output = {
-        max_bytes = 6000;
-        max_lines = 150;
-      };
+      # Grok-4.6 input-price cliff. PnP seeds per-model ratios (flash 0.95 /
+      # pro 0.26 / grok 0.28); this cap still wins when lower. Do not set
+      # model.context_length — that stamps every model until the first switch.
+      compression.threshold_tokens = 180000;
 
-      compression = {
-        threshold = 0.30;
-        threshold_tokens = 180000;
-        model_thresholds = {
-          "deepseek-v4" = 0.18;
-        };
-        target_ratio = 0.15;
-        protect_last_n = 8;
-        proactive_prune_tokens = 24000;
-        proactive_prune_min_result_chars = 2000;
-        proactive_prune_min_reclaim_tokens = 2048;
-        idle_compact_after_seconds = 1800;
-      };
-
+      # Preference: 8 GiB jail. Upstream default is 10.
       delegation.max_concurrent_children = 5;
 
       cron.wrap_response = false;
@@ -118,8 +99,6 @@ in
         allow_private_urls = true;
       };
 
-      approvals.timeout = 120;
-
       web = {
         search_backend = "xai";
         extract_backend = "firecrawl";
@@ -128,6 +107,7 @@ in
       timezone = settings.timeZone;
 
       agent = {
+        # Preference: host/cost cap. Upstream default is unlimited (null).
         max_turns = 80;
         api_max_retries = 8;
         disabled_toolsets = [

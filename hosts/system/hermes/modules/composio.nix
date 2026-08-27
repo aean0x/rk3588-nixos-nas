@@ -1,4 +1,4 @@
-# Composio via hermesPnP.mcpProxy (enable is in hermes.nix).
+# Composio via hermesPnP.mcpProxy (enable is in default.nix).
 #
 # First-party Gmail filter (API cannot create it — missing gmail.settings.basic).
 # Label agent-blocked (id Label_16) already exists.

@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 H="$ROOT/hosts/system/hermes"
-CONSUMER="$H/hermes.nix"
+CONSUMER="$H/default.nix"
 fail=0
 pass() { echo "PASS $*"; }
 fail_() { echo "FAIL $*"; fail=1; }
@@ -52,9 +52,9 @@ else
 fi
 
 if grep -q './modules/gbrain.nix' "$CONSUMER"; then
-  fail_ "hermes.nix still imports leftover modules/gbrain.nix"
+  fail_ "default.nix still imports leftover modules/gbrain.nix"
 else
-  pass "hermes.nix does not import leftover gbrain module"
+  pass "default.nix does not import leftover gbrain module"
 fi
 grep -q 'validate-gbrain' "$ROOT/deploy" && pass "deploy validate-gbrain" || fail_ "deploy missing validate-gbrain"
 if grep -qE 'gbrain-consolidate|hermes-gbrain-consolidate' "$ROOT/deploy"; then
