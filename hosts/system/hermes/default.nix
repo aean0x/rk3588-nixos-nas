@@ -37,7 +37,7 @@ in
 
     models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron
     models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation
-    models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice + fallback
+    models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice
 
     plugins = [
       "model-router"
@@ -106,9 +106,13 @@ in
 
       timezone = settings.timeZone;
 
+      # Grok is session voice; if it fails, land on the workhorse.
+      fallback_model = {
+        provider = "deepseek";
+        model = "deepseek-v4-pro";
+      };
+
       agent = {
-        # Preference: host/cost cap. Upstream default is unlimited (null).
-        max_turns = 80;
         api_max_retries = 8;
         disabled_toolsets = [
           "video"
