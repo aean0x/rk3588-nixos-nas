@@ -149,7 +149,7 @@ Examples: `hermes-agent-setup` (via the official module) + our activation writes
 Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/default.nix`. Site extras (Composio, OneDrive, RAM caps) sit beside that file.
 
 - **Deployment**: `hermesPnP.container.enable` (Ubuntu 24.04, host net). State under `/var/lib/hermes`.
-- **Models**: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6). model-router v0.7.0: Auto classifies low vs medium; `high` is `escalate_model` or `/high`. Do not set `model.context_length`. One-time `hermes auth add xai-oauth` after deploy (`hosts/system/hermes/BOOTSTRAP.md`).
+- **Models**: `hermesPnP.models` low/medium/high (deepseek flash / pro / xai-oauth grok-4.6). model-router v0.7.0: Auto classifies low vs medium; `high` is `escalate_model` or `/high`. Fallback is deepseek-v4-pro. Do not set `model.context_length`. One-time `hermes auth add xai-oauth` after deploy (`hosts/system/hermes/BOOTSTRAP.md`).
 - **Identity**: no declarative SOUL.md. Agent owns persona docs.
 - **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL + literal Bearer. 1G cap is `runtime.nix`. github.com HTTPS PAT helper is hermes-pnp (fail-open if `GITHUB_TOKEN` is unset). Site git author is `settings.programs.git`. Agent never shells `gbrain`. CLI is bun-global (`./deploy gbrain-setup`).
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
