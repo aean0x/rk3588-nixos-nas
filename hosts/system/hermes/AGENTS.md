@@ -24,7 +24,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail). Default workspace is the stateDir root (`/data`) so WebUI and gateway cwd see the whole tree (`home/`, `skills/`, `plugins/`, `workspace/`). OneDrive still copies into `workspace/onedrive`.
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
 - Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
-- Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. model-router **v0.8.0**: Auto classifies all three (Quick / Standard / Expert); `high` is money / irreversible / security. Fallback is deepseek-v4-pro. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`. Do not pin `agent.max_turns`.
+- Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. model-router **v0.8.1**: Auto classifies all three (Quick / Standard / Expert); `high` is money / irreversible / security. Plugin loads IDs from generated config.json (this declaration), not Python literals. Fallback is deepseek-v4-pro. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`. Do not pin `agent.max_turns`.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
