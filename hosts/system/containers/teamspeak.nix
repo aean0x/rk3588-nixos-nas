@@ -1,7 +1,7 @@
 # TeamSpeak 6 Server (Docker)
 # Voice: 9987/udp, File Transfer: 30033/tcp
 # First run: check logs for ServerAdmin privilege key
-{ ... }:
+_:
 let
   image = "indogermane/teamspeak6-server-arm:latest";
   dataDir = "/var/lib/teamspeak";

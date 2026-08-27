@@ -20,6 +20,10 @@ Agents working this repo are **expected to drive `./deploy` themselves** to comp
 - Cap log pulls (`-n 100` / `--tail 100`). The NAS is ARM64 with limited RAM — build on the workstation via `remote-*`, not on-device, unless the user asks otherwise.
 - Only pause for the user when something is truly blocked (missing secret value, physical USB, irreversible product choice with no default). Long builds are not a reason to stop: monitor, then resume.
 
+### Lint (PR merge)
+
+GitHub Actions `.github/workflows/lint.yml` job `lint` is the merge gate. This repo is Nix + bash: **statix** only (`statix.toml`). Python/JS complexity lives in hermes-pnp (ruff C901, oxlint). statix is an antipattern linter, not cyclomatic complexity — NixOS modules make inherit/repeated-key lints false positives, so those are disabled.
+
 Key subcommands:
 - `./deploy ssh` — interactive shell on the device
 - `./deploy journal [unit]` — tail system/unit logs

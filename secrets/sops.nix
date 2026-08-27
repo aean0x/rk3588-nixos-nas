@@ -127,9 +127,9 @@ in
           path = "/run/hermes.env";
           # Secrets land in ${stateDir}/.hermes/.env at activation.
           content = lib.concatStringsSep "\n" (
-            (lib.mapAttrsToList (
+            lib.mapAttrsToList (
               envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
-            ) hermesSecrets)
+            ) hermesSecrets
           );
         };
       }
