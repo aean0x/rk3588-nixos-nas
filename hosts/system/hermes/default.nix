@@ -34,6 +34,18 @@ in
     browser.package = pkgs.brave;
     browser.gate.publicUrl = "https://browser.${settings.domain}/";
     browser.maxTabs = 3;
+    # Build-time auth import from a local browser profile (hermes-pnp
+    # browser.profileImport). Source must exist on the BUILD machine;
+    # absolute-path reads are impure, so switch with --impure:
+    #   nixos-rebuild switch --impure
+    # Seeds the sticky profile once (cookies/logins/prefs), then the
+    # gate takes over. Keep off unless a profile exists to import.
+    # browser.profileImport = {
+    #   enable = true;
+    #   source = "/home/alice/.config/BraveSoftware/Brave-Browser";
+    #   # profileName = "Default"; # profile dir inside source
+    #   # overwrite = false;
+    # };
 
     models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron
     models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation
