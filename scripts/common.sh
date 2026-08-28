@@ -117,9 +117,18 @@ build_system() {
     info "Building NixOS configuration for ${HOST}..."
     info "This may take a while (cross-compiling or emulating aarch64)..."
     echo ""
+    # Ryzen 7900 12c/24t ~30GiB: several aarch64 packages in flight, but
+    # cap per-drv cores so one LLVM does not spawn 24 cc1plus. --keep-going
+    # lets LLVM finish if a leaf (bun, ncdu, …) dies.
+    local jobs="${NIX_MAX_JOBS:-8}"
+    local cores="${NIX_BUILD_CORES:-12}"
+    info "nix build --max-jobs ${jobs} --cores ${cores} --keep-going"
     nix build ".#nixosConfigurations.${HOST}.config.system.build.toplevel" \
         --print-build-logs \
         --show-trace \
+        --keep-going \
+        --max-jobs "$jobs" \
+        --cores "$cores" \
         "$@"
 }
 

@@ -50,6 +50,10 @@
         bun = prev.bun.overrideAttrs (old: {
           postPhases = nixpkgs.lib.optional ((old.postPatchelf or "") != "") "postPatchelf";
         });
+        # ncdu 2.x is Zig. zig 0.16 translate-c emits x86_64 objects and
+        # links them as aarch64 ("incompatible with elf64-littleaarch64").
+        # 1.x is C and cross-compiles.
+        ncdu = prev.ncdu_1;
       })
     ];
 
