@@ -30,6 +30,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `default.nix`; Composio backends + filters in `modules/composio.nix`.
+- open-banking.io: stdio `mcpServers.open-banking-io` (`uvx` + `obi-mcp`); split `OBI_*` env from sops.
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 
@@ -80,6 +81,7 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | Env / file | Sops | Purpose |
 |------------|------|---------|
 | file | `composio_api_key` | mcp-proxy Bearer + `COMPOSIO_API_KEY` |
+| `OBI_API_KEY` / `OBI_PRIVATE_KEY` / `OBI_BASE_URL` | `obi_*` | open-banking.io MCP (alternative split env) |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |

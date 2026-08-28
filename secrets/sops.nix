@@ -55,6 +55,10 @@ let
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
     DEEPSEEK_API_KEY = "deepseek_api_key";
     # COMPOSIO_API_KEY = "composio_api_key";
+    # open-banking.io MCP (alternative split env, not OBI_CREDENTIALS bundle).
+    OBI_API_KEY = "obi_api_key";
+    OBI_PRIVATE_KEY = "obi_private_key";
+    OBI_BASE_URL = "obi_base_url";
   };
 in
 {
@@ -107,6 +111,10 @@ in
         # Native DeepSeek API key → DEEPSEEK_API_KEY in /run/hermes.env.
         deepseek_api_key = { };
         composio_api_key = { };
+        # open-banking.io MCP alternative creds → OBI_* in /run/hermes.env.
+        obi_api_key = { };
+        obi_private_key = { };
+        obi_base_url = { };
       }
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };
