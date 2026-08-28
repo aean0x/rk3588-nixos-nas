@@ -107,6 +107,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - Local browser: `services.hermesPnP.browser` (declared in `hosts/system/hermes/default.nix`, Brave engine) — sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **agent-browser gate on :4848** (`https://browser.<domain>/`, LAN/Tailscale, no Cloudflare tunnel). Primary for checkout; Browserless is secondary scraping only.
 - `telegram_bot_token`, `telegram_admin_id` — Telegram bot + admin allowlist
 - `composio_api_key` — hermes-pnp mcp-proxy injects Composio MCP Bearer; also Hermes env for API
+- `obi_api_key`, `obi_private_key`, `obi_base_url` — open-banking.io MCP (alternative split env; not the credentials.json bundle)
 - `ha_token`, `ha_url` — Home Assistant API
 - `cloudflare_dns_api_token` — Cloudflare API for ACME DNS-01 challenge
 - `filebrowser_password` — FileBrowser admin password

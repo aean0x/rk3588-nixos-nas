@@ -180,6 +180,12 @@ if grep -q 'mcpProxy.enable' "$CONSUMER"; then
 else
   fail "default.nix must set services.hermesPnP.mcpProxy.enable"
 fi
+if grep -q 'mcpServers.open-banking-io' "$CONSUMER" \
+  && grep -q 'OBI_API_KEY' "$CONSUMER" "$SOPS"; then
+  pass "open-banking.io MCP via mcpServers + OBI_* sops"
+else
+  fail "missing open-banking-io mcpServers / OBI_* secret wiring"
+fi
 
 if grep -q 'proxyServices' "$CONSUMER" \
   && grep -q 'cloudflareTunnel.proxyServices' "$CONSUMER"; then
