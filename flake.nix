@@ -59,7 +59,14 @@
       inherit system;
       specialArgs = {inherit inputs settings;};
       modules = [
-        {nixpkgs.overlays = overlays;}
+        {
+          nixpkgs.overlays = overlays;
+          # Same as installerModules: build on the workstation, target the
+          # board. Without localSystem the kernel is an aarch64 drv and
+          # remote-switch qemu-user-emulates gcc (day-scale for 7.1).
+          nixpkgs.crossSystem.system = settings.targetSystem;
+          nixpkgs.localSystem.system = settings.hostSystem;
+        }
         sops-nix.nixosModules.sops
         nixarr.nixosModules.default
         ./hardware-configuration.nix
