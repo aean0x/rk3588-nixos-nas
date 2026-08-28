@@ -42,6 +42,14 @@
           inherit system;
           config.allowUnfree = true;
         };
+        # nixpkgs bun always sets postPhases = ["postPatchelf"], but the
+        # hook is empty when cross-compiling (can't exec the aarch64
+        # binary for completions). stdenv then runs `postPatchelf` as a
+        # command → exit 127. Keep the phase only when the hook has work.
+        # https://github.com/NixOS/nixpkgs/issues/345096
+        bun = prev.bun.overrideAttrs (old: {
+          postPhases = nixpkgs.lib.optional ((old.postPatchelf or "") != "") "postPatchelf";
+        });
       })
     ];
 
