@@ -7,7 +7,24 @@
 }:
 
 let
-  kernelPkgs = pkgs.${settings.kernelPackage};
+  # Kernel is one nix job. deploy --cores 12 would leave half the
+  # workstation idle on a 7.x rebuild. Use every thread; NixOS's
+  # kernel.override (patches) is wrapped so this survives.
+  addCores = drv:
+    drv.overrideAttrs (old: {
+      preBuild = (old.preBuild or "") + ''
+        export NIX_BUILD_CORES=$(nproc)
+      '';
+    });
+  kernelPkgs = pkgs.${settings.kernelPackage}.extend (
+    _self: super: {
+      kernel =
+        (addCores super.kernel)
+        // {
+          override = args: addCores (super.kernel.override args);
+        };
+    }
+  );
 in
 {
   boot.kernelPackages = kernelPkgs;

@@ -93,7 +93,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `network` — Static IP config (interface, address, prefixLength, gateway, DNS)
 - `enableWifi`, `wifiSsid` — Optional WiFi (PSK is a secret)
 - Build systems (`hostSystem`, `targetSystem`) for cross-compilation
-- `kernelPackage` — Kernel version (6.18 for rk3588)
+- `kernelPackage` — Kernel package attr (currently `linuxPackages_7_1`)
 - Service ports live in their respective modules as `let` bindings
 
 **secrets/sops.nix** — Runtime secrets (decrypted at activation):
@@ -297,11 +297,11 @@ After netboot completes, plug device into router for WAN access before running `
 
 - **Always `git add` changed files before any `nix build`, `nixos-rebuild`, or `./deploy` that uses the flake**. Flakes only see the git index — unstaged edits are invisible and cause "no such option" or stale builds.
 - **Tarball cache corruption** during long cross-builds shows as the build process stuck in `unix_stream_read_generic` (check `cat /proc/<pid>/wchan`). Fix: `rm -rf ~/.cache/nix/tarball-cache` (then retry). Do not recreate the dir manually.
-- ISO/netboot build requires aarch64 support (binfmt/qemu or remote builder) since target is aarch64
+- ISO/netboot/remote-* cross-compile on the workstation (`localSystem` + `crossSystem`). binfmt/qemu is not required for gcc/kernel; without `localSystem` the kernel drv becomes native aarch64 and qemu-user-emulates gcc (day-scale).
 - `adminUser` cannot move to SOPS (needed at Nix eval time for attribute name)
 - Static IP is used (no NetworkManager) — `useDHCP = false` in system config, `useDHCP = true` in installer
 - Services toggled in `hosts/system/services.nix` by uncommenting imports
-- Kernel 6.18 is required for rk3588 — builds are slow due to cross-compilation
+- Kernel 7.1 for rk3588 is a real `CROSS_COMPILE` (x86_64-hosted aarch64 gcc), not qemu. Version bumps rebuild from source because `structuredExtraConfig` misses Hydra cache. The kernel drv ignores deploy `--cores` and uses `nproc`.
 - sops-nix warnings during `nixos-install` are normal — secrets materialize on first real boot
 - ZFS dataset mounts use `nofail` — boot succeeds even if pool isn't created yet
 - `services.resolved.enable = false` in adguard.nix — systemd-resolved conflicts with port 53
