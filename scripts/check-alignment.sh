@@ -8,6 +8,8 @@ HERMES="$ROOT/hosts/system/hermes"
 CONSUMER="$HERMES/default.nix"
 RUNTIME="$HERMES/runtime.nix"
 COMPOSIO="$HERMES/modules/composio.nix"
+BANKSYNC="$HERMES/modules/banksync.nix"
+OPENBANKING="$HERMES/modules/open-banking.nix"
 SOPS="$ROOT/secrets/sops.nix"
 ROOT_AGENTS="$ROOT/AGENTS.md"
 HERMES_AGENTS="$HERMES/AGENTS.md"
@@ -25,6 +27,8 @@ require_file() {
 require_file "$CONSUMER"
 require_file "$RUNTIME"
 require_file "$COMPOSIO"
+require_file "$BANKSYNC"
+require_file "$OPENBANKING"
 require_file "$HERMES/modules/onedrive.nix"
 require_file "$SOPS"
 require_file "$ROOT_AGENTS"
@@ -181,10 +185,29 @@ else
   fail "default.nix must set services.hermesPnP.mcpProxy.enable"
 fi
 if grep -q 'mcpServers.open-banking-io' "$CONSUMER" \
-  && grep -q 'OBI_API_KEY' "$CONSUMER" "$SOPS"; then
-  pass "open-banking.io MCP via mcpServers + OBI_* sops"
+  || grep -q 'mcpServers.banksync' "$CONSUMER"; then
+  fail "banking mcpServers still in default.nix (use modules/ + mcp-proxy)"
 else
-  fail "missing open-banking-io mcpServers / OBI_* secret wiring"
+  pass "banking MCP not declared on default.nix"
+fi
+if grep -q 'mcpProxy.backends.open-banking-io' "$OPENBANKING" \
+  && grep -q 'mcpServers.open-banking-io' "$OPENBANKING" \
+  && grep -q 'LoadCredential' "$OPENBANKING"; then
+  pass "open-banking.io MCP via mcp-proxy + obi-mcp-http LoadCredential"
+else
+  fail "missing open-banking.io mcp-proxy / LoadCredential wiring"
+fi
+if grep -q 'mcpProxy.backends.banksync' "$BANKSYNC" \
+  && grep -q 'mcpServers.banksync' "$BANKSYNC" \
+  && grep -q 'X-API-Key' "$BANKSYNC"; then
+  pass "BankSync MCP via mcp-proxy X-API-Key"
+else
+  fail "missing banksync mcp-proxy wiring"
+fi
+if grep -qE 'OBI_API_KEY =|BANKSYNC_API_KEY =' "$SOPS"; then
+  fail "banking keys still mapped into hermesEnv"
+else
+  pass "banking keys kept off hermesEnv"
 fi
 
 if grep -q 'proxyServices' "$CONSUMER" \

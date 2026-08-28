@@ -12,6 +12,8 @@ hosts/system/hermes/
 ├── runtime.nix          # RAM caps + hermes-admin + sudo CLI
 ├── modules/
 │   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
+│   ├── banksync.nix     # mcp-proxy → mcp.banksync.io (X-API-Key)
+│   ├── open-banking.nix # loopback obi-mcp-http + mcp-proxy
 │   └── onedrive.nix
 ├── scripts/             # clean-hermes-state
 └── BOOTSTRAP.md
@@ -29,8 +31,9 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
-- mcp-proxy: enable in `default.nix`; Composio backends + filters in `modules/composio.nix`.
-- open-banking.io: stdio `mcpServers.open-banking-io` (`uvx` + `obi-mcp`); split `OBI_*` env from sops.
+- mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`.
+- BankSync: mcp-proxy injects `X-API-Key` from sops; Hermes calls `http://127.0.0.1:3140/banksync`.
+- open-banking.io: `obi-mcp-http` on `:3141` (LoadCredential → SDK in-process; no `OBI_*` env, no bundle file) → mcp-proxy `/open-banking-io`.
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 
@@ -42,6 +45,7 @@ Prefer killing Hermes over DNS or Home Assistant.
 | hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | gbrain-mcp-http | 512 MiB / OOM +400 | `runtime.nix` |
+| obi-mcp-http | 512 MiB / OOM +400 | `modules/open-banking.nix` |
 | AdGuard / HA | OOM −500 | their modules |
 | Host swap | 8 GiB | `partitions.nix` |
 
@@ -80,8 +84,9 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 
 | Env / file | Sops | Purpose |
 |------------|------|---------|
-| file | `composio_api_key` | mcp-proxy Bearer + `COMPOSIO_API_KEY` |
-| `OBI_API_KEY` / `OBI_PRIVATE_KEY` / `OBI_BASE_URL` | `obi_*` | open-banking.io MCP (alternative split env) |
+| file | `composio_api_key` | mcp-proxy Bearer |
+| file | `banksync_api_key` | mcp-proxy `X-API-Key` (not in hermes env) |
+| file | `obi_api_key` / `obi_private_key` / `obi_base_url` | `obi-mcp-http` LoadCredential (not in hermes env) |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |

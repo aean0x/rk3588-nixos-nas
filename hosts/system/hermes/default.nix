@@ -1,6 +1,6 @@
 # Hermes Agent — hermes-pnp consumer.
 # RAM/CPU caps, admin socket, sudo CLI: ./runtime.nix
-# Site extras (Composio, OneDrive): ./modules/
+# Site extras (Composio, BankSync, open-banking, OneDrive): ./modules/
 {
   config,
   pkgs,
@@ -17,6 +17,8 @@ in
     inputs.hermes-pnp.nixosModules.default
     ./runtime.nix
     ./modules/composio.nix
+    ./modules/banksync.nix
+    ./modules/open-banking.nix
     ./modules/onedrive.nix
   ];
 
@@ -58,10 +60,7 @@ in
       "git-hook"
     ];
 
-    toolbox.extraPackages = [
-      pkgs.sops
-      pkgs.uv
-    ];
+    toolbox.extraPackages = [ pkgs.sops ];
 
     mcpProxy.enable = true;
     hmc.enable = true;
@@ -79,24 +78,6 @@ in
       "messaging"
       "firecrawl"
     ];
-
-    # Read-only open-banking.io PSD2 MCP (stdio). Alternative creds
-    # (not the credentials.json bundle): OBI_API_KEY + OBI_PRIVATE_KEY +
-    # OBI_BASE_URL from /run/hermes.env. uvx first-connect fetches git.
-    mcpServers.open-banking-io = {
-      command = "uvx";
-      args = [
-        "--from"
-        "git+https://github.com/open-banking-io/mcp-server.git@aa18c9c437a00f2b73f64e2d974663664d269ee2"
-        "obi-mcp"
-      ];
-      env = {
-        OBI_API_KEY = "\${OBI_API_KEY}";
-        OBI_PRIVATE_KEY = "\${OBI_PRIVATE_KEY}";
-        OBI_BASE_URL = "\${OBI_BASE_URL}";
-      };
-      connect_timeout = 180;
-    };
 
     settings = {
       stt = {
