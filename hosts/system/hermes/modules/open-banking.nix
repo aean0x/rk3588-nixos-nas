@@ -37,6 +37,10 @@ let
         api_key=_read("obi_api_key"),
         private_key_pkcs8=_read("obi_private_key"),
     )
+    # FastMCP("open-banking-io") passes host/port kwargs, which beat FASTMCP_* env.
+    mcp.settings.host = "127.0.0.1"
+    mcp.settings.port = ${toString port}
+    mcp.settings.streamable_http_path = "/mcp"
     mcp.run(transport="streamable-http")
   '';
   start = pkgs.writeShellApplication {
