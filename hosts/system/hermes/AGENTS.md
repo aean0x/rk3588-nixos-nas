@@ -33,7 +33,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`.
 - BankSync: mcp-proxy injects `X-API-Key` from sops; Hermes calls `http://127.0.0.1:3140/banksync`.
-- open-banking.io: `obi-mcp-http` on `:3141` (LoadCredential → SDK in-process; no `OBI_*` env, no bundle file) → mcp-proxy `/open-banking-io`.
+- open-banking.io: `obi-mcp-http` on `:3141` (LoadCredential → SDK in-process; no `OBI_*` env, no bundle file) → mcp-proxy `/open-banking-io`. Sidecar uses nixpkgs CPython (`uvx --python`; uv-managed CPython hits NixOS musl stub-ld) and `ExecPaths` on the state dir (`ProtectSystem=strict` otherwise noexec, cryptography `.so` cannot mmap).
 
 ## Resource limits (8 GiB — Hermes is tertiary)
 

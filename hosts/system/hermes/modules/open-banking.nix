@@ -16,7 +16,9 @@
 }:
 let
   port = 3141;
-  from = "git+https://github.com/open-banking-io/mcp-server.git";
+  # Pin so unit restarts do not float on origin/main.
+  from = "git+https://github.com/open-banking-io/mcp-server.git@aa18c9c437a00f2b73f64e2d974663664d269ee2";
+  python = pkgs.python3;
   serve = pkgs.writeText "obi-mcp-http.py" ''
     import os
     from pathlib import Path
@@ -35,6 +37,10 @@ let
         api_key=_read("obi_api_key"),
         private_key_pkcs8=_read("obi_private_key"),
     )
+    # FastMCP("open-banking-io") passes host/port kwargs, which beat FASTMCP_* env.
+    mcp.settings.host = "127.0.0.1"
+    mcp.settings.port = ${toString port}
+    mcp.settings.streamable_http_path = "/mcp"
     mcp.run(transport="streamable-http")
   '';
   start = pkgs.writeShellApplication {
@@ -42,13 +48,19 @@ let
     runtimeInputs = [
       pkgs.uv
       pkgs.git
+      python
     ];
     text = ''
       : "''${CREDENTIALS_DIRECTORY:?}"
       export FASTMCP_HOST=127.0.0.1
       export FASTMCP_PORT=${toString port}
       export FASTMCP_STREAMABLE_HTTP_PATH=/mcp
-      exec uvx --refresh --from ${lib.escapeShellArg from} -- python ${serve}
+      # uv-managed CPython is python-build-standalone; PT_INTERP is
+      # /lib/ld-linux-aarch64.so.1, which on NixOS is a musl stub-ld
+      # (execve → EACCES / systemd 203/EXEC). Use nixpkgs CPython.
+      export UV_PYTHON=${lib.getExe python}
+      export UV_PYTHON_DOWNLOADS=never
+      exec uvx --python "$UV_PYTHON" --from ${lib.escapeShellArg from} -- python ${serve}
     '';
   };
 in
@@ -76,11 +88,14 @@ in
       Environment = [
         "HOME=/var/lib/obi-mcp"
         "UV_CACHE_DIR=/var/lib/obi-mcp/uv"
-        "UV_PYTHON_INSTALL_DIR=/var/lib/obi-mcp/python"
+        "UV_PYTHON_DOWNLOADS=never"
       ];
       MemoryMax = "512M";
       OOMScoreAdjust = 400;
       ProtectSystem = "strict";
+      # ProtectSystem remounts writable StateDirectory noexec; uv wheels
+      # (cryptography _rust.abi3.so) need PROT_EXEC.
+      ExecPaths = [ "/var/lib/obi-mcp" ];
       ProtectHome = true;
       PrivateTmp = true;
       ProtectProc = "invisible";
