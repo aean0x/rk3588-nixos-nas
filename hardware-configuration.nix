@@ -3,10 +3,23 @@
   lib,
   pkgs,
   settings,
+  inputs,
+  evalHost ? settings.targetSystem,
   ...
 }:
 
 let
+  # Live system userspace is qemu-native aarch64 (no nixpkgs.crossSystem).
+  # Kernel stays real CROSS_COMPILE so gcc is not qemu-user (19h last time).
+  # ISO/netboot already set crossSystem — pkgs is already crossing there.
+  # On-device switch: evalHost is aarch64, use pkgs as-is.
+  alreadyCross = pkgs.stdenv.buildPlatform.system != pkgs.stdenv.hostPlatform.system;
+  kernelBasePkgs =
+    if alreadyCross || evalHost == settings.targetSystem then
+      pkgs
+    else
+      inputs.nixpkgs.legacyPackages.${evalHost}.pkgsCross.aarch64-multiplatform;
+
   # Kernel is one nix job. deploy --cores 12 would leave half the
   # workstation idle on a 7.x rebuild. Use every thread; NixOS's
   # kernel.override (patches) is wrapped so this survives.
@@ -16,7 +29,7 @@ let
         export NIX_BUILD_CORES=$(nproc)
       '';
     });
-  kernelPkgs = pkgs.${settings.kernelPackage}.extend (
+  kernelPkgs = kernelBasePkgs.${settings.kernelPackage}.extend (
     _self: super: {
       kernel =
         (addCores super.kernel)

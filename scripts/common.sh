@@ -34,13 +34,28 @@ check_aarch64_support() {
 
     [[ "$(uname -m)" == "aarch64" ]] && { info "Running on aarch64 natively"; return 0; }
 
-    # Main system / ISO / netboot set localSystem=x86_64 + crossSystem=aarch64.
-    # Kernel and gcc are CROSS_COMPILE, not qemu-user. binfmt is optional.
-    info "Cross-compiling aarch64 (aarch64-unknown-linux-gnu-gcc on this CPU)"
+    # Live-system userspace is native aarch64 via binfmt/qemu. ISO/netboot
+    # still true-cross and do not need it, but remote-switch does.
     if [[ -f /proc/sys/fs/binfmt_misc/aarch64 ]] || [[ -f /proc/sys/fs/binfmt_misc/aarch64-linux ]]; then
-        info "binfmt/qemu also present (only needed if a drv must *run* aarch64 bins)"
+        info "binfmt/qemu aarch64 emulation available"
+        return 0
     fi
-    return 0
+
+    if grep -q "aarch64-linux" ~/.config/nix/nix.conf 2>/dev/null || grep -q "aarch64-linux" /etc/nix/nix.conf 2>/dev/null; then
+        info "Remote aarch64 builder configured"
+        return 0
+    fi
+
+    if nix show-config 2>/dev/null | grep -q "extra-platforms.*aarch64-linux"; then
+        info "aarch64-linux in extra-platforms"
+        return 0
+    fi
+
+    error "No aarch64-linux build support detected."
+    echo "Enable one of:"
+    echo "  - binfmt/qemu: boot.binfmt.emulatedSystems = [\"aarch64-linux\"]"
+    echo "  - a remote aarch64 builder in nix.buildMachines"
+    exit 1
 }
 
 check_ssh() {
