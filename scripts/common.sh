@@ -34,6 +34,8 @@ check_aarch64_support() {
 
     [[ "$(uname -m)" == "aarch64" ]] && { info "Running on aarch64 natively"; return 0; }
 
+    # Live-system userspace is native aarch64 via binfmt/qemu. ISO/netboot
+    # still true-cross and do not need it, but remote-switch does.
     if [[ -f /proc/sys/fs/binfmt_misc/aarch64 ]] || [[ -f /proc/sys/fs/binfmt_misc/aarch64-linux ]]; then
         info "binfmt/qemu aarch64 emulation available"
         return 0

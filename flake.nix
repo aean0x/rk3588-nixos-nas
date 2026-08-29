@@ -35,6 +35,9 @@
   } @ inputs: let
     settings = import ./settings.nix;
     system = settings.targetSystem;
+    # Workstation vs on-device. Used so the live system can stay qemu-native
+    # aarch64 for userspace while the kernel still comes from pkgsCross.
+    evalHost = builtins.currentSystem or settings.hostSystem;
 
     overlays = [
       (final: prev: {
@@ -69,15 +72,13 @@
   in {
     nixosConfigurations.${settings.hostName} = nixpkgs.lib.nixosSystem {
       inherit system;
-      specialArgs = {inherit inputs settings;};
+      specialArgs = {inherit inputs settings evalHost;};
       modules = [
         {
           nixpkgs.overlays = overlays;
-          # Same as installerModules: build on the workstation, target the
-          # board. Without localSystem the kernel is an aarch64 drv and
-          # remote-switch qemu-user-emulates gcc (day-scale for 7.1).
-          nixpkgs.crossSystem.system = settings.targetSystem;
-          nixpkgs.localSystem.system = settings.hostSystem;
+          # Userspace is native aarch64 (qemu-user/binfmt on the workstation).
+          # PR #86 set crossSystem here and broke gh/haskell/dotnet/zig/bun.
+          # Kernel is still CROSS_COMPILE via pkgsCross in hardware-configuration.nix.
         }
         sops-nix.nixosModules.sops
         nixarr.nixosModules.default
@@ -90,7 +91,7 @@
 
     nixosConfigurations."${settings.hostName}-ISO" = nixpkgs.lib.nixosSystem {
       system = settings.targetSystem;
-      specialArgs = {inherit inputs settings;};
+      specialArgs = {inherit inputs settings evalHost;};
       modules =
         [
           "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
@@ -109,7 +110,7 @@
 
     nixosConfigurations."${settings.hostName}-netboot" = nixpkgs.lib.nixosSystem {
       system = settings.targetSystem;
-      specialArgs = {inherit inputs settings;};
+      specialArgs = {inherit inputs settings evalHost;};
       modules =
         [
           "${nixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
