@@ -255,6 +255,11 @@ if [[ -f "$HERMES/BOOTSTRAP.md" ]]; then
 else
   fail "missing BOOTSTRAP.md"
 fi
+if grep -q 'hermes mcp serve' "$HERMES/BOOTSTRAP.md"; then
+  pass "BOOTSTRAP documents hermes mcp serve"
+else
+  fail "BOOTSTRAP.md missing hermes mcp serve"
+fi
 if [[ -d "$HERMES/memory" ]]; then
   fail "hermes/memory leftover (registry was unused; pruned)"
 else

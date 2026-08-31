@@ -90,3 +90,49 @@ Phone captcha: agent sends `HERMES_BROWSER_GATE_URL` (Tailscale/LAN).
 curl -sS http://127.0.0.1:8787/health
 sudo systemctl restart hermes-agent hermes-webui
 ```
+
+## 7. Hermes as an MCP server (optional)
+
+No extra Nix. The official package already ships this. Other MCP clients
+(Claude Code, Cursor, Codex) spawn `hermes mcp serve` over **stdio** and
+use Hermes as a messaging bridge: list conversations, read history, send
+on connected platforms, poll events, answer approval prompts.
+
+This is **not** `services.hermes-agent.mcpServers.*` (Hermes as a **client**
+of GBrain / Composio / BankSync).
+
+Upstream: [Running Hermes as an MCP server](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp#running-hermes-as-an-mcp-server).
+
+Smoke-test on the device (Ctrl-C stops it; the MCP client owns the process
+in real use):
+
+```bash
+sudo -u hermes env HOME=/var/lib/hermes/home HERMES_HOME=/var/lib/hermes/.hermes \
+  /run/current-system/sw/bin/hermes mcp serve --verbose
+```
+
+Remote client config. Replace `USER` / `HOST` from `settings.nix`
+(`adminUser` / `hostName`). Use `-T` (no TTY):
+
+```json
+{
+  "mcpServers": {
+    "hermes": {
+      "command": "ssh",
+      "args": [
+        "-T",
+        "USER@HOST.local",
+        "cd /var/lib/hermes/workspace && sudo -u hermes env HOME=/var/lib/hermes/home HERMES_HOME=/var/lib/hermes/.hermes /run/current-system/sw/bin/hermes mcp serve"
+      ]
+    }
+  }
+}
+```
+
+Facts that match upstream:
+
+- Transport is stdio only. No in-tree HTTP MCP server. Do not put this on
+  Caddy or Cloudflare Tunnel.
+- Reads use `state.db` without the gateway. **Send** needs `hermes-agent` up.
+- Do not add a systemd unit. Do not use `./deploy hermes mcp serve`
+  (`ssh -tt` allocates a TTY and breaks MCP).
