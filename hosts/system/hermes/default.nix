@@ -93,7 +93,11 @@ in
         };
       };
 
-      toolsets = [ "all" ];
+      # "all" expands to every toolset, but the kanban toolset is
+      # runtime-gated on the literal "kanban" entry in toolsets (see
+      # tools/kanban_tools.py _profile_has_kanban_toolset), so it must be
+      # listed explicitly to give the default profile orchestrator access.
+      toolsets = [ "all" "kanban" ];
 
       # Preference: long builds. Upstream default is 180s.
       terminal.timeout = 300;
