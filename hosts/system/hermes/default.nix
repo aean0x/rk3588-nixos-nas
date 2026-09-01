@@ -1,6 +1,7 @@
 # Hermes Agent — hermes-pnp consumer.
 # RAM/CPU caps, admin socket, sudo CLI: ./runtime.nix
-# Site extras (Composio, BankSync, open-banking, OneDrive): ./modules/
+# Site extras (Composio, BankSync, open-banking, OpenAccountants,
+# PolicyLayer, OneDrive): ./modules/
 {
   config,
   pkgs,
@@ -19,7 +20,9 @@ in
     ./modules/composio.nix
     ./modules/banksync.nix
     ./modules/open-banking.nix
+    ./modules/openaccountants.nix
     ./modules/onedrive.nix
+    ./modules/policylayer.nix
   ];
 
   services.hermesPnP = {
