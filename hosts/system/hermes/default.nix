@@ -52,6 +52,11 @@ in
     #   # overwrite = false;
     # };
 
+    # Library default after hermes-pnp #65 is medium. Keep high so grok
+    # stays session voice; consumer fallback_model (deepseek-v4-pro)
+    # still catches provider failure.
+    model.default = "high";
+
     models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron
     models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation
     models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice
