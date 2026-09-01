@@ -30,6 +30,8 @@ require_file "$COMPOSIO"
 require_file "$BANKSYNC"
 require_file "$OPENBANKING"
 require_file "$HERMES/modules/onedrive.nix"
+require_file "$HERMES/modules/openaccountants.nix"
+require_file "$HERMES/modules/policylayer.nix"
 require_file "$SOPS"
 require_file "$ROOT_AGENTS"
 require_file "$HERMES_AGENTS"
@@ -136,6 +138,11 @@ if grep -q 'deepseek-v4-pro' "$CONSUMER" \
   pass "fallback_model is deepseek-v4-pro"
 else
   fail "consumer must set fallback_model to deepseek-v4-pro"
+fi
+if grep -qE 'model\.default = "high"' "$CONSUMER"; then
+  pass "session default is high (grok); library default is medium"
+else
+  fail "consumer must set hermesPnP.model.default = \"high\" (library default is medium)"
 fi
 if grep -qE 'services\.hermes-webui\s*=' "$CONSUMER"; then
   fail "default.nix still declares services.hermes-webui (composer pairs it)"

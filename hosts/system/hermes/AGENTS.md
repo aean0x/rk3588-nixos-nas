@@ -11,9 +11,11 @@ hosts/system/hermes/
 ├── default.nix          # hermesPnP + official settings + Caddy/tunnel
 ├── runtime.nix          # RAM caps + hermes-admin + sudo CLI
 ├── modules/
-│   ├── composio.nix     # hermesPnP.mcpProxy.backends.composio
-│   ├── banksync.nix     # mcp-proxy → mcp.banksync.io (X-API-Key)
-│   ├── open-banking.nix # loopback obi-mcp-http + mcp-proxy
+│   ├── composio.nix         # hermesPnP.mcpProxy.backends.composio
+│   ├── banksync.nix         # mcp-proxy → mcp.banksync.io (X-API-Key)
+│   ├── open-banking.nix     # loopback obi-mcp-http + mcp-proxy
+│   ├── openaccountants.nix  # mcp-proxy → openaccountants.com (no auth)
+│   ├── policylayer.nix      # direct HTTP PolicyLayer registry
 │   └── onedrive.nix
 ├── scripts/             # clean-hermes-state
 └── BOOTSTRAP.md
@@ -26,13 +28,14 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail). Default workspace is the stateDir root (`/data`) so WebUI and gateway cwd see the whole tree (`home/`, `skills/`, `plugins/`, `workspace/`). OneDrive still copies into `workspace/onedrive`.
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
 - Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
-- Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. model-router **v0.8.2**: Auto classifies all three (Quick / Standard / Expert); `high` is money over $20 / irreversible / security. Slot model/provider/label/short/best_for are Nix options (generated config.json is the Python handoff). Fallback is deepseek-v4-pro. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`. Do not pin `agent.max_turns`.
+- Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. `hermesPnP.model.default = "high"` (library default is `medium`). model-router **v0.8.5**: Auto classifies all three (Quick / Standard / Expert), sticky prev-tier (high never sticks), compact-on-switch; `high` is money over $20 / irreversible / security. Slot model/provider/label/short/best_for are Nix options (generated config.json is the Python handoff). Fallback is deepseek-v4-pro. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`. Do not pin `agent.max_turns`.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
-- mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`.
+- mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`, `openaccountants.nix`.
 - BankSync: mcp-proxy injects `X-API-Key` from sops; Hermes calls `http://127.0.0.1:3140/banksync`.
+- OpenAccountants: mcp-proxy `/openaccountants` (no auth, neutral UA). PolicyLayer registry is a direct HTTP MCP (`api.policylayer.com`, no proxy).
 - open-banking.io: `obi-mcp-http` on `:3141` (LoadCredential → SDK in-process; no `OBI_*` env, no bundle file) → mcp-proxy `/open-banking-io`. Sidecar uses nixpkgs CPython (`uvx --python`; uv-managed CPython hits NixOS musl stub-ld) and `ExecPaths` on the state dir (`ProtectSystem=strict` otherwise noexec, cryptography `.so` cannot mmap).
 
 ## Resource limits (8 GiB — Hermes is tertiary)
@@ -56,7 +59,7 @@ Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.
 | Nix owns | Hermes owns |
 |----------|-------------|
 | Module enablement, ports, Caddy/tunnel, secrets wiring | SOUL / persona, USER.md, MEMORY.md body |
-| Model routing, compression.threshold_tokens | Brain pages, pointer index content |
+| Model routing, compression.threshold_tokens | Brain pages, thin MEMORY working notes |
 | MCP declarations, extraDependencyGroups | Day-to-day put_page / query |
 | Plugin code in hermes-pnp | Cron prompts, gbrain CLI version |
 | Toolbox PATH, browser CDP | Cookies, OAuth tokens, ad-hoc apt/pip |
