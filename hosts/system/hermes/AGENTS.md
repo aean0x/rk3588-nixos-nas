@@ -84,6 +84,7 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 
 | Env / file | Sops | Purpose |
 |------------|------|---------|
+| `MCP_PROXY_TOKEN` | not sops | mcp-proxy client token (`/var/lib/mcp-proxy/client.env`) merged into `$HERMES_HOME/.env` by hermes-pnp. Do not add to `hermesEnv` — rebuilds would desync it from `client.token`. |
 | file | `composio_api_key` | mcp-proxy Bearer |
 | file | `banksync_api_key` | mcp-proxy `X-API-Key` (not in hermes env) |
 | file | `obi_api_key` / `obi_private_key` / `obi_base_url` | `obi-mcp-http` LoadCredential (not in hermes env) |
