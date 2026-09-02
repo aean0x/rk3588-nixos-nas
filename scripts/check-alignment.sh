@@ -144,6 +144,12 @@ if grep -qE 'model\.default = "high"' "$CONSUMER"; then
 else
   fail "consumer must set hermesPnP.model.default = \"high\" (library default is medium)"
 fi
+if grep -q 'free_only' "$CONSUMER" \
+  && grep -q 'openrouter_model' "$CONSUMER"; then
+  pass "auxiliary free_only + :free OpenRouter fallback"
+else
+  fail "consumer must set auxiliary.free_only and auxiliary.openrouter_model"
+fi
 if grep -qE 'services\.hermes-webui\s*=' "$CONSUMER"; then
   fail "default.nix still declares services.hermes-webui (composer pairs it)"
 else
