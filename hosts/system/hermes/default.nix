@@ -138,6 +138,14 @@ in
         model = "deepseek-v4-pro";
       };
 
+      # Auxiliary falls back to OpenRouter when DeepSeek is down. Schema
+      # default is a paid SKU; keep fallbacks on :free (live hygiene
+      # 2026-09-02). Nested merge with composer slot seeds.
+      auxiliary = {
+        free_only = true;
+        openrouter_model = "nvidia/nemotron-3-ultra-550b-a55b:free";
+      };
+
       agent = {
         api_max_retries = 8;
         disabled_toolsets = [
