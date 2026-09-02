@@ -71,7 +71,7 @@ PGLite “WASM Aborted”: stop stack, pkill orphans, restart `gbrain-mcp-http`.
 | bun / gbrain | `…/home/.bun` | `/home/hermes/.bun/bin` |
 | Jail identity | `/var/lib/hermes-oci/<name>` | (root 0700) |
 
-## 5. Browser (CDP + agent-browser gate)
+## 5. Browser (CDP + browser-ui gate)
 
 `hermesPnP.browser` — Brave, profile `/var/lib/hermes/browser-profile`, CDP `:9222`, gate `:4848` via Caddy `https://browser.<domain>/` (LAN/Tailscale only, no tunnel).
 
