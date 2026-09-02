@@ -164,7 +164,11 @@ in
           bing = true;
           duckduckgo = true;
           google = true;
-          youtube = true;
+          # YouTube "safe search" forces Restricted Mode (CNAME to
+          # restrictmoderate.youtube.com), which disables comments and prevents
+          # commenting on every client. Keep it OFF; adult blocking is handled
+          # at DNS level by the OISD NSFW list below without killing comments.
+          youtube = false;
           yandex = true;
         };
 
@@ -216,6 +220,16 @@ in
           url = "https://raw.githubusercontent.com/0xDarkMatter/aegis-blocklist/master/grades/standard.txt";
           name = "Aegis Child Safety (standard)";
           id = 5;
+        }
+        # Adult content (porn). OISD NSFW is well-maintained with low false
+        # positives, in AdGuard's domainswild2 (wildcard) format. This is what
+        # actually blocks adult sites — Aegis above is child-safety
+        # (predators/self-harm/gore/radicalization), not porn.
+        {
+          enabled = true;
+          url = "https://nsfw.oisd.nl/domainswild2";
+          name = "OISD NSFW (adult content)";
+          id = 6;
         }
       ];
 
