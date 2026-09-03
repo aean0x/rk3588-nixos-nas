@@ -160,7 +160,7 @@ Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/default.nix`. S
 - **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL + `Bearer ${GBRAIN_TOKEN}` env-ref. 1G cap is `runtime.nix`. github.com HTTPS PAT helper is hermes-pnp (fail-open if `GITHUB_TOKEN` is unset). Site git author is `settings.programs.git`. Agent never shells `gbrain`. CLI is bun-global (`./deploy gbrain-setup`).
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI**: `addToSystemPackages = true`; host `hermes` routes into the container.
-- **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). Internal alias `hermes.${domain}` (LAN/Tailscale only, no tunnel). Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
+- **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). App/gateway alias `hermes.${domain}` → `hermes serve` `:9119` (LAN/Tailscale only, no tunnel, no dashboard). Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
 - **Docs / ops**: `hosts/system/hermes/BOOTSTRAP.md` + `AGENTS.md`. `./deploy validate-gbrain` / `gbrain-setup` / `clean-hermes-state`.
 - **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent **1 GiB**, WebUI **2 GiB**, browser **1 GiB**, gbrain **512 MiB** (`runtime.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
 
