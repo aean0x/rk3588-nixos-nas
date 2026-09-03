@@ -241,7 +241,7 @@ else
   pass "browser gate is LAN/Tailscale only"
 fi
 if grep -qE 'noVNC|:6080|NOVNC' "$CONSUMER" "$HERMES_AGENTS" "$HERMES/BOOTSTRAP.md"; then
-  fail "stale noVNC / :6080 leftover after agent-browser gate"
+  fail "stale noVNC / :6080 leftover (gate is browser-ui :4848)"
 else
   pass "no leftover noVNC / :6080"
 fi
