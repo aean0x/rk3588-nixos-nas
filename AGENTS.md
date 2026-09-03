@@ -109,6 +109,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `composio_api_key` — hermes-pnp mcp-proxy injects Composio MCP Bearer; also Hermes env for API
 - `obi_api_key`, `obi_private_key`, `obi_base_url` — open-banking.io MCP via `obi-mcp-http` LoadCredential + mcp-proxy (not in `/run/hermes.env`)
 - `banksync_api_key` — BankSync MCP; mcp-proxy injects `X-API-Key` (not in `/run/hermes.env`)
+- `hermes_dashboard_session_token` — Hermes Desktop remote-control token (`HERMES_DASHBOARD_SESSION_TOKEN` in `/run/hermes.env`)
 - `ha_token`, `ha_url` — Home Assistant API
 - `cloudflare_dns_api_token` — Cloudflare API for ACME DNS-01 challenge
 - `filebrowser_password` — FileBrowser admin password
@@ -160,7 +161,7 @@ Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/default.nix`. S
 - **GBrain**: `hermesPnP.gbrain.enable` starts loopback `gbrain serve`, wires MCP URL + `Bearer ${GBRAIN_TOKEN}` env-ref. 1G cap is `runtime.nix`. github.com HTTPS PAT helper is hermes-pnp (fail-open if `GITHUB_TOKEN` is unset). Site git author is `settings.programs.git`. Agent never shells `gbrain`. CLI is bun-global (`./deploy gbrain-setup`).
 - **Secrets**: sops `hermesEnv` → `/run/hermes.env`. Encrypt/decrypt via `secrets/encrypt` + `secrets/decrypt`.
 - **CLI**: `addToSystemPackages = true`; host `hermes` routes into the container.
-- **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). App/gateway alias `hermes.${domain}` → `hermes serve` `:9119` (LAN/Tailscale only, no tunnel, no dashboard). Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
+- **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). App/gateway alias `hermes.${domain}` → `hermes serve` `:9119` (LAN/Tailscale only, no tunnel, no dashboard UI). Desktop session token is sops `hermes_dashboard_session_token` → `HERMES_DASHBOARD_SESSION_TOKEN` in `/run/hermes.env`. Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
 - **Docs / ops**: `hosts/system/hermes/BOOTSTRAP.md` + `AGENTS.md`. `./deploy validate-gbrain` / `gbrain-setup` / `clean-hermes-state`.
 - **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent **1 GiB**, WebUI **2 GiB**, browser **1 GiB**, gbrain **512 MiB** (`runtime.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
 
