@@ -12,6 +12,10 @@
 let
   webuiPort = 8787;
   webuiHost = "archimedes.${settings.domain}";
+  # Desktop/app backend (`hermes serve`). Official backend.mode is blocked
+  # when container.enable is on; run it on the host against the same HERMES_HOME.
+  servePort = 9119;
+  stateDir = config.services.hermes-agent.stateDir;
 in
 {
   imports = [
@@ -159,10 +163,32 @@ in
     };
   };
 
-  # WebUI: LAN Caddy + Cloudflare Tunnel. hermes.<domain> is LAN/Tailscale
-  # only (wildcard grey A). Browser gate: LAN/Tailscale, no tunnel.
+  # WebUI: LAN Caddy + Cloudflare Tunnel.
+  # hermes.<domain>: LAN/Tailscale alias → serve :9119 (no dashboard, no tunnel).
+  # Browser gate: LAN/Tailscale, no tunnel.
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
-  services.caddy.proxyServices."hermes.${settings.domain}" = webuiPort;
+  services.caddy.proxyServices."hermes.${settings.domain}" = servePort;
+  services.caddy.proxyUpstreamHost."hermes.${settings.domain}" = "127.0.0.1:${toString servePort}";
   services.caddy.proxyServices."browser.${settings.domain}" = 4848;
   services.cloudflareTunnel.proxyServices."${webuiHost}" = webuiPort;
+
+  systemd.services.hermes-serve = {
+    description = "Hermes Desktop backend (serve, no dashboard UI)";
+    after = [ "hermes-agent.service" ];
+    wants = [ "hermes-agent.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      User = "hermes";
+      Group = "hermes";
+      Environment = [
+        "HOME=${stateDir}"
+        "HERMES_HOME=${stateDir}/.hermes"
+      ];
+      EnvironmentFile = [ "/run/hermes.env" ];
+      ExecStart = "${config.services.hermes-agent.package}/bin/hermes serve --host 127.0.0.1 --port ${toString servePort} --no-open";
+      Restart = "on-failure";
+      RestartSec = 5;
+      MemoryMax = "1G";
+    };
+  };
 }
