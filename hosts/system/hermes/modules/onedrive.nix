@@ -27,16 +27,18 @@ in
       User = "hermes";
       Group = "hermes";
       Environment = [ "HOME=${stateDir}" ];
+      # Secret is 0400 root:root under /run/secrets; hermes cannot stat it.
+      LoadCredential = "rclone.conf:${onedriveConfig}";
+      RuntimeDirectory = "onedrive-sync";
+      RuntimeDirectoryMode = "0700";
     };
 
     script = ''
       set -euo pipefail
 
-      RCLONE_CONF="/tmp/onedrive-rclone.conf"
-      cp "${onedriveConfig}" "$RCLONE_CONF"
+      RCLONE_CONF="$RUNTIME_DIRECTORY/rclone.conf"
+      cp "$CREDENTIALS_DIRECTORY/rclone.conf" "$RCLONE_CONF"
       chmod 600 "$RCLONE_CONF"
-      trap 'rm -f "$RCLONE_CONF"' EXIT
-
       mkdir -p "${workspace}/onedrive/Shared" "${workspace}/onedrive/Documents"
       RCLONE="${pkgs.rclone}/bin/rclone copy --update --config $RCLONE_CONF"
       $RCLONE "onedrive:Shared" "${workspace}/onedrive/Shared"

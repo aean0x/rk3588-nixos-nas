@@ -240,7 +240,7 @@ Re-run the script after adding new `cloudflareTunnel.proxyServices` hostnames (s
 
 ### OneDrive Sync
 
-Bidirectional sync between OneDrive and the Hermes workspace via rclone. Runs every 15 minutes as UID 1000. Syncs `Shared` and `Documents` folders into `workspace/onedrive/`. Trigger manually with `./deploy onedrive-sync`.
+Bidirectional sync between OneDrive and the Hermes workspace via rclone. Runs every 15 minutes as the `hermes` user (rclone config via systemd LoadCredential). Syncs `Shared` and `Documents` folders into `workspace/onedrive/`. Trigger manually with `./deploy onedrive-sync`.
 
 ### Comet (Stremio Addon) — disabled
 
