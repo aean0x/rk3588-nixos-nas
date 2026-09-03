@@ -69,7 +69,8 @@ Do not bake operational content into the flake. Do not put environment policy on
 ## GBrain
 
 `hermesPnP.gbrain.enable` starts `gbrain-mcp-http` (`gbrain serve --http :3131`),
-sets the MCP URL, and writes a literal Bearer into `config.yaml`.
+sets the MCP URL + `Authorization: Bearer ${GBRAIN_TOKEN}` (env-ref, expanded
+from `$HERMES_HOME/.env`).
 
 - CLI: bun-global under hermes HOME (`./deploy gbrain-setup`).
 - Embeddings: `ZEROENTROPY_API_KEY` via `/run/hermes.env`.
@@ -92,6 +93,7 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | file | `banksync_api_key` | mcp-proxy `X-API-Key` (not in hermes env) |
 | file | `obi_api_key` / `obi_private_key` / `obi_base_url` | `obi-mcp-http` LoadCredential (not in hermes env) |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
+| `GBRAIN_TOKEN` | not sops | GBrain HTTP MCP bearer — minted by `gbrain auth create hermes`, written to `$HERMES_HOME/.env` + `~/.gbrain/hermes-mcp.token` by `./deploy gbrain-setup`. Do not add to `hermesEnv`. |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |
 | `XAI_API_KEY` | `xai_api_key` | Fallback (OAuth is primary) |

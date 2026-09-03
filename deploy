@@ -99,7 +99,6 @@ case "$CMD" in
         ssh ${SSH_OPTS} "$TARGET" "mkdir -p $dest"
         scp ${SSH_OPTS} \
             "${pnp}/scripts/gbrain-setup.sh" \
-            "${pnp}/scripts/gbrain-wire-config.py" \
             "$TARGET:$dest/"
         ssh -t ${SSH_OPTS} "$TARGET" "sudo bash $dest/gbrain-setup.sh; rm -rf $dest"
         ;;
