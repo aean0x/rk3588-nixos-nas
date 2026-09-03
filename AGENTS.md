@@ -113,7 +113,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `cloudflare_dns_api_token` — Cloudflare API for ACME DNS-01 challenge
 - `filebrowser_password` — FileBrowser admin password
 - `adguard_password` — AdGuard UI (`admin`); hashed at start, not declared in Nix `users`
-- `onedrive_rclone_config` — rclone config for OneDrive sync (mode 0444)
+- `onedrive_rclone_config` — rclone config for OneDrive sync (root 0400; LoadCredential)
 - `cloudflared_tunnel_credentials` — Cloudflare Tunnel credentials JSON (from `./scripts/setup-cloudflare-tunnel.sh`)
 
 

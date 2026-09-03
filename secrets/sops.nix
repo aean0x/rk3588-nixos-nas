@@ -78,9 +78,8 @@ in
         google_workspace_client_id = { };
         google_workspace_client_secret = { };
         google_places_api_key = { };
-        onedrive_rclone_config = {
-          mode = "0444";
-        };
+        # Root-owned 0400; onedrive-sync injects it via LoadCredential.
+        onedrive_rclone_config = { };
         browserless_api_token = { };
         ha_token = { };
         ha_url = { };

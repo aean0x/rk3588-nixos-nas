@@ -50,6 +50,8 @@ in
     # ===================
     # Matter Server
     # ===================
+    # ghcr.io/matter-js/matterjs-server runs as 1000:1000. Docker creates the
+    # bind-mount host dir as root, which crash-loops on mkdir /data/.migrations.
     matter-server = {
       image = matterImage;
       volumes = [
@@ -141,6 +143,15 @@ in
       5353 # mDNS
     ];
   };
+
+  systemd.tmpfiles.rules = [
+    "d /var/lib/matter-server 0755 1000 1000 - -"
+  ];
+
+  systemd.services.docker-matter-server.preStart = ''
+    mkdir -p /var/lib/matter-server
+    chown -R 1000:1000 /var/lib/matter-server
+  '';
 
   # ===================
   # Pre-start: reverse proxy trust + HACS install/update
