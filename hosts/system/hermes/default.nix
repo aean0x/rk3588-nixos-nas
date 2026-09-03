@@ -159,8 +159,10 @@ in
     };
   };
 
-  # WebUI: LAN Caddy + Cloudflare Tunnel. Browser gate: LAN/Tailscale only.
+  # WebUI: LAN Caddy + Cloudflare Tunnel. hermes.<domain> is LAN/Tailscale
+  # only (wildcard grey A). Browser gate: LAN/Tailscale, no tunnel.
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
+  services.caddy.proxyServices."hermes.${settings.domain}" = webuiPort;
   services.caddy.proxyServices."browser.${settings.domain}" = 4848;
   services.cloudflareTunnel.proxyServices."${webuiHost}" = webuiPort;
 }
