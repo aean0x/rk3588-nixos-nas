@@ -30,7 +30,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
 - Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. `hermesPnP.model.default = "high"` (library default is `medium`). model-router **v0.8.5**: Auto classifies all three (Quick / Standard / Expert), sticky prev-tier (high never sticks), compact-on-switch; `high` is money over $20 / irreversible / security. Slot model/provider/label/short/best_for are Nix options (generated config.json is the Python handoff). Fallback is deepseek-v4-pro. Auxiliary: `free_only = true` plus `:free` OpenRouter SKU so background tasks never fall onto a paid lane. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`. Do not pin `agent.max_turns`.
 - No declarative SOUL.md.
-- WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
+- WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Internal alias `https://hermes.<domain>/` (LAN/Tailscale, no tunnel). Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`, `openaccountants.nix`.
