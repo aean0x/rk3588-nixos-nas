@@ -16,9 +16,10 @@
     "--oom-score-adj=500"
   ];
 
-  # WebUI: up to 3 agent threads. 2g is the ceiling on this board.
-  services.hermesPnP.webui.container.memory = "2g";
-  services.hermesPnP.webui.container.memorySwap = "2g";
+  # WebUI: up to 3 agent threads. Raised 2g -> 2.5g (2560m): the 2g ceiling
+  # was hit at ~100% with ~1GB swapped, throttling the WebUI's SSE streams.
+  services.hermesPnP.webui.container.memory = "2560m";
+  services.hermesPnP.webui.container.memorySwap = "2560m";
   services.hermesPnP.webui.container.cpus = 2;
   services.hermesPnP.webui.container.oomScoreAdj = 500;
 
