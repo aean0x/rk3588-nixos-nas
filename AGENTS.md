@@ -104,7 +104,7 @@ flake.nix                    # Entry point - three outputs: system, ISO, netboot
 - `openrouter_api_key`, `anthropic_api_key`, `deepseek_api_key` — LLM provider keys
 - `brave_search_api_key`, `google_api_key`, `google_places_api_key` — Search/maps
 - `browserless_api_token` — Remote browser CDP service (Browserless cloud; good for soft CF, weak alone on AXS-class ticketing)
-- Local browser: `services.hermesPnP.browser` (declared in `hosts/system/hermes/default.nix`, Brave engine) — sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **agent-browser gate on :4848** (`https://browser.<domain>/`, LAN/Tailscale, no Cloudflare tunnel). Primary for checkout; Browserless is secondary scraping only.
+- Local browser: `services.hermesPnP.browser` (declared in `hosts/system/hermes/default.nix`, Brave engine) — sticky profile `/var/lib/hermes/browser-profile`, CDP `127.0.0.1:9222`, **browser-ui gate on :4848** (`https://browser.<domain>/`, LAN/Tailscale, no Cloudflare tunnel). Primary for checkout; Browserless is secondary scraping only.
 - `telegram_bot_token`, `telegram_admin_id` — Telegram bot + admin allowlist
 - `composio_api_key` — hermes-pnp mcp-proxy injects Composio MCP Bearer; also Hermes env for API
 - `obi_api_key`, `obi_private_key`, `obi_base_url` — open-banking.io MCP via `obi-mcp-http` LoadCredential + mcp-proxy (not in `/run/hermes.env`)
