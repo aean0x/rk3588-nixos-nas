@@ -54,6 +54,8 @@ let
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
     DEEPSEEK_API_KEY = "deepseek_api_key";
+    # Hermes Desktop remote-control socket (`hermes serve` /api/ws).
+    HERMES_DASHBOARD_SESSION_TOKEN = "hermes_dashboard_session_token";
     # COMPOSIO_API_KEY = "composio_api_key";
     # Banking MCP keys stay off this env: mcp-proxy (BankSync) and
     # obi-mcp-http LoadCredential (open-banking.io) inject them.
@@ -107,6 +109,8 @@ in
         elevenlabs_api_key = { };
         # Native DeepSeek API key → DEEPSEEK_API_KEY in /run/hermes.env.
         deepseek_api_key = { };
+        # Hermes Desktop session token → HERMES_DASHBOARD_SESSION_TOKEN.
+        hermes_dashboard_session_token = { };
         composio_api_key = { };
         # Banking MCP (not in hermesEnv). mcp-proxy / obi-mcp-http LoadCredential.
         obi_api_key = { };

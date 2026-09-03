@@ -31,7 +31,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - Models: `hermesPnP.models` low/medium/high (deepseek-v4-flash / pro / xai-oauth grok-4.6). Split is only those three. `hermesPnP.model.default = "high"` (library default is `medium`). model-router **v0.8.5**: Auto classifies all three (Quick / Standard / Expert), sticky prev-tier (high never sticks), compact-on-switch; `high` is money over $20 / irreversible / security. Slot model/provider/label/short/best_for are Nix options (generated config.json is the Python handoff). Fallback is deepseek-v4-pro. Auxiliary: `free_only = true` plus `:free` OpenRouter SKU so background tasks never fall onto a paid lane. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens`. Do not pin `agent.max_turns`.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
-- App/gateway: `https://hermes.<domain>/` — Caddy LAN/Tailscale → `hermes serve` `:9119` (`/api/ws`, `/api/pty`). Headless backend; dashboard UI is not required. Session token: `$HERMES_HOME/desktop-session.token` (minted on first `hermes-serve` start). No Cloudflare tunnel.
+- App/gateway: `https://hermes.<domain>/` — Caddy LAN/Tailscale → `hermes serve` `:9119` (`/api/ws`, `/api/pty`). Headless backend; dashboard UI is not required. Session token is sops `hermes_dashboard_session_token`. No Cloudflare tunnel.
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`, `openaccountants.nix`.
@@ -95,7 +95,7 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | file | `obi_api_key` / `obi_private_key` / `obi_base_url` | `obi-mcp-http` LoadCredential (not in hermes env) |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
 | `GBRAIN_TOKEN` | not sops | GBrain HTTP MCP bearer — minted by `gbrain auth create hermes`, written to `$HERMES_HOME/.env` + `~/.gbrain/hermes-mcp.token` by `./deploy gbrain-setup`. Do not add to `hermesEnv`. |
-| `HERMES_DASHBOARD_SESSION_TOKEN` | not sops | Desktop remote-control token. Runtime file `$HERMES_HOME/desktop-session.token` (mode 0600), minted on first `hermes-serve` start, exported by the unit launcher. Do not add to `hermesEnv` or `.env` (activation rewrites `.env`; dotenv `override=True` would clobber a spawn token). |
+| `HERMES_DASHBOARD_SESSION_TOKEN` | `hermes_dashboard_session_token` | Desktop remote-control token. Lands in `/run/hermes.env`; `hermes-serve` already loads that file. |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |
 | `XAI_API_KEY` | `xai_api_key` | Fallback (OAuth is primary) |
