@@ -4,6 +4,7 @@
 # PolicyLayer, OneDrive): ./modules/
 {
   config,
+  lib,
   pkgs,
   settings,
   inputs,
@@ -16,6 +17,33 @@ let
   # when container.enable is on; run it on the host against the same HERMES_HOME.
   servePort = 9119;
   stateDir = config.services.hermes-agent.stateDir;
+  # Official analog: backend.sessionTokenFile. Runtime file, never the Nix
+  # store. Minted on first start; launcher exports HERMES_DASHBOARD_SESSION_TOKEN.
+  sessionTokenFile = "${stateDir}/.hermes/desktop-session.token";
+  hermesServeLaunch = pkgs.writeShellScript "hermes-serve-launch" ''
+    set -euo pipefail
+    token_file=${lib.escapeShellArg sessionTokenFile}
+    umask 077
+    ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$token_file")"
+    if [ ! -s "$token_file" ]; then
+      ${pkgs.openssl}/bin/openssl rand -base64 32 \
+        | ${pkgs.coreutils}/bin/tr '+/' '-_' \
+        | ${pkgs.coreutils}/bin/tr -d '=\n' > "$token_file"
+      ${pkgs.coreutils}/bin/chmod 600 "$token_file"
+    fi
+    if [ ! -r "$token_file" ]; then
+      echo "hermes-serve: cannot read the session token file '$token_file'" >&2
+      exit 1
+    fi
+    HERMES_DASHBOARD_SESSION_TOKEN="$(${pkgs.coreutils}/bin/tr -d '\r\n' < "$token_file")"
+    export HERMES_DASHBOARD_SESSION_TOKEN
+    if [ -z "$HERMES_DASHBOARD_SESSION_TOKEN" ]; then
+      echo "hermes-serve: the session token file '$token_file' is empty" >&2
+      exit 1
+    fi
+    exec ${config.services.hermes-agent.package}/bin/hermes serve \
+      --host 127.0.0.1 --port ${toString servePort} --no-open
+  '';
 in
 {
   imports = [
@@ -185,7 +213,7 @@ in
         "HERMES_HOME=${stateDir}/.hermes"
       ];
       EnvironmentFile = [ "/run/hermes.env" ];
-      ExecStart = "${config.services.hermes-agent.package}/bin/hermes serve --host 127.0.0.1 --port ${toString servePort} --no-open";
+      ExecStart = "${hermesServeLaunch}";
       Restart = "on-failure";
       RestartSec = 5;
       MemoryMax = "1G";
