@@ -45,9 +45,9 @@ mkIf (pnp.enable && pnp.webui.enable && bundled != null) {
     # Seed the bundled model-router assets into the writable extension root.
     # Plain copy, never --delete: gallery-installed companion extensions that
     # live in subdirectories must survive re-activation.
-    mkdir -p '${extDir}'
-    chown ${webui.user}:${webui.group} '${extDir}'
-    chmod 0700 '${extDir}'
+    mkdir -p '${webui.stateDir}' '${extDir}'
+    chown ${webui.user}:${webui.group} '${webui.stateDir}' '${extDir}'
+    chmod 0700 '${webui.stateDir}' '${extDir}'
     ${pkgs.coreutils}/bin/cp -a '${bundled}'/. '${extDir}'/
     chown -R ${webui.user}:${webui.group} '${extDir}'
   '';
