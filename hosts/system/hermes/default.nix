@@ -27,6 +27,7 @@ in
     ./modules/openaccountants.nix
     ./modules/onedrive.nix
     ./modules/policylayer.nix
+    ./modules/webui-extensions.nix
   ];
 
   services.hermesPnP = {
