@@ -62,8 +62,13 @@ in
     # still catches provider failure.
     model.default = "high";
 
-    models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; }; # cheap helper, cron
-    models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; }; # workhorse, delegation
+    # Compaction intent (2026-09): grok compresses at 200k via the
+    # threshold_tokens cap below — its sub-512k floor alone would force
+    # 0.75 * 500k = 375k. DeepSeek keeps its real 1M window; the 0.30
+    # ratios (= 300k) are dormant under the global cap until upstream
+    # supports per-model absolute thresholds.
+    models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; compression_ratio = 0.30; }; # cheap helper, cron
+    models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; compression_ratio = 0.30; }; # workhorse, delegation
     models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice
 
     plugins = [
@@ -115,10 +120,13 @@ in
       # Preference: long builds. Upstream default is 180s.
       terminal.timeout = 300;
 
-      # Grok-4.6 input-price cliff. PnP seeds per-model ratios (flash 0.95 /
-      # pro 0.26 / grok 0.28); this cap still wins when lower. Do not set
-      # model.context_length — that stamps every model until the first switch.
-      compression.threshold_tokens = 180000;
+      # Grok-4.6 input-price cliff (~200k): the cap lets grok run to 200k
+      # before compacting and still beats every per-model ratio (grok's
+      # sub-512k floor alone would force 0.75 * 500k = 375k), so it also
+      # holds DeepSeek at 200k despite the 0.30 * 1M = 300k ratios above.
+      # Do not set model.context_length — that stamps every model until the
+      # first switch.
+      compression.threshold_tokens = 200000;
 
       # Preference: 8 GiB jail. Upstream default is 10.
       delegation.max_concurrent_children = 5;
