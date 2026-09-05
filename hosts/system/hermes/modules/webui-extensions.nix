@@ -41,14 +41,24 @@ mkIf (pnp.enable && pnp.webui.enable && bundled != null) {
     "d ${extDir} 0700 ${webui.user} ${webui.group} - -"
   ];
 
-  system.activationScripts.webuiExtensionDir = lib.stringAfter [ "users" "groups" ] ''
-    # Seed the bundled model-router assets into the writable extension root.
-    # Plain copy, never --delete: gallery-installed companion extensions that
-    # live in subdirectories must survive re-activation.
-    mkdir -p '${webui.stateDir}' '${extDir}'
-    chown ${webui.user}:${webui.group} '${webui.stateDir}' '${extDir}'
-    chmod 0700 '${webui.stateDir}' '${extDir}'
-    ${pkgs.coreutils}/bin/cp -a '${bundled}'/. '${extDir}'/
-    chown -R ${webui.user}:${webui.group} '${extDir}'
-  '';
+  # hermes-pnp mkForce's the hermes-webui unit, so we cannot append
+  # preStart there. Seed with a separate unit that runs before the jail.
+  # Not an activationScript (those are leftover-state oneshots).
+  systemd.services.hermes-webui-extension-seed = {
+    description = "Seed bundled Model Router assets into writable WebUI extension dir";
+    wantedBy = [ "hermes-webui.service" ];
+    before = [ "hermes-webui.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set -euo pipefail
+      mkdir -p '${webui.stateDir}' '${extDir}'
+      chown ${webui.user}:${webui.group} '${webui.stateDir}' '${extDir}'
+      chmod 0700 '${webui.stateDir}' '${extDir}'
+      ${pkgs.coreutils}/bin/cp -a '${bundled}'/. '${extDir}'/
+      chown -R ${webui.user}:${webui.group} '${extDir}'
+    '';
+  };
 }
