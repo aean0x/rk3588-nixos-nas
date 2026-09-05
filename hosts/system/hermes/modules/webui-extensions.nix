@@ -19,7 +19,7 @@
 }:
 
 let
-  inherit (lib) mkIf mkForce;
+  inherit (lib) mkIf mkForce mkAfter;
   pnp = config.services.hermesPnP;
   webui = config.services.hermes-webui;
   # Read-only source: the model-router plugin's webui dir in the store. Null
@@ -41,10 +41,10 @@ mkIf (pnp.enable && pnp.webui.enable && bundled != null) {
     "d ${extDir} 0700 ${webui.user} ${webui.group} - -"
   ];
 
-  system.activationScripts.webuiExtensionDir = lib.stringAfter [ "users" "groups" ] ''
-    # Seed the bundled model-router assets into the writable extension root.
-    # Plain copy, never --delete: gallery-installed companion extensions that
-    # live in subdirectories must survive re-activation.
+  # Seed on webui start, not via activationScripts (no Nix oneshots for
+  # leftover/bootstrap copies). Plain copy, never --delete, so gallery
+  # companion extensions in subdirectories survive.
+  systemd.services.hermes-webui.preStart = mkAfter ''
     mkdir -p '${webui.stateDir}' '${extDir}'
     chown ${webui.user}:${webui.group} '${webui.stateDir}' '${extDir}'
     chmod 0700 '${webui.stateDir}' '${extDir}'
