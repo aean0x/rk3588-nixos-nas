@@ -19,7 +19,7 @@
 }:
 
 let
-  inherit (lib) mkIf mkForce mkAfter;
+  inherit (lib) mkIf mkForce;
   pnp = config.services.hermesPnP;
   webui = config.services.hermes-webui;
   # Read-only source: the model-router plugin's webui dir in the store. Null
@@ -41,14 +41,24 @@ mkIf (pnp.enable && pnp.webui.enable && bundled != null) {
     "d ${extDir} 0700 ${webui.user} ${webui.group} - -"
   ];
 
-  # Seed on webui start, not via activationScripts (no Nix oneshots for
-  # leftover/bootstrap copies). Plain copy, never --delete, so gallery
-  # companion extensions in subdirectories survive.
-  systemd.services.hermes-webui.preStart = mkAfter ''
-    mkdir -p '${webui.stateDir}' '${extDir}'
-    chown ${webui.user}:${webui.group} '${webui.stateDir}' '${extDir}'
-    chmod 0700 '${webui.stateDir}' '${extDir}'
-    ${pkgs.coreutils}/bin/cp -a '${bundled}'/. '${extDir}'/
-    chown -R ${webui.user}:${webui.group} '${extDir}'
-  '';
+  # hermes-pnp mkForce's the hermes-webui unit, so we cannot append
+  # preStart there. Seed with a separate unit that runs before the jail.
+  # Not an activationScript (those are leftover-state oneshots).
+  systemd.services.hermes-webui-extension-seed = {
+    description = "Seed bundled Model Router assets into writable WebUI extension dir";
+    wantedBy = [ "hermes-webui.service" ];
+    before = [ "hermes-webui.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set -euo pipefail
+      mkdir -p '${webui.stateDir}' '${extDir}'
+      chown ${webui.user}:${webui.group} '${webui.stateDir}' '${extDir}'
+      chmod 0700 '${webui.stateDir}' '${extDir}'
+      ${pkgs.coreutils}/bin/cp -a '${bundled}'/. '${extDir}'/
+      chown -R ${webui.user}:${webui.group} '${extDir}'
+    '';
+  };
 }
