@@ -49,7 +49,10 @@ let
     FIRECRAWL_API_KEY = "firecrawl_api_key";
     # Hermes OpenAI-compatible API server (loopback clients).
     # Distinct from OPENAI_API_KEY above (that one is OpenRouter for LLM routing).
-    # API_SERVER_KEY = "hermes_api_server_key";
+    # Enabled so the WebUI's gateway liveness/health probe can reach the agent's
+    # api_server adapter (:8642) over host loopback — otherwise the dashboard
+    # falls back to stale gateway_state.json and reports the gateway dead.
+    API_SERVER_KEY = "hermes_api_server_key";
     # Hermes WebUI / agent TTS (server-side ElevenLabs).
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
@@ -111,6 +114,8 @@ in
         deepseek_api_key = { };
         # Hermes Desktop session token → HERMES_DASHBOARD_SESSION_TOKEN.
         hermes_dashboard_session_token = { };
+        # Hermes API server → API_SERVER_KEY in /run/hermes.env (WebUI gateway probe).
+        hermes_api_server_key = { };
         composio_api_key = { };
         # Banking MCP (not in hermesEnv). mcp-proxy / obi-mcp-http LoadCredential.
         obi_api_key = { };
