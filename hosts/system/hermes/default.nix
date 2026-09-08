@@ -57,9 +57,10 @@ in
     #   # overwrite = false;
     # };
 
-    # Library default after hermes-pnp #65 is medium. Keep high so grok
-    # stays session voice; consumer fallback_model (deepseek-v4-pro)
-    # still catches provider failure.
+    # Library default after hermes-pnp #80/#81 is the "default" slot
+    # (ex-medium). Keep high so grok stays session voice. Composer
+    # fallback with the router on is models.high; override below to
+    # deepseek-v4-pro so a grok failure lands on the workhorse.
     model.default = "high";
 
     # Compaction intent (2026-09): grok compresses at 200k via the
@@ -68,7 +69,7 @@ in
     # ratios (= 300k) are dormant under the global cap until upstream
     # supports per-model absolute thresholds.
     models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; compression_ratio = 0.30; }; # cheap helper, cron
-    models.medium = { provider = "deepseek"; model = "deepseek-v4-pro"; compression_ratio = 0.30; }; # workhorse, delegation
+    models.default = { provider = "deepseek"; model = "deepseek-v4-pro"; compression_ratio = 0.30; }; # workhorse, delegation
     models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice
 
     plugins = [
@@ -175,6 +176,9 @@ in
   # WebUI: LAN Caddy + Cloudflare Tunnel.
   # hermes.<domain>: LAN/Tailscale alias → serve :9119 (no dashboard, no tunnel).
   # Browser gate: LAN/Tailscale, no tunnel.
+  # Do not set hermesPnP.desktop.enable: it mkForces the agent jail off
+  # and asserts container.enable is false. Desktop remote stays the host
+  # hermes-serve unit below.
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
   services.caddy.proxyServices."hermes.${settings.domain}" = servePort;
   services.caddy.proxyUpstreamHost."hermes.${settings.domain}" = "127.0.0.1:${toString servePort}";
