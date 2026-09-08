@@ -140,9 +140,30 @@ else
   fail "consumer must set fallback_model to deepseek-v4-pro"
 fi
 if grep -qE 'model\.default = "high"' "$CONSUMER"; then
-  pass "session default is high (grok); library default is medium"
+  pass "session default is high (grok); library default is the default slot"
 else
-  fail "consumer must set hermesPnP.model.default = \"high\" (library default is medium)"
+  fail "consumer must set hermesPnP.model.default = \"high\" (library default is the default slot)"
+fi
+if grep -qE 'models\.default[[:space:]]*=' "$CONSUMER"; then
+  pass "models.default slot (ex-medium)"
+else
+  fail "consumer must set hermesPnP.models.default (medium was renamed in hermes-pnp #80)"
+fi
+if grep -qE 'models\.medium[[:space:]]*=' "$CONSUMER"; then
+  fail "consumer still sets models.medium; use models.default"
+else
+  pass "no models.medium assignment"
+fi
+if grep -qE 'hermesPnP\.desktop\.enable[[:space:]]*=[[:space:]]*true' "$CONSUMER" "$RUNTIME"; then
+  fail "desktop.enable is native-only and conflicts with the agent jail"
+else
+  pass "hermesPnP.desktop.enable is not on (jail + host hermes-serve)"
+fi
+if grep -qE '^[[:space:]]*API_SERVER_KEY[[:space:]]*=' "$SOPS" \
+  && grep -q 'hermes_api_server_key' "$SOPS"; then
+  pass "API_SERVER_KEY in hermesEnv (WebUI :8642 probe)"
+else
+  fail "sops must map API_SERVER_KEY / hermes_api_server_key for the WebUI gateway probe"
 fi
 if grep -q 'free_only' "$CONSUMER" \
   && grep -q 'openrouter_model' "$CONSUMER"; then
