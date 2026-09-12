@@ -225,11 +225,20 @@ in
         # positives, in AdGuard's domainswild2 (wildcard) format. This is what
         # actually blocks adult sites — Aegis above is child-safety
         # (predators/self-harm/gore/radicalization), not porn.
+        # Conservative by design: mixed sites (4chan, imageboards) are omitted.
         {
           enabled = true;
           url = "https://nsfw.oisd.nl/domainswild2";
           name = "OISD NSFW (adult content)";
           id = 6;
+        }
+        # Broader adult/NSFW (imageboards, mixed sites OISD skips). Includes
+        # 4chan.org. Does not force YouTube Restricted Mode.
+        {
+          enabled = true;
+          url = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt";
+          name = "HaGeZi NSFW (adult + mixed)";
+          id = 7;
         }
       ];
 
@@ -247,6 +256,20 @@ in
         #   ||discord.com^$client='toddler-pc'
         "@@||discord.com^"
         "@@||discordapp.com^"
+        # Imageboards / 4chan family. OISD NSFW omits mixed-content sites;
+        # HaGeZi covers 4chan.org but not 4channel.org or the 4cdn apex.
+        # Declared here so they block before the new list is first fetched.
+        "||4chan.org^"
+        "||4chan.com^"
+        "||4channel.org^"
+        "||4cdn.org^"
+        "||7chan.org^"
+        "||lainchan.org^"
+        "||smuglo.li^"
+        "||warosu.org^"
+        "||4plebs.org^"
+        "||desuarchive.org^"
+        "||archived.moe^"
       ];
     };
   };
@@ -291,8 +314,10 @@ in
 #        @@||sesamestreet.org^$client='toddler-pc'   # then allow-list exceptions
 #        @@||pbskids.org^$client='toddler-pc'
 #
-#    - Because we do not declare `user_rules` in Nix, these additions survive
-#      `nixos-rebuild` / restarts.
+#    - `user_rules` is declared in Nix (allowlists + imageboards). Extra UI
+#      custom rules for those same keys are overwritten on merge; keep
+#      additive kid-only rules in the UI with $client= so they stay out of
+#      the Nix list, or add them to user_rules above.
 #    - Use single quotes around the name if it has spaces or special chars:
 #      $client='toddler-pc'
 #

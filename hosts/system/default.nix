@@ -125,8 +125,6 @@
   # ===================
   # Logging & Misc
   # ===================
-  services.journald.extraConfig = "SystemMaxUse=1000M";
-
   nix.settings = {
     trusted-users = [ "@wheel" ];
     # Official Hydra cache only. Garnix (cache.garnix.io) shut down 2026-07-15.

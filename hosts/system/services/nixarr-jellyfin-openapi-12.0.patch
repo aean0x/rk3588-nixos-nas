@@ -1,0 +1,11 @@
+diff --git a/python-deps.nix b/python-deps.nix
+index 1111111..2222222 100644
+--- a/python-deps.nix
++++ b/python-deps.nix
+@@ -155,6 +155,7 @@
+           "10.11.10" = "sha256-3FfqhqQfuQdM/02NyhAWDW7H6OaTynWtaUBoSIxk4AQ=";
+           "10.11.11" = "sha256-4p/DaeyuVGdsrrUMu8AGtcTulZkGwA8eAvb4PbnCJ/s=";
++          "12.0" = "sha256-hu9rbOp+R0tbsjT0Tl639uj0WM5tfYT6uZ6NH0p1zjk=";
+         })."${jellyfin.version}";
+     };
+     openapi-config = writeTextFile {

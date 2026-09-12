@@ -17,6 +17,7 @@
   lib,
   pkgs,
   settings,
+  inputs,
   ...
 }:
 let
@@ -67,6 +68,15 @@ in
     mediaDir = mediaDir;
     stateDir = stateDir;
     mediaUsers = [ settings.adminUser ];
+
+    # nixpkgs jellyfin is 12.0; nixarr's python-deps.nix only hashed
+    # 10.10.x–10.11.11 OpenAPI specs, so eval dies with
+    # `attribute '"12.0"' missing`. Patch in the 12.0 spec hash.
+    nixarr-py.package = pkgs.callPackage (pkgs.applyPatches {
+      name = "nixarr-py-jellyfin-12";
+      src = "${inputs.nixarr}/nixarr/lib/nixarr-py";
+      patches = [ ./nixarr-jellyfin-openapi-12.0.patch ];
+    }) { inherit (pkgs) jellyfin; };
 
     sonarr = {
       enable = true;
