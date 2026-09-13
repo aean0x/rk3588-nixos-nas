@@ -60,7 +60,7 @@ in
     # Library default after hermes-pnp #80/#81 is the "default" slot
     # (ex-medium). Keep high so grok stays session voice. Composer
     # fallback with the router on is models.high; override below to
-    # deepseek-v4-pro so a grok failure lands on the workhorse.
+    # deepseek-flash so a grok failure lands on the workhorse.
     model.default = "high";
 
     # Compaction intent (2026-09): grok compresses at 200k via the
@@ -68,9 +68,10 @@ in
     # 0.75 * 500k = 375k. DeepSeek keeps its real 1M window; the 0.30
     # ratios (= 300k) are dormant under the global cap until upstream
     # supports per-model absolute thresholds.
-    models.low = { provider = "deepseek"; model = "deepseek-v4-flash"; compression_ratio = 0.30; }; # cheap helper, cron
-    models.default = { provider = "deepseek"; model = "deepseek-v4-pro"; compression_ratio = 0.30; }; # workhorse, delegation
+    models.low = { provider = "deepseek"; model = "deepseek-flash"; compression_ratio = 0.30; }; # cheap helper, cron
+    models.default = { provider = "deepseek"; model = "deepseek-flash"; compression_ratio = 0.30; }; # workhorse, delegation
     models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice
+    models.auxiliary = { provider = "deepseek"; model = "deepseek-flash"; }; # title/compression; composer default lags on v4
 
     plugins = [
       "model-router"
@@ -149,7 +150,7 @@ in
       # Grok is session voice; if it fails, land on the workhorse.
       fallback_model = {
         provider = "deepseek";
-        model = "deepseek-v4-pro";
+        model = "deepseek-flash";
       };
 
       # Auxiliary falls back to OpenRouter when DeepSeek is down. Schema
