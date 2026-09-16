@@ -78,6 +78,11 @@ in
     mcpProxy.enable = true;
     hmc.enable = true;
     gbrain.enable = true;
+    # Pin matches the 2026-09-16 re-embed (ZeroEntropy zembed-1 @2560 →
+    # Voyage-4 @1024). Env override wins at query time, so this must not
+    # land against a still-2560 column. File plane is ~/.gbrain/config.json.
+    gbrain.embeddingModel = "openrouter:voyageai/voyage-4";
+    gbrain.embeddingDimensions = 1024;
   };
 
   services.hermes-agent = {

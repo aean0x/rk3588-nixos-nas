@@ -74,7 +74,10 @@ sets the MCP URL + `Authorization: Bearer ${GBRAIN_TOKEN}` (env-ref, expanded
 from `$HERMES_HOME/.env`).
 
 - CLI: bun-global under hermes HOME (`./deploy gbrain-setup`).
-- Embeddings: `ZEROENTROPY_API_KEY` via `/run/hermes.env`.
+- Embeddings: `gbrain.embeddingModel` = `openrouter:voyageai/voyage-4` @ 1024
+  (`GBRAIN_EMBEDDING_*` on the unit). OpenRouter key via `/run/hermes.env`.
+  Re-pointing vectors is `gbrain migrate embeddings` with serve stopped,
+  then the Nix pin — never the pin first.
 - **Never** shell `gbrain` while the agent is up (PGLite single-writer).
 - Hygiene: MCP tools or Hermes cron **via MCP only**.
 - Protocol SoT: GBrain page `ops/gbrain-protocol`. Operator doc: hermes-pnp `docs/gbrain.md`.
@@ -93,7 +96,8 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | file | `composio_api_key` | mcp-proxy Bearer |
 | file | `banksync_api_key` | mcp-proxy `X-API-Key` (not in hermes env) |
 | file | `obi_api_key` / `obi_private_key` / `obi_base_url` | `obi-mcp-http` LoadCredential (not in hermes env) |
-| `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | GBrain embeddings |
+| `OPENROUTER_API_KEY` | `openrouter_api_key` | GBrain embeddings (`openrouter:voyageai/voyage-4`) + aux fallback |
+| `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | leftover; brain migrated off zembed-1 2026-09-16. Drop after a verified query. |
 | `GBRAIN_TOKEN` | not sops | GBrain HTTP MCP bearer — minted by `gbrain auth create hermes`, written to `$HERMES_HOME/.env` + `~/.gbrain/hermes-mcp.token` by `./deploy gbrain-setup`. Do not add to `hermesEnv`. |
 | `HERMES_DASHBOARD_SESSION_TOKEN` | `hermes_dashboard_session_token` | Unused while the agent jail is on (Desktop / `hermes serve` is native-only). Still landed in `/run/hermes.env`. |
 | `API_SERVER_KEY` | `hermes_api_server_key` | Loopback `api_server` on `:8642`. WebUI health probe (`HERMES_WEBUI_GATEWAY_BASE_URL`); without it the dashboard falls back to stale `gateway_state.json`. |

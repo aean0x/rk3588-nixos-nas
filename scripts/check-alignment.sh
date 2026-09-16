@@ -332,6 +332,13 @@ if grep -q 'gbrain.enable' "$CONSUMER"; then
 else
   fail "default.nix must set services.hermesPnP.gbrain.enable"
 fi
+if grep -q 'embeddingModel' "$CONSUMER" \
+  && grep -q 'openrouter:voyageai/voyage-4' "$CONSUMER" \
+  && grep -q 'embeddingDimensions = 1024' "$CONSUMER"; then
+  pass "gbrain embeddings pinned to voyage-4 @1024"
+else
+  fail "consumer must pin gbrain.embeddingModel=openrouter:voyageai/voyage-4 and embeddingDimensions=1024 (migrate first)"
+fi
 
 if grep -q 'activationScripts.hermes-gbrain-site' "$CONSUMER" "$RUNTIME" "$COMPOSIO"; then
   fail "consumer still rewrites config.yaml Bearer (composer owns that)"

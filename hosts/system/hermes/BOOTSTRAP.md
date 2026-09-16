@@ -1,13 +1,13 @@
 # Bootstrap: fresh Hermes + GBrain
 
 End state: DeepSeek flash as primary, xAI OAuth so grok-4.6 fallback
-works, no declarative SOUL, GBrain HTTP MCP up, ZeroEntropy in
-`/run/hermes.env`.
+works, no declarative SOUL, GBrain HTTP MCP up, Voyage-4 embeddings
+via OpenRouter (`gbrain.embeddingModel`).
 
 ## 0. Secrets + deploy
 
 ```bash
-cd secrets && ./decrypt   # set zeroentropy_api_key, firecrawl_api_key, …
+cd secrets && ./decrypt   # set openrouter_api_key, firecrawl_api_key, …
 ./encrypt
 git add hosts/system/hermes secrets
 ./deploy remote-switch    # or remote-test first
@@ -17,7 +17,7 @@ On device:
 
 ```bash
 systemctl status hermes-agent gbrain-mcp-http hermes-webui
-grep -E 'ZEROENTROPY|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
+grep -E 'OPENROUTER|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
 ```
 
 ## 1. One-time OAuth
@@ -57,7 +57,7 @@ Never: `gbrain autopilot --install`; a second serve.
 |--------|-----|
 | Durable write / recall | MCP `put_page` / `query` / `get_page` |
 | Hygiene | MCP or Hermes cron via MCP — never shell `gbrain` while up |
-| Rotate ZeroEntropy | decrypt → edit → encrypt → remote-switch → restart hermes-agent |
+| Rotate OpenRouter (embeddings) | decrypt → edit → encrypt → remote-switch → restart gbrain-mcp-http |
 | Soft reset, keep brain | `./deploy clean-hermes-state` |
 
 PGLite “WASM Aborted”: stop stack, pkill orphans, restart `gbrain-mcp-http`. See hermes-pnp `docs/gbrain.md`.
