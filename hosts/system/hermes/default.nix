@@ -132,6 +132,17 @@ in
       # Preference: 8 GiB jail. Upstream default is 10.
       delegation.max_concurrent_children = 5;
 
+      # Kanban dispatch spawns one worker process per card (~240 MiB resident
+      # each). The dispatcher's memory-derived cap reads the HOST's MemTotal
+      # (7642 MiB / 512 MiB per worker, clamped to 8), but this container is
+      # capped at --memory=1g in runtime.nix, so the fan-out oversubscribes it:
+      # the kernel reclaims without pause (memory.events max ~340k), ~0.8 GiB
+      # of live heap sits in swap, and the memcg throttles TCP socket buffers.
+      # The stall then hits every MCP client at once (gbrain, banksync,
+      # composio, robinhood, policylayer) and each keepalive misses its 30 s
+      # RPC deadline. Two workers leave the gateway its headroom.
+      kanban.max_in_progress = 2;
+
       cron.wrap_response = false;
 
       security = {
