@@ -145,6 +145,19 @@ in
 
       cron.wrap_response = false;
 
+      # Interim, revocable. Upstream's bounded-hook latch drops a healthy
+      # concurrent callback ("skipped after previous timeout or while still
+      # running"): one (hook, callback) bit covers both a real timeout and
+      # ordinary overlap, so parallel tool batches lose hook work while the log
+      # records zero timeouts (#98382 canonical, #104865 duplicate; #105223 is
+      # the same latch permanently fail-closing pre_tool_call). <= 0 disables
+      # the threaded path, so hooks run in the caller and nothing is dropped.
+      # Every hook in this profile is self-bounded: git-hook subprocesses carry
+      # GIT_HOOK_* timeouts, the gbrain hooks are local IO or urllib with a
+      # socket timeout. Delete this line once the pinned hermes-agent carries
+      # the upstream fix (staged: #98385, #104763).
+      plugins.hook_callback_timeout = 0;
+
       security = {
         allow_lazy_installs = false;
         allow_private_urls = true;
