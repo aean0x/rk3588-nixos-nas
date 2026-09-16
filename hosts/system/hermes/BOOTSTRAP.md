@@ -1,7 +1,8 @@
 # Bootstrap: fresh Hermes + GBrain
 
-End state: xAI OAuth + Grok 4.6, no declarative SOUL, GBrain HTTP MCP up,
-ZeroEntropy in `/run/hermes.env`.
+End state: DeepSeek flash as primary, xAI OAuth so grok-4.6 fallback
+works, no declarative SOUL, GBrain HTTP MCP up, ZeroEntropy in
+`/run/hermes.env`.
 
 ## 0. Secrets + deploy
 
@@ -21,7 +22,9 @@ grep -E 'ZEROENTROPY|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
 
 ## 1. One-time OAuth
 
-Declarative: `hermesPnP.models.high` → `xai-oauth` / `grok-4.6`.
+Declarative: `settings.fallback_model` → `xai-oauth` / `grok-4.6`.
+Primary is `models.default` (`deepseek-flash`). OAuth is still required
+so the fallback can fire.
 
 ```bash
 ./deploy ssh

@@ -12,10 +12,6 @@
 let
   webuiPort = 8787;
   webuiHost = "archimedes.${settings.domain}";
-  # Desktop/app backend (`hermes serve`). Official backend.mode is blocked
-  # when container.enable is on; run it on the host against the same HERMES_HOME.
-  servePort = 9119;
-  stateDir = config.services.hermes-agent.stateDir;
 in
 {
   imports = [
@@ -57,24 +53,21 @@ in
     #   # overwrite = false;
     # };
 
-    # Library default after hermes-pnp #80/#81 is the "default" slot
-    # (ex-medium). Keep high so grok stays session voice. Composer
-    # fallback with the router on is models.high; override below to
-    # deepseek-flash so a grok failure lands on the workhorse.
-    model.default = "high";
-
-    # Compaction intent (2026-09): grok compresses at 200k via the
-    # threshold_tokens cap below — its sub-512k floor alone would force
-    # 0.75 * 500k = 375k. DeepSeek keeps its real 1M window; the 0.30
-    # ratios (= 300k) are dormant under the global cap until upstream
-    # supports per-model absolute thresholds.
-    models.low = { provider = "deepseek"; model = "deepseek-flash"; compression_ratio = 0.30; }; # cheap helper, cron
-    models.default = { provider = "deepseek"; model = "deepseek-flash"; compression_ratio = 0.30; }; # workhorse, delegation
-    models.high = { provider = "xai-oauth"; model = "grok-4.6"; }; # session voice
-    models.auxiliary = { provider = "deepseek"; model = "deepseek-flash"; }; # title/compression; composer default lags on v4
+    # Single primary: models.default seeds session, cron, and delegation.
+    # modelRouter.enable = false strips the plugin even if listed, sets
+    # context.engine = compressor, and would copy models.default into
+    # fallback_model — override that on hermes-agent.settings below.
+    modelRouter.enable = false;
+    models.default = {
+      provider = "deepseek";
+      model = "deepseek-flash";
+    };
+    models.auxiliary = {
+      provider = "deepseek";
+      model = "deepseek-flash";
+    };
 
     plugins = [
-      "model-router"
       "tool-call-coherency"
       "secret-handoff"
       "git-hook"
@@ -122,14 +115,6 @@ in
       # Preference: long builds. Upstream default is 180s.
       terminal.timeout = 300;
 
-      # Grok-4.6 input-price cliff (~200k): the cap lets grok run to 200k
-      # before compacting and still beats every per-model ratio (grok's
-      # sub-512k floor alone would force 0.75 * 500k = 375k), so it also
-      # holds DeepSeek at 200k despite the 0.30 * 1M = 300k ratios above.
-      # Do not set model.context_length — that stamps every model until the
-      # first switch.
-      compression.threshold_tokens = 200000;
-
       # Preference: 8 GiB jail. Upstream default is 10.
       delegation.max_concurrent_children = 5;
 
@@ -171,10 +156,11 @@ in
 
       timezone = settings.timeZone;
 
-      # Grok is session voice; if it fails, land on the workhorse.
+      # Upstream fallback. PnP would seed models.default (flash) here
+      # with the router off; last writer wins (do not mkDefault).
       fallback_model = {
-        provider = "deepseek";
-        model = "deepseek-flash";
+        provider = "xai-oauth";
+        model = "grok-4.6";
       };
 
       # Auxiliary falls back to OpenRouter when DeepSeek is down. Schema
@@ -198,35 +184,15 @@ in
     };
   };
 
-  # WebUI: LAN Caddy + Cloudflare Tunnel.
-  # hermes.<domain>: LAN/Tailscale alias → serve :9119 (no dashboard, no tunnel).
-  # Browser gate: LAN/Tailscale, no tunnel.
+  # WebUI: LAN Caddy + Cloudflare Tunnel. hermes.<domain> is a LAN/Tailscale
+  # alias to the same WebUI (no extra backend). Browser gate: LAN/Tailscale,
+  # no tunnel.
   # Do not set hermesPnP.desktop.enable: it mkForces the agent jail off
-  # and asserts container.enable is false. Desktop remote stays the host
-  # hermes-serve unit below.
+  # and asserts container.enable is false. Official `hermes serve` /
+  # backend.mode cannot run beside the jail — host `hermes` is a docker
+  # CLI router, and the gateway already lives in hermes-agent.
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
-  services.caddy.proxyServices."hermes.${settings.domain}" = servePort;
-  services.caddy.proxyUpstreamHost."hermes.${settings.domain}" = "127.0.0.1:${toString servePort}";
+  services.caddy.proxyServices."hermes.${settings.domain}" = webuiPort;
   services.caddy.proxyServices."browser.${settings.domain}" = 4848;
   services.cloudflareTunnel.proxyServices."${webuiHost}" = webuiPort;
-
-  systemd.services.hermes-serve = {
-    description = "Hermes Desktop backend (serve, no dashboard UI)";
-    after = [ "hermes-agent.service" ];
-    wants = [ "hermes-agent.service" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      User = "hermes";
-      Group = "hermes";
-      Environment = [
-        "HOME=${stateDir}"
-        "HERMES_HOME=${stateDir}/.hermes"
-      ];
-      EnvironmentFile = [ "/run/hermes.env" ];
-      ExecStart = "${config.services.hermes-agent.package}/bin/hermes serve --host 127.0.0.1 --port ${toString servePort} --no-open";
-      Restart = "on-failure";
-      RestartSec = 5;
-      MemoryMax = "1G";
-    };
-  };
 }

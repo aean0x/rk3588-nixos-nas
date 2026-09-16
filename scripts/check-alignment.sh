@@ -117,11 +117,16 @@ else
   pass "no SOUL activation"
 fi
 
-if grep -q 'model-router' "$CONSUMER" \
+if grep -qE 'modelRouter\.enable[[:space:]]*=[[:space:]]*false' "$CONSUMER" \
   && grep -q 'git-hook' "$CONSUMER"; then
-  pass "model-router + git-hook declared (WebUI extension is composer pairing)"
+  pass "modelRouter off + git-hook declared"
 else
-  fail "missing model-router/git-hook"
+  fail "consumer must set hermesPnP.modelRouter.enable = false and keep git-hook"
+fi
+if grep -qE '"model-router"' "$CONSUMER"; then
+  fail "consumer still lists the model-router plugin"
+else
+  pass "model-router not in consumer plugins"
 fi
 if grep -qE '^[[:space:]]*model\.context_length[[:space:]]*=' "$CONSUMER"; then
   fail "consumer sets model.context_length (stamps every model; use compression.threshold_tokens)"
@@ -133,21 +138,23 @@ if grep -qE '^[[:space:]]*max_turns[[:space:]]*=' "$CONSUMER"; then
 else
   pass "no consumer max_turns"
 fi
-if grep -q 'deepseek-flash' "$CONSUMER" \
-  && grep -q 'fallback_model' "$CONSUMER"; then
-  pass "fallback_model is deepseek-flash"
+if grep -q 'fallback_model' "$CONSUMER" \
+  && grep -q 'xai-oauth' "$CONSUMER" \
+  && grep -q 'grok-4.6' "$CONSUMER"; then
+  pass "fallback_model is grok-4.6"
 else
-  fail "consumer must set fallback_model to deepseek-flash"
+  fail "consumer must set official fallback_model to xai-oauth / grok-4.6"
 fi
 if grep -qE 'model\.default = "high"' "$CONSUMER"; then
-  pass "session default is high (grok); library default is the default slot"
+  fail "model.default = \"high\" is router-only; with modelRouter off session is models.default"
 else
-  fail "consumer must set hermesPnP.model.default = \"high\" (library default is the default slot)"
+  pass "session is models.default (router off)"
 fi
-if grep -qE 'models\.default[[:space:]]*=' "$CONSUMER"; then
-  pass "models.default slot (ex-medium)"
+if grep -qE 'models\.default[[:space:]]*=' "$CONSUMER" \
+  && grep -q 'deepseek-flash' "$CONSUMER"; then
+  pass "models.default is deepseek-flash"
 else
-  fail "consumer must set hermesPnP.models.default (medium was renamed in hermes-pnp #80)"
+  fail "consumer must set hermesPnP.models.default to deepseek-flash"
 fi
 if grep -qE 'models\.medium[[:space:]]*=' "$CONSUMER"; then
   fail "consumer still sets models.medium; use models.default"
@@ -157,7 +164,12 @@ fi
 if grep -qE 'hermesPnP\.desktop\.enable[[:space:]]*=[[:space:]]*true' "$CONSUMER" "$RUNTIME"; then
   fail "desktop.enable is native-only and conflicts with the agent jail"
 else
-  pass "hermesPnP.desktop.enable is not on (jail + host hermes-serve)"
+  pass "hermesPnP.desktop.enable is not on (jail owns the gateway)"
+fi
+if grep -qE 'systemd\.services\.hermes-serve' "$CONSUMER" "$RUNTIME"; then
+  fail "host hermes-serve cannot run in container mode (docker CLI router; official backend.mode blocked)"
+else
+  pass "no host hermes-serve unit"
 fi
 if grep -qE '^[[:space:]]*API_SERVER_KEY[[:space:]]*=' "$SOPS" \
   && grep -q 'hermes_api_server_key' "$SOPS"; then

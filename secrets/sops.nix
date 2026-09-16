@@ -57,7 +57,9 @@ let
     ELEVENLABS_API_KEY = "elevenlabs_api_key";
     # Native DeepSeek provider (delegation/aux can use provider=deepseek).
     DEEPSEEK_API_KEY = "deepseek_api_key";
-    # Hermes Desktop remote-control socket (`hermes serve` /api/ws).
+    # Desktop / hermes serve session token. Unused while container.enable
+    # is on (official backend.mode is native-only). Keep in hermesEnv so a
+    # future native Desktop switch has it.
     HERMES_DASHBOARD_SESSION_TOKEN = "hermes_dashboard_session_token";
     # COMPOSIO_API_KEY = "composio_api_key";
     # Banking MCP keys stay off this env: mcp-proxy (BankSync) and
