@@ -133,11 +133,11 @@ if grep -qE '^[[:space:]]*max_turns[[:space:]]*=' "$CONSUMER"; then
 else
   pass "no consumer max_turns"
 fi
-if grep -q 'deepseek-v4-pro' "$CONSUMER" \
+if grep -q 'deepseek-flash' "$CONSUMER" \
   && grep -q 'fallback_model' "$CONSUMER"; then
-  pass "fallback_model is deepseek-v4-pro"
+  pass "fallback_model is deepseek-flash"
 else
-  fail "consumer must set fallback_model to deepseek-v4-pro"
+  fail "consumer must set fallback_model to deepseek-flash"
 fi
 if grep -qE 'model\.default = "high"' "$CONSUMER"; then
   pass "session default is high (grok); library default is the default slot"
