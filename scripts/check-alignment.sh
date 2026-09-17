@@ -138,7 +138,9 @@ fi
 # it. No per-model ratio can replace it (grok-4.6's 500k window is under the
 # 512k small-context floor, so its ratio is raised to >= 0.75 = 375k, while
 # xAI doubles every rate at 200k prompt tokens).
-if grep -qE '^[[:space:]]*compression\.threshold_tokens[[:space:]]*=[[:space:]]*200000' "$CONSUMER"; then
+# The value is anchored by its terminator: `2000000` (one zero too many) must
+# fail here, since a cap above the context window never binds (min(cap, len)).
+if grep -qE '^[[:space:]]*compression\.threshold_tokens[[:space:]]*=[[:space:]]*200000[[:space:]]*;' "$CONSUMER"; then
   pass "compression.threshold_tokens = 200000 declared (grok rate cliff)"
 else
   fail "consumer must declare compression.threshold_tokens = 200000 (fallback grok-4.6 doubles all rates at 200k prompt tokens; a ratio cannot express it)"
