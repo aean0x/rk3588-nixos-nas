@@ -123,6 +123,17 @@ in
       # Preference: 8 GiB jail. Upstream default is 10.
       delegation.max_concurrent_children = 5;
 
+      # Absolute compaction cap for every model; the composer seeds per-model
+      # ratios (`models.<name>.compression_ratio` -> `model_thresholds`) but a
+      # ratio cannot express this one. The fallback (grok-4.6) has a 500k
+      # window, under Hermes' 512k small-context floor, so its ratio is raised
+      # to >= 0.75 -> a 375k trigger; xAI doubles every rate for the whole
+      # request once a prompt reaches 200k tokens, so the cap is the only knob
+      # that holds the fallback under the cliff (200000 / 500000 = 0.40, below
+      # the floor a ratio can reach). It also holds the primary at 200k: its
+      # 0.26 ratio alone resolves to 260k on the 1M window.
+      compression.threshold_tokens = 200000;
+
       # Kanban dispatch spawns one worker process per card (~240 MiB resident
       # each). The dispatcher's memory-derived cap reads the HOST's MemTotal
       # (7642 MiB / 512 MiB per worker, clamped to 8), but this container is

@@ -129,9 +129,19 @@ else
   pass "model-router not in consumer plugins"
 fi
 if grep -qE '^[[:space:]]*model\.context_length[[:space:]]*=' "$CONSUMER"; then
-  fail "consumer sets model.context_length (stamps every model; use compression.threshold_tokens)"
+  fail "consumer sets model.context_length (stamps every model; the absolute cap is compression.threshold_tokens)"
 else
   pass "no global model.context_length"
+fi
+# The cap is a live key the activation deep-merge cannot drop: dropping the
+# declaration leaves the old value in config.yaml while the docs keep claiming
+# it. No per-model ratio can replace it (grok-4.6's 500k window is under the
+# 512k small-context floor, so its ratio is raised to >= 0.75 = 375k, while
+# xAI doubles every rate at 200k prompt tokens).
+if grep -qE '^[[:space:]]*compression\.threshold_tokens[[:space:]]*=[[:space:]]*200000' "$CONSUMER"; then
+  pass "compression.threshold_tokens = 200000 declared (grok rate cliff)"
+else
+  fail "consumer must declare compression.threshold_tokens = 200000 (fallback grok-4.6 doubles all rates at 200k prompt tokens; a ratio cannot express it)"
 fi
 if grep -qE '^[[:space:]]*max_turns[[:space:]]*=' "$CONSUMER"; then
   fail "consumer pins max_turns (upstream default is unlimited)"
