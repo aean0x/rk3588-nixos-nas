@@ -16,7 +16,7 @@
 #
 # Run on the NAS as root (or as the hermes user, who owns the file):
 #   scp scripts/oneshot/prune-hermes-config-keys.sh rocknas:/tmp/
-#   ssh rocknas 'sudo bash /tmp/prune-hermes-config-keys.sh compression.model_thresholds.deepseek-v4-flash'
+#   ssh rocknas 'sudo bash /tmp/prune-hermes-config-keys.sh compression.model_thresholds.<retired-id>'
 #
 # Dry run against a copy (no backup, no write):
 #   CONFIG=/tmp/config.yaml bash scripts/oneshot/prune-hermes-config-keys.sh --dry-run a.b.leaf
