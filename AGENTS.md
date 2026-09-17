@@ -22,7 +22,7 @@ Agents working this repo are **expected to drive `./deploy` themselves** to comp
 
 ### Lint (PR merge)
 
-GitHub Actions `.github/workflows/lint.yml` job `lint` is the merge gate. This repo is Nix + bash: **statix** only (`statix.toml`). Python/JS complexity lives in hermes-pnp (ruff C901, oxlint). statix is an antipattern linter, not cyclomatic complexity — NixOS modules make inherit/repeated-key lints false positives, so those are disabled.
+GitHub Actions `.github/workflows/lint.yml` job `lint` is the merge gate. This repo is Nix + bash: **statix** (`statix.toml`) for lint, plus `scripts/check-alignment.sh` for the declaration invariants. Python/JS complexity lives in hermes-pnp (ruff C901, oxlint). statix is an antipattern linter, not cyclomatic complexity — NixOS modules make inherit/repeated-key lints false positives, so those are disabled.
 
 Key subcommands:
 - `./deploy ssh` — interactive shell on the device
