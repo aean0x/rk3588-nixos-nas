@@ -127,3 +127,4 @@ Drive these via `./deploy` — do not wait for the human.
 - `HASS_*` for Home Assistant tools (not `HA_*`).
 - Do not raise Hermes/browser caps without revisiting HA/AdGuard headroom.
 - No Nix one-shots for retired files — `./deploy` SSH once.
+- Activation deep-merges `settings` into `config.yaml` and never deletes: a key an older seed wrote survives every later deploy (retired model ids keep their `compression.model_thresholds` entry). Prune such keys once with `scripts/oneshot/prune-hermes-config-keys.sh`.
