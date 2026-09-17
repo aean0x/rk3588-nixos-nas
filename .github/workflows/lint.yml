@@ -33,3 +33,10 @@ jobs:
         run: |
           set -euo pipefail
           test "${{ needs.nix.result }}" = success
+      - uses: actions/checkout@v4
+      # The declaration invariants (compression.threshold_tokens cap, module
+      # layout, mcp-proxy wiring) were previously asserted only by a documented
+      # pre-deploy step, so a rushed PR could drift them. The script computes
+      # its own root from BASH_SOURCE and exits non-zero on any FAIL.
+      - name: Alignment checks
+        run: bash scripts/check-alignment.sh
