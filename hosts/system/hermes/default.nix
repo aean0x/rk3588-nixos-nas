@@ -132,7 +132,7 @@ in
       # that holds the fallback under the cliff (200000 / 500000 = 0.40, below
       # the floor a ratio can reach). It also holds the primary at 200k: its
       # 0.26 ratio alone resolves to 260k on the 1M window.
-      compression.threshold_tokens = 200000;
+      compression.threshold_tokens = 2000000;
 
       # Kanban dispatch spawns one worker process per card (~240 MiB resident
       # each). The dispatcher's memory-derived cap reads the HOST's MemTotal
