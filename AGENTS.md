@@ -312,6 +312,7 @@ After netboot completes, plug device into router for WAN access before running `
 - Hermes workspace (`/var/lib/hermes/workspace`) is owned by the hermes system user; OneDrive sync and hostUsers (in hermes group) have group-writable access.
 - Persistent settings go in `/var/lib` — both for native services and Docker container volume mounts
 - **No Nix one-shots for leftover state.** Do not add activation `rm -f`, `mkForce false` tombstones, or oneshot units to mop up a rename or retired file. `./deploy` SSH and do the operation once. Nix only declares the desired ongoing system.
+- **The activation merge never deletes.** Hermes' `settings` are deep-merged into `/var/lib/hermes/.hermes/config.yaml`, so a key an older seed wrote survives every later deploy — a renamed or retired model id keeps its `compression.model_thresholds` entry. Remove such keys once with `scripts/oneshot/prune-hermes-config-keys.sh` (dry-run first), not with Nix.
 
 ### Network / Router Notes
 - When enabling IP forwarding (`net.ipv6.conf.all.forwarding = 1` or equivalent), the kernel resets `accept_ra = 0` on interfaces. Set `accept_ra = 2` (or the desired value) **after** forwarding via a dedicated systemd service that runs after `systemd-sysctl.service`. See `ipv6-accept-ra` pattern if re-implementing.
