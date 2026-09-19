@@ -145,6 +145,12 @@ in
       # RPC deadline. Two workers leave the gateway its headroom.
       kanban.max_in_progress = 2;
 
+      # A card created from a gateway session otherwise auto-subscribes the
+      # originating chat, so every routine completion wakes a chat session.
+      # Silent is the default; subscribe a card explicitly when a ping carries
+      # information.
+      kanban.auto_subscribe_on_create = false;
+
       cron.wrap_response = false;
 
       # Interim, revocable. Upstream's bounded-hook latch drops a healthy
