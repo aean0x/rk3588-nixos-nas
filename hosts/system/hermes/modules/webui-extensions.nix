@@ -1,7 +1,7 @@
 # WebUI extension installs must land in a writable directory.
 #
 # hermes-pnp (modules/webui/default.nix) points HERMES_WEBUI_EXTENSION_DIR at
-# the model-router plugin's webui dir inside the Nix store so the Model Router
+# the model-picker plugin's webui dir inside the Nix store so the Model Picker
 # toolbar loads in the WebUI shell. hermes-webui uses that same env var as the
 # gallery-install target, so every install attempt (external-app-tab,
 # desktop-companion, mobile-conversations) tries to mkdir inside /nix/store and
@@ -22,7 +22,7 @@ let
   inherit (lib) mkIf mkForce;
   pnp = config.services.hermesPnP;
   webui = config.services.hermes-webui;
-  # Read-only source: the model-router plugin's webui dir in the store. Null
+  # Read-only source: the model-picker plugin's webui dir in the store. Null
   # when the plugin is disabled; in that case pnp does not wire an extension
   # dir and there is nothing to redirect.
   bundled = pnp.pluginInstall.webuiExtensionDir;
@@ -45,7 +45,7 @@ mkIf (pnp.enable && pnp.webui.enable && bundled != null) {
   # preStart there. Seed with a separate unit that runs before the jail.
   # Not an activationScript (those are leftover-state oneshots).
   systemd.services.hermes-webui-extension-seed = {
-    description = "Seed bundled Model Router assets into writable WebUI extension dir";
+    description = "Seed bundled Model Picker assets into writable WebUI extension dir";
     wantedBy = [ "hermes-webui.service" ];
     before = [ "hermes-webui.service" ];
     serviceConfig = {

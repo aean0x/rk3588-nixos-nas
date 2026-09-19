@@ -54,10 +54,10 @@ in
     # };
 
     # Single primary: models.default seeds session, cron, and delegation.
-    # modelRouter.enable = false strips the plugin even if listed, sets
+    # modelPicker.enable = false strips the plugin even if listed, sets
     # context.engine = compressor, and would copy models.default into
     # fallback_model — override that on hermes-agent.settings below.
-    modelRouter.enable = false;
+    modelPicker.enable = false;
     models.default = {
       provider = "deepseek";
       model = "deepseek-flash";

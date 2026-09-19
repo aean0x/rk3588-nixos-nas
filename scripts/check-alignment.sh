@@ -117,16 +117,16 @@ else
   pass "no SOUL activation"
 fi
 
-if grep -qE 'modelRouter\.enable[[:space:]]*=[[:space:]]*false' "$CONSUMER" \
+if grep -qE 'modelPicker\.enable[[:space:]]*=[[:space:]]*false' "$CONSUMER" \
   && grep -q 'git-hook' "$CONSUMER"; then
-  pass "modelRouter off + git-hook declared"
+  pass "modelPicker off + git-hook declared"
 else
-  fail "consumer must set hermesPnP.modelRouter.enable = false and keep git-hook"
+  fail "consumer must set hermesPnP.modelPicker.enable = false and keep git-hook"
 fi
-if grep -qE '"model-router"' "$CONSUMER"; then
-  fail "consumer still lists the model-router plugin"
+if grep -qE '"model-picker"|"model-router"' "$CONSUMER"; then
+  fail "consumer still lists the model-picker/model-router plugin"
 else
-  pass "model-router not in consumer plugins"
+  pass "model-picker not in consumer plugins"
 fi
 if grep -qE '^[[:space:]]*model\.context_length[[:space:]]*=' "$CONSUMER"; then
   fail "consumer sets model.context_length (stamps every model; the absolute cap is compression.threshold_tokens)"
@@ -158,7 +158,7 @@ else
   fail "consumer must set official fallback_model to xai-oauth / grok-4.6"
 fi
 if grep -qE 'model\.default = "high"' "$CONSUMER"; then
-  fail "model.default = \"high\" is router-only; with modelRouter off session is models.default"
+  fail "model.default = \"high\" is picker-only; with modelPicker off session is models.default"
 else
   pass "session is models.default (router off)"
 fi
