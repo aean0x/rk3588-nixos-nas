@@ -40,6 +40,15 @@
   services.hermesPnP.browser.container.cpus = 2;
   services.hermesPnP.browser.container.oomScoreAdj = 500;
 
+  # Per-renderer JS heap ceiling. Unset, a single runaway SPA grows one tab
+  # until the cgroup kills the whole browser. 192m x 3 renderers (maxTabs) is
+  # 576m, which leaves the browser process headroom inside the 1g cage.
+  # extraArgs is list-typed, so this concatenates with the module's
+  # --renderer-process-limit.
+  services.hermesPnP.browser.extraArgs = [
+    "--js-flags=--max-old-space-size=192"
+  ];
+
   # Allowlisted restart from the jails. Not sudo, not docker.sock.
   services.hermesPnP.admin.enable = true;
 
