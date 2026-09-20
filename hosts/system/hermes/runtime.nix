@@ -9,15 +9,16 @@
 }:
 {
   # Gateway + kanban fan-out. Raised 1g -> 2g (2026-09-20): at 1g the jail sat at
-  # memory.max with swap disabled, so the cgroup OOM killer SIGKILLed the largest
-  # task -- the gateway (pid 1) -- and took every in-flight worker down with it:
-  # 11 jail deaths in 9 days, 7 of them inside the 06:00-07:00 cron window.
-  # Peak demand measured at the kills: gateway ~600 MiB VmHWM + 2 dispatcher
-  # workers (~240 MiB each) + one cron agent (~300 MiB) = ~1.4 GiB, and the
-  # dispatcher's own cap reads the HOST's MemTotal, so it cannot see this ceiling.
-  # memory-swap stays equal to memory: swapping the jail's live heap trades OOM
-  # kills for stalls. Cron-side companion rule (one agent at a time, 06:00-07:00):
-  # skill feng-scheduled-ops -> references/cron-job-catalog.md.
+  # memory.max (peak 1075 MiB > 1073 MiB cap, memory.events max ~239k, swap
+  # disabled), so the cgroup OOM killer took the largest task -- the gateway
+  # (pid 1) -- and killed every in-flight kanban worker with it: 11 deaths in 9
+  # days, 7 of them inside the 06:00-08:00 cron window. Not the host-global
+  # killer and not systemd-oomd: host mem_available held 1.7-3.6 GiB and swap
+  # 41-53% before each kill. Peak demand measured at the kills: gateway
+  # ~600 MiB VmHWM + 2 dispatcher workers (~240 MiB each) + one cron agent
+  # (~300 MiB) = ~1.4 GiB. memory-swap stays equal to memory: swapping the jail's
+  # live heap trades OOM kills for stalls. Cron-side companion rule (one agent at
+  # a time, 06:00-07:00): skill feng-scheduled-ops -> references/cron-job-catalog.md.
   services.hermes-agent.container.extraOptions = [
     "--memory=2g"
     "--memory-swap=2g"
