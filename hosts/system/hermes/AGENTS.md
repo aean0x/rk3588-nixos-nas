@@ -27,12 +27,12 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail). Default workspace is the stateDir root (`/data`) so WebUI and gateway cwd see the whole tree (`home/`, `skills/`, `plugins/`, `workspace/`). OneDrive still copies into `workspace/onedrive`.
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
-- Admin restarts: `hermes-admin` via `/run/hermes-admin` (`admin.enable`). Not sudo, not docker.sock.
+- Admin: `hermes-admin` via `/run/hermes-admin` (`admin.enable`) — status / restart / reset-failed / read-only `stats` of allowlisted units. Not sudo, not docker.sock.
 - Models: `hermesPnP.modelPicker.enable = false`. Primary is `models.default` (`deepseek` / `deepseek-flash`) — session, cron, and delegation. Official `settings.fallback_model` is `xai-oauth` / `grok-4.6`. Auxiliary is flash; `free_only = true` plus `:free` OpenRouter SKU so background tasks never fall onto a paid lane. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens = 200000` (also holds flash at 200k). Do not pin `agent.max_turns`. Do not set `hermesPnP.desktop.enable` while the agent jail is on — official `hermes serve` / `backend.mode` is native-only and conflicts with the jail.
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - LAN alias: `https://hermes.<domain>/` — Caddy LAN/Tailscale → the same WebUI (`:8787`). No Cloudflare tunnel. The messaging gateway is `hermes-agent` (`hermes gateway run` in the jail: Telegram, cron, `api_server` `:8642`).
-- Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel).
+- Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel). `browser-lease` plugin serialises sessions onto one tab set; `--js-flags=--max-old-space-size=192` caps each renderer.
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`, `openaccountants.nix`.
 - BankSync: mcp-proxy injects `X-API-Key` from sops; Hermes calls `http://127.0.0.1:3140/banksync`.
@@ -45,12 +45,13 @@ Prefer killing Hermes over DNS or Home Assistant.
 
 | Surface | Cap | Where |
 |---------|-----|--------|
-| hermes-agent container | 1 GiB / 1 CPU / OOM +500 | `runtime.nix` |
-| hermes-webui container | 2 GiB / 2 CPU / OOM +500 | `runtime.nix` |
+| hermes-agent container | 2 GiB / 1 CPU / OOM +500 | `runtime.nix` |
+| hermes-webui container | 2560 MiB / 2 CPU / OOM +500 | `runtime.nix` |
 | hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | gbrain-mcp-http | 512 MiB / OOM +400 | `runtime.nix` |
 | obi-mcp-http | 512 MiB / OOM +400 | `modules/open-banking.nix` |
 | AdGuard / HA | OOM −500 | their modules |
+| bta-server | 1 GiB / OOM +400 | `services/bta-server.nix` |
 | Host swap | 8 GiB | `partitions.nix` |
 
 Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.

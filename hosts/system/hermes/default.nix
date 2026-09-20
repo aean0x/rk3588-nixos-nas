@@ -71,6 +71,10 @@ in
       "tool-call-coherency"
       "secret-handoff"
       "git-hook"
+      # One session at a time on the shared CDP engine. Without this, each
+      # concurrent WebUI/cron/kanban browser turn adds its own tab set and
+      # the 1g cage OOM-kills Brave (hermes-pnp #103).
+      "browser-lease"
     ];
 
     toolbox.extraPackages = [ pkgs.sops ];

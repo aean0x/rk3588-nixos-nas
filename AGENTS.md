@@ -132,6 +132,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | AdGuard Home DNS | Native | `services/adguard.nix` | Port 53 + web UI 3000 |
 | Caddy | Native | `services/caddy.nix` | Reverse proxy, Cloudflare ACME |
 | CrowdSec | Docker+Native | `containers/crowdsec.nix` | Engine in container, nftables bouncer native |
+| BTA (Minecraft Beta 1.7.3 fork) | Native | `services/bta-server.nix` | TCP 25565 LAN/Tailscale; 1 GiB MemoryMax, OOM +400 |
 
 Disabled but available: Remote Desktop (XFCE + xrdp), Transmission, FileBrowser, Comet.
 
@@ -163,7 +164,7 @@ Hermes Agent is flake input `hermes-pnp` in `hosts/system/hermes/default.nix`. S
 - **CLI**: `addToSystemPackages = true`; host `hermes` routes into the container.
 - **Edge**: WebUI `archimedes.${domain}:8787` (Caddy LAN + Cloudflare Tunnel). LAN/Tailscale alias `hermes.${domain}` → the same WebUI. Agent gateway (Telegram, cron, `api_server` `:8642`) is the `hermes-agent` jail, not a host `hermes serve`. Do not add a host `hermes-serve` unit: container-mode `hermes` docker-routes and official `backend.mode` is blocked while the jail is on. Browser gate `browser.${domain}:4848` (LAN/Tailscale only).
 - **Docs / ops**: `hosts/system/hermes/BOOTSTRAP.md` + `AGENTS.md`. `./deploy validate-gbrain` / `gbrain-setup` / `clean-hermes-state`.
-- **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent **1 GiB**, WebUI **2 GiB**, browser **1 GiB**, gbrain **512 MiB** (`runtime.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
+- **OOM (8 GiB):** Hermes is tertiary vs AdGuard + HA. Agent **2 GiB**, WebUI **2560 MiB**, browser **1 GiB**, gbrain **512 MiB** (`runtime.nix`); BTA **1 GiB** (`bta-server.nix`); host **8 GiB** swap (`partitions.nix`). Heavy nix eval/build → workstation.
 
 
 ### Caddy Reverse Proxy (LAN)

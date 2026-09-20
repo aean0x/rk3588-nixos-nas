@@ -123,6 +123,11 @@ if grep -qE 'modelPicker\.enable[[:space:]]*=[[:space:]]*false' "$CONSUMER" \
 else
   fail "consumer must set hermesPnP.modelPicker.enable = false and keep git-hook"
 fi
+if grep -q 'browser-lease' "$CONSUMER"; then
+  pass "browser-lease declared (one session per CDP engine)"
+else
+  fail "consumer must list browser-lease in hermesPnP.plugins (hermes-pnp #103)"
+fi
 if grep -qE '"model-picker"|"model-router"' "$CONSUMER"; then
   fail "consumer still lists the model-picker/model-router plugin"
 else
