@@ -136,13 +136,14 @@ in
 
       # Kanban dispatch spawns one worker process per card (~240 MiB resident
       # each). The dispatcher's memory-derived cap reads the HOST's MemTotal
-      # (7642 MiB / 512 MiB per worker, clamped to 8), but this container is
-      # capped at --memory=1g in runtime.nix, so the fan-out oversubscribes it:
-      # the kernel reclaims without pause (memory.events max ~340k), ~0.8 GiB
-      # of live heap sits in swap, and the memcg throttles TCP socket buffers.
-      # The stall then hits every MCP client at once (gbrain, banksync,
-      # composio, robinhood, policylayer) and each keepalive misses its 30 s
-      # RPC deadline. Two workers leave the gateway its headroom.
+      # (7642 MiB / 512 MiB per worker, clamped to 8), so the cap has to be held
+      # down here as well: at --memory=1g two workers alone reached the cgroup
+      # ceiling with swap disabled, and the memcg then throttles TCP socket
+      # buffers, so every MCP client at once (gbrain, banksync,
+      # composio, robinhood, policylayer) missed its 30 s keepalive deadline.
+      # The jail cap is 2g in runtime.nix (2026-09-20), and the cron side keeps
+      # one agent in the 06:00-07:00 window
+      # (skill feng-scheduled-ops -> references/cron-job-catalog.md).
       kanban.max_in_progress = 2;
 
       # A card created from a gateway session otherwise auto-subscribes the

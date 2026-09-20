@@ -8,10 +8,19 @@
   ...
 }:
 {
-  # Gateway: one messaging thread. Official docker min is 1g; 512m OOMs on tools.
+  # Gateway + kanban fan-out. Raised 1g -> 2g (2026-09-20): at 1g the jail sat at
+  # memory.max with swap disabled, so the cgroup OOM killer SIGKILLed the largest
+  # task -- the gateway (pid 1) -- and took every in-flight worker down with it:
+  # 11 jail deaths in 9 days, 7 of them inside the 06:00-07:00 cron window.
+  # Peak demand measured at the kills: gateway ~600 MiB VmHWM + 2 dispatcher
+  # workers (~240 MiB each) + one cron agent (~300 MiB) = ~1.4 GiB, and the
+  # dispatcher's own cap reads the HOST's MemTotal, so it cannot see this ceiling.
+  # memory-swap stays equal to memory: swapping the jail's live heap trades OOM
+  # kills for stalls. Cron-side companion rule (one agent at a time, 06:00-07:00):
+  # skill feng-scheduled-ops -> references/cron-job-catalog.md.
   services.hermes-agent.container.extraOptions = [
-    "--memory=1g"
-    "--memory-swap=1g"
+    "--memory=2g"
+    "--memory-swap=2g"
     "--cpus=1"
     "--oom-score-adj=500"
   ];
