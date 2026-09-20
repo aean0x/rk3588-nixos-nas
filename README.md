@@ -205,6 +205,7 @@ imports = [
   ./services/cloudflare.nix     # Apex DDNS
   ./services/cloudflared.nix    # Public HTTPS via Cloudflare Tunnel (CGNAT)
   ./services/adguard.nix        # AdGuard Home DNS
+  ./services/bta-server.nix     # Better than Adventure! Minecraft server
   # ./services/remote-desktop.nix # XFCE + xrdp
   # ./services/cockpit.nix
   # ./services/arr-suite.nix
@@ -237,6 +238,23 @@ One-time tunnel bootstrap (API token needs `Zone.DNS:Edit` + `Account.Cloudflare
 ```
 
 Re-run the script after adding new `cloudflareTunnel.proxyServices` hostnames (syncs DNS from the flake).
+
+### Better than Adventure! server
+
+A [Better than Adventure!](https://www.betterthanadventure.net/) (Minecraft Beta 1.7.3 fork)
+multiplayer server, native via `services/bta-server.nix` — one upstream server jar plus a
+headless OpenJDK 21, no container.
+
+- Connect from the LAN or Tailscale at `192.168.1.200:25565` (port 25565 TCP, nothing else opened).
+- World, logs and `server.properties` live in `/var/lib/bta-server`; the world is regenerated
+  with defaults on first start if that directory is empty.
+- Pinned keys (`motd`, `server-port`, `max-players`, `view-distance`, `online-mode`) are declared
+  in the module and rewritten on every start — edit the module, not `server.properties`.
+- Memory is hard-capped at 1G (`MemoryMax`, heap `-Xmx768M`), so a runaway world exhausts the game
+  server rather than AdGuard or Home Assistant.
+- Console: `echo list > /run/bta-server.stdin`; `systemctl stop bta-server` saves and exits cleanly.
+- Bumping the game version means editing `version` **and** `hash` in the module (the jar is pinned
+  by content hash).
 
 ### OneDrive Sync
 

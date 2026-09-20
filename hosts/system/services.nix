@@ -12,6 +12,7 @@
     # ./services/transmission.nix # Torrent client with VPN killswitch
     ./services/caddy.nix # Reverse proxy with automatic HTTPS
     ./services/adguard.nix # AdGuard Home DNS (port 53, web UI 3000) — enable after deploy
+    ./services/bta-server.nix # Better than Adventure! Minecraft server (TCP 25565, LAN/Tailscale)
     ./services/filesharing.nix # NFS + Samba guest share of entire /media pool
     ./services/router.nix # Router: NAT + WiFi AP + DHCP — enable in settings.nix
     ./hermes # Hermes Agent (hermes-pnp consumer)
