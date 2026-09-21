@@ -253,7 +253,7 @@ one JVM, no container, no sleep proxy. Java and Bedrock share the same simulated
   the Floodgate UUID — not a guessed Java UUID). Seed ops/whitelist is the Java account `0xAean`.
 - Kid-mode datapacks in `world/datapacks/`: `kidmode-gamerules` (unlock panel, `load.mcfunction`)
   and `kidmode` (saturation loop — delete when food should matter). Edit the module, not the
-  live files; they are store symlinks.
+  live files; they are copied from the store on each start.
 - World lives in `/var/lib/mc-kids`. Memory: 3G RAM (`MemoryMax`, heap `-Xmx2G`) plus 2G cgroup
   swap. AdGuard and Home Assistant still win; the world outranks the Hermes agent.
 - Console: `echo <cmd> > /run/mc-kids.stdin`; `systemctl stop mc-kids` saves and exits cleanly.

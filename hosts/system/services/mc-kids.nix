@@ -265,8 +265,11 @@ in
       mkdir -p plugins world/datapacks
       ln -sfn ${geyser} plugins/Geyser-Spigot.jar
       ln -sfn ${floodgate} plugins/floodgate-spigot.jar
-      ln -sfn ${kidmodeDatapack} world/datapacks/kidmode
-      ln -sfn ${kidmodeGamerules} world/datapacks/kidmode-gamerules
+      # Paper refuses store symlinks under world/ (ContentValidationException).
+      rm -rf world/datapacks/kidmode world/datapacks/kidmode-gamerules
+      cp -a ${kidmodeDatapack} world/datapacks/kidmode
+      cp -a ${kidmodeGamerules} world/datapacks/kidmode-gamerules
+      chmod -R u+w world/datapacks/kidmode world/datapacks/kidmode-gamerules
       if [ ! -e whitelist.json ]; then
         cp ${whitelistFile} whitelist.json
         chmod u+w whitelist.json
