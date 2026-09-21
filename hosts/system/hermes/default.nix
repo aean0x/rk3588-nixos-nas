@@ -167,6 +167,7 @@ in
         {
           chat_id = 7565307130;
           topics = [
+            { name = "Updates"; thread_id = 8417; }
             { name = "Feeds"; thread_id = 8408; }
             { name = "Alerts"; thread_id = 8410; }
           ];
