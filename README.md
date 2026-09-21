@@ -246,13 +246,19 @@ multiplayer server, native via `services/bta-server.nix` — one upstream server
 headless OpenJDK 21, no container.
 
 - Connect from the LAN or Tailscale at `minecraft.aean.io:25565` (TCP 25565). Not Caddy, not the Cloudflare tunnel — Minecraft is not HTTP. LAN DNS is the AdGuard `*.aean.io` rewrite; Tailscale uses the grey-cloud wildcard A.
+- Sleep proxy: [MSH](https://github.com/gekware/minecraft-server-hibernation) holds `:25565`; the
+  BTA jar is dead until the first join and `stop`s itself 10 minutes after the last player leaves.
+  Java binds `127.0.0.1:25566` only. Asleep MOTD looks generic; join twice after the ~10–20 s boot
+  if the server was hibernating. Do not install Bukkit empty-server plugins.
 - World, logs and `server.properties` live in `/var/lib/bta-server`; the world is regenerated
   with defaults on first start if that directory is empty.
-- Pinned keys (`motd`, `server-port`, `max-players`, `view-distance`, `online-mode`) are declared
-  in the module and rewritten on every start — edit the module, not `server.properties`.
+- Pinned keys (`motd`, `server-port`, `server-ip`, `max-players`, `view-distance`, `online-mode`) are
+  declared in the module and rewritten on every MSH start — edit the module, not `server.properties`.
 - Memory: 1G RAM (`MemoryMax`, heap `-Xmx768M`) plus 2G cgroup swap so a save pages instead of
   taking a cgroup OOM (the world outranks the Hermes agent). AdGuard and Home Assistant still win.
-- Console: `echo list > /run/bta-server.stdin`; `systemctl stop bta-server` saves and exits cleanly.
+  Sleeping is a few MB (MSH only).
+- Console: `systemctl stop bta-server` writes `stop` and waits for a clean save (never SIGKILL).
+  Wake without a client with `systemctl kill -s SIGUSR2 bta-server`.
 - Bumping the game version means editing `version` **and** `hash` in the module (the jar is pinned
   by content hash).
 

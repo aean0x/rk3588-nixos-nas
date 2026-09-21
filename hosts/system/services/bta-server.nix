@@ -9,6 +9,21 @@
 #   - A container would mean a third-party image (itzg TYPE=CUSTOM) on a `:latest`
 #     treadmill around one jar plus a JRE. Repo philosophy reserves Docker for
 #     dependency-heavy stacks.
+#   - Paper/Bukkit empty-server plugins (EmptyServerStopper, NoPlayerShutdown)
+#     do not exist for BTA. Sleep has to sit outside the jar.
+#
+# Sleep proxy. systemd runs [MSH](https://github.com/gekware/minecraft-server-hibernation)
+# (nixpkgs `minecraft-server-hibernation`) always-on, a few MB. It holds the
+# public join port. Java is dead until the first TCP client; last player gone +
+# TimeBeforeStoppingEmptyServer later, MSH writes `stop` on the jar's stdin
+# (clean save). StopServerAllowKill is -1: MSH never SIGKILLs Java.
+#   Public:  MSH :25565 (LAN + Tailscale). Player-facing hostname unchanged.
+#   Private: BTA :25566 on 127.0.0.1. Not firewalled, not LAN-reachable.
+#   Do not socket-activate Java (`LISTEN_FDS` is unused by Minecraft).
+#   lazymc / mcsleepingserverstarter speak modern protocol; BTA is protocol 14.
+#   Stock MSH only WarmMS()s a modern handshake, so we patch unknown packets
+#   (Beta 0xFE ping / 0x02 handshake) as JOIN. Asleep MOTD is generic; join
+#   twice after the ~10-20 s boot if the first attempt races the jar.
 #
 # Verified against this artifact (v8.0.1):
 #   - boots with `--nogui`, accepts `stop` on stdin, saves the world, exits rc=0;
@@ -16,7 +31,9 @@
 #     the NAS has no X server;
 #   - needs JRE 21: the jar carries class files up to major 65 (the
 #     net/minecraft/datagen tools). The wiki's "OpenJDK 17 recommended" predates 8.0;
-#   - bundled log4j is 2.19.0 (Log4Shell-fixed).
+#   - bundled log4j is 2.19.0 (Log4Shell-fixed);
+#   - logs `Done (` / `Stopping the server` in log4j form, which stock MSH already
+#     treats as ONLINE / STOPPING.
 #
 # Memory. AdGuard + Home Assistant still outrank everything. The world in
 # /var/lib/bta-server/world outranks Hermes: a mid-save cgroup OOM corrupts
@@ -26,17 +43,19 @@
 #   process settles at ~917 MiB RSS, i.e. ~150 MiB of metaspace, code cache,
 #   threads and direct buffers on top of the heap. -Xmx768M under a 1G RAM cap
 #   therefore leaves ~107 MiB of slack, and MemoryHigh sits above the measured
-#   ceiling so normal play is never throttled.
+#   ceiling so normal play is never throttled. MSH itself is a few MB inside
+#   the same cgroup.
 #   Raising -Xmx requires raising MemoryMax with it.
 #
 # Hostname. Clients join at minecraft.<domain>:25565 (LAN AdGuard rewrite and
 # Tailscale grey-cloud *.<domain>). Not Caddy, not the Cloudflare tunnel: the
 # protocol is TCP 25565, not HTTP. Do not add proxyServices or externalHosts.
 #
-# Console. The server reads commands from stdin, so the unit takes stdin from a
-# FIFO (the shape nixpkgs' minecraft-server uses). `systemctl stop bta-server`
-# writes `stop` and waits for a clean save. A one-off command is
-#   echo list > /run/bta-server.stdin
+# Console. MSH owns Java stdin. `systemctl stop bta-server` SIGTERMs MSH, which
+# writes `stop` and waits for the child. Wake without a client:
+#   systemctl kill -s SIGUSR2 bta-server
+# Hibernate while empty (soft freeze, still the idle timer path):
+#   systemctl kill -s SIGUSR1 bta-server
 #
 # Reachable on TCP 25565 over the LAN and Tailscale only. There is no WAN path
 # (Starlink CGNAT cannot accept inbound), which is why the server runs
@@ -54,10 +73,12 @@
 }:
 let
   version = "8.0.1";
-  port = 25565;
+  publicPort = 25565;
+  servPort = 25566;
   host = "minecraft.${settings.domain}";
   dataDir = "/var/lib/bta-server";
-  fifo = "/run/bta-server.stdin";
+  jarName = "bta-server.jar";
+  idleStopSeconds = 600;
 
   # headless JDK is what nixpkgs itself uses for Minecraft servers
   # (javaPackages.compiler.openjdkNN.headless in pkgs/by-name/mi/minecraft-server).
@@ -72,6 +93,13 @@ let
     hash = "sha256-ihSLgO5x9UwyiloLnUhZ7W/1MQ0zF0BaFOdDV9qUAQY=";
   };
 
+  # Stock MSH only WarmMS()s a modern handshake and os.Exits after 1s if it has
+  # not already parsed STOPPING. Patch unknown packets as JOIN (Beta 0xFE / 0x02)
+  # and wait for the Java child on SIGTERM so StopServerAllowKill=-1 is real.
+  msh = pkgs.minecraft-server-hibernation.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./msh-bta-legacy-join.patch ];
+  });
+
   # Heap stays below MemoryMax on purpose; see the memory note above.
   jvmOpts = [
     "-Xms512M"
@@ -79,15 +107,17 @@ let
   ];
 
   # Only keys that must not drift from the server's own defaults are pinned:
-  # server-port has to match the firewall rule, view-distance/max-players bound a
-  # 2-core 1 GiB service, and online-mode=false lets family clients join. The
-  # server fills in every other key and rewrites this file on each start.
+  # server-port is the private loopback port MSH dials (must differ from
+  # MshPort), view-distance/max-players bound a 2-core 1 GiB service, and
+  # online-mode=false lets family clients join. The server fills in every other
+  # key and rewrites this file on each Java start.
   # To restrict who may join, add `white-list = true;` here and list the player
   # names, one per line, in /var/lib/bta-server/white-list.txt (beta-era text
   # format, not whitelist.json).
   serverProperties = {
     motd = host;
-    server-port = port;
+    server-port = servPort;
+    server-ip = "127.0.0.1";
     max-players = 10;
     view-distance = 8;
     online-mode = false;
@@ -103,12 +133,47 @@ let
     + "\n"
   );
 
-  stopScript = pkgs.writeShellScript "bta-server-stop" ''
-    echo stop > ${fifo}
-    while kill -0 "$1" 2> /dev/null; do
-      sleep 1
-    done
-  '';
+  # Dummy eula.txt: BTA has no EULA codepath, but stock MSH will auto-start the
+  # jar on load if this file is missing, then SetMajorError and refuse WarmMS.
+  eulaFile = pkgs.writeText "eula.txt" "eula=true\n";
+
+  # Protocol 14 is Beta 1.7.3 (wiki.vg). Used only for the asleep fake ping;
+  # the jar has no version.json, so MSH will not overwrite this. The asleep
+  # MOTD is still a modern JSON ping and will look generic to a Beta client.
+  mshConfig = {
+    Server = {
+      Folder = dataDir;
+      FileName = jarName;
+      Version = "b1.7.3";
+      Protocol = 14;
+    };
+    Commands = {
+      StartServer = "${jre}/bin/java <Commands.StartServerParam> -jar <Server.FileName> --nogui";
+      StartServerParam = lib.concatStringsSep " " jvmOpts;
+      StopServer = "stop";
+      StopServerAllowKill = -1;
+    };
+    Msh = {
+      Debug = 2;
+      ID = "";
+      MshPort = publicPort;
+      MshPortQuery = publicPort;
+      EnableQuery = false;
+      TimeBeforeStoppingEmptyServer = idleStopSeconds;
+      SuspendAllow = false;
+      SuspendRefresh = -1;
+      InfoHibernation = "                   §fserver status:\n                   §b§lHIBERNATING";
+      InfoStarting = "                   §fserver status:\n                    §6§lWARMING UP";
+      NotifyUpdate = false;
+      NotifyMessage = false;
+      Whitelist = [ ];
+      WhitelistImport = false;
+      ShowResourceUsage = false;
+      ShowInternetUsage = false;
+    };
+  };
+
+  mshConfigFile = pkgs.writeText "msh-config.json" (builtins.toJSON mshConfig);
 in
 {
   users.users.bta-server = {
@@ -119,27 +184,14 @@ in
 
   users.groups.bta-server = { };
 
-  systemd.sockets.bta-server = {
-    bindsTo = [ "bta-server.service" ];
-    socketConfig = {
-      ListenFIFO = fifo;
-      SocketMode = "0660";
-      SocketUser = "bta-server";
-      SocketGroup = "bta-server";
-      RemoveOnStop = true;
-      FlushPending = true;
-    };
-  };
-
   systemd.services.bta-server = {
     description = "Better than Adventure! server (Minecraft Beta 1.7.3 fork)";
     wantedBy = [ "multi-user.target" ];
-    requires = [ "bta-server.socket" ];
-    after = [
-      "network-online.target"
-      "bta-server.socket"
-    ];
+    after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
+
+    # LookPath("java") at MSH load; the StartServer command uses the absolute JRE.
+    path = [ jre ];
 
     serviceConfig = {
       Type = "simple";
@@ -147,14 +199,15 @@ in
       Group = "bta-server";
       StateDirectory = "bta-server";
       WorkingDirectory = dataDir;
-      ExecStart = "${jre}/bin/java ${lib.escapeShellArgs jvmOpts} -jar ${jar} --nogui";
-      ExecStop = "${stopScript} $MAINPID";
+      ExecStart = "${lib.getExe msh}";
       Restart = "on-failure";
       RestartSec = "15s";
       # A stop has to flush the world to disk on ARM and 2 cores.
       TimeoutStopSec = "180s";
+      # SIGTERM only the MSH main process. MSH writes `stop` to Java; mixed
+      # mode avoids a simultaneous SIGTERM to the JVM while it is saving.
+      KillMode = "mixed";
 
-      StandardInput = "socket";
       StandardOutput = "journal";
       StandardError = "journal";
 
@@ -194,17 +247,22 @@ in
       UMask = "0007";
     };
 
-    # Declarative server.properties: the server merges its own defaults into this
-    # file on every start, so the pinned keys always win.
+    # Declarative server.properties / msh-config.json: MSH Save()s its ID into
+    # msh-config.json, and the jar merges defaults into server.properties on
+    # each Java start, so the pinned keys are rewritten here every MSH start.
     preStart = ''
       cp -f ${serverPropertiesFile} server.properties
       chmod u+w server.properties
+      ln -sfn ${jar} ${jarName}
+      cp -f ${eulaFile} eula.txt
+      cp -f ${mshConfigFile} msh-config.json
+      chmod u+w msh-config.json
     '';
   };
 
-  networking.firewall.allowedTCPPorts = [ port ];
+  networking.firewall.allowedTCPPorts = [ publicPort ];
   # Tailscale interface list is additive; without this a phone on the tailnet
   # using public DNS still hits the grey-cloud A, but the default tailscale0
   # allow-list is only 80/443.
-  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ port ];
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ publicPort ];
 }

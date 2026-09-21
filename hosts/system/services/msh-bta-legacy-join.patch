@@ -1,0 +1,50 @@
+--- a/lib/conn/conn-prot.go
++++ b/lib/conn/conn-prot.go
+@@ -160,7 +160,10 @@
+ 		return dataReqFull, errco.CLIENT_REQ_JOIN, nil
+ 
+ 	default:
+-		return nil, errco.CLIENT_REQ_UNKN, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_CLIENT_REQ, "client request unknown (received: %v)", dataReqFull)
++		// Legacy/Beta clients (protocol 14) send 0xFE list ping or 0x02 handshake,
++		// not the modern handshake MSH looks for. Treat as JOIN so WarmMS runs.
++		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "legacy/unknown client packet, treating as JOIN (received: %v)", dataReqFull)
++		return dataReqFull, errco.CLIENT_REQ_JOIN, nil
+ 	}
+ }
+ 
+
+--- a/lib/progmgr/progmgr.go
++++ b/lib/progmgr/progmgr.go
+@@ -8,7 +8,6 @@
+ 
+ 	"msh/lib/errco"
+ 	"msh/lib/servctrl"
+-	"msh/lib/servstats"
+ )
+ 
+ /*
+@@ -70,18 +69,13 @@
+ 		// wait 1 second to let the server go into stopping mode
+ 		time.Sleep(1 * time.Second)
+ 
+-		switch servstats.Stats.Status {
+-		case errco.SERVER_STATUS_STOPPING:
+-			// if server is correctly stopping, wait for minecraft server to exit
+-			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "waiting for minecraft server terminal to exit (minecraft server is stopping)")
++		// Always wait for the Java child if it is still running. Stock MSH only
++		// waits when it has already parsed a "Stopping server" log line; a 1s
++		// race would otherwise os.Exit and leave the world to SIGKILL.
++		// StopServerAllowKill stays <=0 so this wait is the only shutdown path.
++		if servctrl.ServTerm.IsActive {
++			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "waiting for minecraft server terminal to exit")
+ 			servctrl.ServTerm.Wg.Wait()
+-
+-		case errco.SERVER_STATUS_OFFLINE:
+-			// if server is offline, then it's safe to continue
+-			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "minecraft server terminal already exited (minecraft server is offline)")
+-
+-		default:
+-			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "stop command does not seem to be stopping minecraft server during forceful shutdown")
+ 		}
+ 
+ 		// exit
