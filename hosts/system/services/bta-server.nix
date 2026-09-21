@@ -1,6 +1,6 @@
-# Parked. Import is commented in services.nix so Paper (mc-kids) can own
+# Parked. Import is commented in services.nix so Paper (minecraft.nix) can own
 # :25565 and the RAM. World stays in /var/lib/bta-server; no Nix oneshot
-# deletes it. Re-enable by swapping the mc-kids import for this one — do
+# deletes it. Re-enable by swapping the minecraft import for this one — do
 # not run both (port + 8 GiB host).
 #
 # Better than Adventure! (BTA) multiplayer server - native systemd service.

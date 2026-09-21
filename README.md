@@ -205,7 +205,7 @@ imports = [
   ./services/cloudflare.nix     # Apex DDNS
   ./services/cloudflared.nix    # Public HTTPS via Cloudflare Tunnel (CGNAT)
   ./services/adguard.nix        # AdGuard Home DNS
-  ./services/mc-kids.nix        # Family Minecraft (Paper + Geyser)
+  ./services/minecraft.nix      # Minecraft (Paper + Geyser)
   # ./services/bta-server.nix     # Parked BTA; world left on disk
   # ./services/remote-desktop.nix # XFCE + xrdp
   # ./services/cockpit.nix
@@ -240,24 +240,24 @@ One-time tunnel bootstrap (API token needs `Zone.DNS:Edit` + `Account.Cloudflare
 
 Re-run the script after adding new `cloudflareTunnel.proxyServices` hostnames (syncs DNS from the flake).
 
-### Family Minecraft (Paper + Geyser)
+### Minecraft (Paper + Geyser)
 
-Paper 26.2 with Geyser-Spigot and Floodgate-Spigot, native via `services/mc-kids.nix` —
+Paper with Geyser-Spigot and Floodgate-Spigot, native via `services/minecraft.nix` —
 one JVM, no container, no sleep proxy. Java and Bedrock share the same simulated world.
+Each start pulls latest *stable* Paper (skips rc/pre) and latest Geyser/Floodgate.
 
 - Java (Prism): `minecraft.aean.io:25565` TCP. Bedrock (phones): `minecraft.aean.io:19132` UDP.
   Not Caddy, not the Cloudflare tunnel. LAN DNS is the AdGuard `*.aean.io` rewrite; Tailscale
   uses the grey-cloud wildcard A.
 - `online-mode=true`. Floodgate Bedrock names get a `.` prefix. After the first phone join,
-  `echo whitelist add .Player > /run/mc-kids.stdin` (use the name from the log, and whitelist
+  `echo whitelist add .Player > /run/minecraft.stdin` (use the name from the log, and whitelist
   the Floodgate UUID — not a guessed Java UUID). Seed ops/whitelist is the Java account `0xAean`.
 - Kid-mode datapacks in `world/datapacks/`: `kidmode-gamerules` (unlock panel, `load.mcfunction`)
   and `kidmode` (saturation loop — delete when food should matter). Edit the module, not the
   live files; they are copied from the store on each start.
-- World lives in `/var/lib/mc-kids`. Memory: 3G RAM (`MemoryMax`, heap `-Xmx2G`) plus 2G cgroup
+- World lives in `/var/lib/minecraft`. Memory: 3G RAM (`MemoryMax`, heap `-Xmx2G`) plus 2G cgroup
   swap. AdGuard and Home Assistant still win; the world outranks the Hermes agent.
-- Console: `echo <cmd> > /run/mc-kids.stdin`; `systemctl stop mc-kids` saves and exits cleanly.
-- Bump Paper, Geyser, and Floodgate **together** (version + build + hash in the module).
+- Console: `echo <cmd> > /run/minecraft.stdin`; `systemctl stop minecraft` saves and exits cleanly.
 - BTA is parked (`bta-server.nix` import commented). Its world stays in `/var/lib/bta-server`.
   Do not enable both.
 
