@@ -12,7 +12,8 @@
     # ./services/transmission.nix # Torrent client with VPN killswitch
     ./services/caddy.nix # Reverse proxy with automatic HTTPS
     ./services/adguard.nix # AdGuard Home DNS (port 53, web UI 3000) — enable after deploy
-    ./services/bta-server.nix # Better than Adventure! Minecraft server (MSH :25565, Java loopback :25566)
+    # ./services/bta-server.nix # Parked: BTA + MSH. World left in /var/lib/bta-server. Do not enable with mc-kids.
+    ./services/mc-kids.nix # Family Minecraft: Paper 26.2 + Geyser/Floodgate (TCP 25565, UDP 19132)
     ./services/filesharing.nix # NFS + Samba guest share of entire /media pool
     ./services/router.nix # Router: NAT + WiFi AP + DHCP — enable in settings.nix
     ./hermes # Hermes Agent (hermes-pnp consumer)

@@ -205,7 +205,8 @@ imports = [
   ./services/cloudflare.nix     # Apex DDNS
   ./services/cloudflared.nix    # Public HTTPS via Cloudflare Tunnel (CGNAT)
   ./services/adguard.nix        # AdGuard Home DNS
-  ./services/bta-server.nix     # Better than Adventure! Minecraft server
+  ./services/mc-kids.nix        # Family Minecraft (Paper + Geyser)
+  # ./services/bta-server.nix     # Parked BTA; world left on disk
   # ./services/remote-desktop.nix # XFCE + xrdp
   # ./services/cockpit.nix
   # ./services/arr-suite.nix
@@ -239,29 +240,26 @@ One-time tunnel bootstrap (API token needs `Zone.DNS:Edit` + `Account.Cloudflare
 
 Re-run the script after adding new `cloudflareTunnel.proxyServices` hostnames (syncs DNS from the flake).
 
-### Better than Adventure! server
+### Family Minecraft (Paper + Geyser)
 
-A [Better than Adventure!](https://www.betterthanadventure.net/) (Minecraft Beta 1.7.3 fork)
-multiplayer server, native via `services/bta-server.nix` — one upstream server jar plus a
-headless OpenJDK 21, no container.
+Paper 26.2 with Geyser-Spigot and Floodgate-Spigot, native via `services/mc-kids.nix` —
+one JVM, no container, no sleep proxy. Java and Bedrock share the same simulated world.
 
-- Connect from the LAN or Tailscale at `minecraft.aean.io:25565` (TCP 25565). Not Caddy, not the Cloudflare tunnel — Minecraft is not HTTP. LAN DNS is the AdGuard `*.aean.io` rewrite; Tailscale uses the grey-cloud wildcard A.
-- Sleep proxy: [MSH](https://github.com/gekware/minecraft-server-hibernation) holds `:25565`; the
-  BTA jar is dead until the first join and `stop`s itself 10 minutes after the last player leaves.
-  Java binds `127.0.0.1:25566` only. Asleep MOTD looks generic; join twice after the ~10–20 s boot
-  if the server was hibernating. Do not install Bukkit empty-server plugins.
-- World, logs and `server.properties` live in `/var/lib/bta-server`; the world is regenerated
-  with defaults on first start if that directory is empty.
-- Pinned keys (`motd`, `server-port`, `server-ip`, `max-players`, `view-distance`, `online-mode`) are
-  declared in the module and rewritten on every MSH start — edit the module, not `server.properties`.
-- Memory: 1G RAM (`MemoryMax`, heap `-Xmx768M`) plus 2G cgroup swap so a save pages instead of
-  taking a cgroup OOM (the world outranks the Hermes agent). AdGuard and Home Assistant still win.
-  Sleeping is a few MB (MSH only).
-- Console: `systemctl stop bta-server` writes `stop` and waits for a clean save (never SIGKILL).
-  Wake without a client with `systemctl kill -s SIGUSR2 --kill-whom=main bta-server`
-  (`--kill-whom=main` is required: a cgroup-wide SIGUSR1/2 kills the JVM).
-- Bumping the game version means editing `version` **and** `hash` in the module (the jar is pinned
-  by content hash).
+- Java (Prism): `minecraft.aean.io:25565` TCP. Bedrock (phones): `minecraft.aean.io:19132` UDP.
+  Not Caddy, not the Cloudflare tunnel. LAN DNS is the AdGuard `*.aean.io` rewrite; Tailscale
+  uses the grey-cloud wildcard A.
+- `online-mode=true`. Floodgate Bedrock names get a `.` prefix. After the first phone join,
+  `echo whitelist add .Player > /run/mc-kids.stdin` (use the name from the log, and whitelist
+  the Floodgate UUID — not a guessed Java UUID). Seed ops/whitelist is the Java account `0xAean`.
+- Kid-mode datapacks in `world/datapacks/`: `kidmode-gamerules` (unlock panel, `load.mcfunction`)
+  and `kidmode` (saturation loop — delete when food should matter). Edit the module, not the
+  live files; they are store symlinks.
+- World lives in `/var/lib/mc-kids`. Memory: 3G RAM (`MemoryMax`, heap `-Xmx2G`) plus 2G cgroup
+  swap. AdGuard and Home Assistant still win; the world outranks the Hermes agent.
+- Console: `echo <cmd> > /run/mc-kids.stdin`; `systemctl stop mc-kids` saves and exits cleanly.
+- Bump Paper, Geyser, and Floodgate **together** (version + build + hash in the module).
+- BTA is parked (`bta-server.nix` import commented). Its world stays in `/var/lib/bta-server`.
+  Do not enable both.
 
 ### OneDrive Sync
 

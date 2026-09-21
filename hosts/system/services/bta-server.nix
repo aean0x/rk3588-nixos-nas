@@ -1,3 +1,8 @@
+# Parked. Import is commented in services.nix so Paper (mc-kids) can own
+# :25565 and the RAM. World stays in /var/lib/bta-server; no Nix oneshot
+# deletes it. Re-enable by swapping the mc-kids import for this one — do
+# not run both (port + 8 GiB host).
+#
 # Better than Adventure! (BTA) multiplayer server - native systemd service.
 # BTA is an unofficial fork of Minecraft Beta 1.7.3, shipped as one fat server jar.
 #
@@ -120,8 +125,12 @@ let
     server-port = servPort;
     server-ip = "127.0.0.1";
     max-players = 10;
-    view-distance = 8;
+    view-distance = 12;
     online-mode = false;
+    difficulty = 1;
+    mob-griefing = 0;
+    level-seed = "JASON";
+    spawn-monsters = false;
   };
 
   serverPropertiesFile = pkgs.writeText "bta-server.properties" (
