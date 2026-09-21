@@ -258,7 +258,8 @@ headless OpenJDK 21, no container.
   taking a cgroup OOM (the world outranks the Hermes agent). AdGuard and Home Assistant still win.
   Sleeping is a few MB (MSH only).
 - Console: `systemctl stop bta-server` writes `stop` and waits for a clean save (never SIGKILL).
-  Wake without a client with `systemctl kill -s SIGUSR2 bta-server`.
+  Wake without a client with `systemctl kill -s SIGUSR2 --kill-whom=main bta-server`
+  (`--kill-whom=main` is required: a cgroup-wide SIGUSR1/2 kills the JVM).
 - Bumping the game version means editing `version` **and** `hash` in the module (the jar is pinned
   by content hash).
 

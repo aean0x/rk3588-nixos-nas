@@ -52,10 +52,11 @@
 # protocol is TCP 25565, not HTTP. Do not add proxyServices or externalHosts.
 #
 # Console. MSH owns Java stdin. `systemctl stop bta-server` SIGTERMs MSH, which
-# writes `stop` and waits for the child. Wake without a client:
-#   systemctl kill -s SIGUSR2 bta-server
-# Hibernate while empty (soft freeze, still the idle timer path):
-#   systemctl kill -s SIGUSR1 bta-server
+# writes `stop` and waits for the child. --kill-whom=main is mandatory: a
+# cgroup-wide SIGUSR1/2 is the default for `systemctl kill` and the JVM treats
+# those as fatal. Wake / hibernate without a client:
+#   systemctl kill -s SIGUSR2 --kill-whom=main bta-server
+#   systemctl kill -s SIGUSR1 --kill-whom=main bta-server
 #
 # Reachable on TCP 25565 over the LAN and Tailscale only. There is no WAN path
 # (Starlink CGNAT cannot accept inbound), which is why the server runs
