@@ -46,12 +46,12 @@ Prefer killing Hermes over DNS or Home Assistant.
 | Surface | Cap | Where |
 |---------|-----|--------|
 | hermes-agent container | 2 GiB / 1 CPU / OOM +500 | `runtime.nix` |
-| hermes-webui container | 2560 MiB / 2 CPU / OOM +500 | `runtime.nix` |
+| hermes-webui container | 3 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | hermes-browser container | 1 GiB / 2 CPU / OOM +500 | `runtime.nix` |
 | gbrain-mcp-http | 512 MiB / OOM +400 | `runtime.nix` |
 | obi-mcp-http | 512 MiB / OOM +400 | `modules/open-banking.nix` |
 | AdGuard / HA | OOM −500 | their modules |
-| bta-server | 1 GiB / OOM +400 | `services/bta-server.nix` |
+| bta-server | 1 GiB RAM + 2 GiB swap / OOM +100 | `services/bta-server.nix` |
 | Host swap | 8 GiB | `partitions.nix` |
 
 Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.

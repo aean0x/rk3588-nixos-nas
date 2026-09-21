@@ -18,16 +18,20 @@
 #     net/minecraft/datagen tools). The wiki's "OpenJDK 17 recommended" predates 8.0;
 #   - bundled log4j is 2.19.0 (Log4Shell-fixed).
 #
-# Memory. The host runs 8 GiB fully committed (AdGuard + Home Assistant outrank
-# everything, Hermes is tertiary), so MemoryMax is the hard ceiling: an overrun
-# kills this game server, never the DNS resolver or the automation stack.
+# Memory. AdGuard + Home Assistant still outrank everything. The world in
+# /var/lib/bta-server/world outranks Hermes: a mid-save cgroup OOM corrupts
+# the map, an agent OOM just respawns. MemoryMax keeps the working set from
+# eating the host; MemorySwapMax is the burst so a save pages instead of dying.
 #   Measured on this jar: with the heap fully committed (-Xms768M -Xmx768M) the
 #   process settles at ~917 MiB RSS, i.e. ~150 MiB of metaspace, code cache,
-#   threads and direct buffers on top of the heap. -Xmx768M under a 1G cap
+#   threads and direct buffers on top of the heap. -Xmx768M under a 1G RAM cap
 #   therefore leaves ~107 MiB of slack, and MemoryHigh sits above the measured
 #   ceiling so normal play is never throttled.
-#   Raising -Xmx requires raising MemoryMax with it, or the cgroup OOM killer takes
-#   the JVM down mid-save (the world lives in /var/lib/bta-server/world).
+#   Raising -Xmx requires raising MemoryMax with it.
+#
+# Hostname. Clients join at minecraft.<domain>:25565 (LAN AdGuard rewrite and
+# Tailscale grey-cloud *.<domain>). Not Caddy, not the Cloudflare tunnel: the
+# protocol is TCP 25565, not HTTP. Do not add proxyServices or externalHosts.
 #
 # Console. The server reads commands from stdin, so the unit takes stdin from a
 # FIFO (the shape nixpkgs' minecraft-server uses). `systemctl stop bta-server`
@@ -45,11 +49,13 @@
 {
   pkgs,
   lib,
+  settings,
   ...
 }:
 let
   version = "8.0.1";
   port = 25565;
+  host = "minecraft.${settings.domain}";
   dataDir = "/var/lib/bta-server";
   fifo = "/run/bta-server.stdin";
 
@@ -80,7 +86,7 @@ let
   # names, one per line, in /var/lib/bta-server/white-list.txt (beta-era text
   # format, not whitelist.json).
   serverProperties = {
-    motd = "Better than Adventure server - rocknas";
+    motd = host;
     server-port = port;
     max-players = 10;
     view-distance = 8;
@@ -154,10 +160,12 @@ in
 
       MemoryHigh = "960M";
       MemoryMax = "1G";
-      MemorySwapMax = "512M";
-      # Tertiary vs AdGuard/Home Assistant: under host pressure the kernel should
-      # pick this service first.
-      OOMScoreAdjust = 400;
+      # 2G swap on top of 1G RAM: a save that spikes pages instead of taking a
+      # cgroup OOM (which would drop the world). Host swap is 8G; burst is fine.
+      MemorySwapMax = "2G";
+      # Below Hermes (+500) so host pressure kills the agent first. Still
+      # positive, so AdGuard/HA (-500) stay preferred.
+      OOMScoreAdjust = 100;
 
       # Hardening follows nixpkgs' minecraft-server shape - the same
       # JVM-in-a-systemd-unit workload. MemoryDenyWriteExecute is deliberately
@@ -195,4 +203,8 @@ in
   };
 
   networking.firewall.allowedTCPPorts = [ port ];
+  # Tailscale interface list is additive; without this a phone on the tailnet
+  # using public DNS still hits the grey-cloud A, but the default tailscale0
+  # allow-list is only 80/443.
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ port ];
 }

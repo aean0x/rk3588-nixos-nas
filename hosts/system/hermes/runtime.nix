@@ -26,10 +26,11 @@
     "--oom-score-adj=500"
   ];
 
-  # WebUI: up to 3 agent threads. Raised 2g -> 2.5g (2560m): the 2g ceiling
-  # was hit at ~100% with ~1GB swapped, throttling the WebUI's SSE streams.
-  services.hermesPnP.webui.container.memory = "2560m";
-  services.hermesPnP.webui.container.memorySwap = "2560m";
+  # WebUI: up to 3 agent threads. Raised 2560m -> 3g: the dashboard was
+  # sitting at ~1.2-1.6g idle after the browser-lease work, and a 2.5g
+  # ceiling still left it swapping SSE streams. Cap, not a blank cheque.
+  services.hermesPnP.webui.container.memory = "3g";
+  services.hermesPnP.webui.container.memorySwap = "3g";
   services.hermesPnP.webui.container.cpus = 2;
   services.hermesPnP.webui.container.oomScoreAdj = 500;
 

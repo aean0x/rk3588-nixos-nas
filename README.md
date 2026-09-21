@@ -245,13 +245,13 @@ A [Better than Adventure!](https://www.betterthanadventure.net/) (Minecraft Beta
 multiplayer server, native via `services/bta-server.nix` — one upstream server jar plus a
 headless OpenJDK 21, no container.
 
-- Connect from the LAN or Tailscale at `192.168.1.200:25565` (port 25565 TCP, nothing else opened).
+- Connect from the LAN or Tailscale at `minecraft.aean.io:25565` (TCP 25565). Not Caddy, not the Cloudflare tunnel — Minecraft is not HTTP. LAN DNS is the AdGuard `*.aean.io` rewrite; Tailscale uses the grey-cloud wildcard A.
 - World, logs and `server.properties` live in `/var/lib/bta-server`; the world is regenerated
   with defaults on first start if that directory is empty.
 - Pinned keys (`motd`, `server-port`, `max-players`, `view-distance`, `online-mode`) are declared
   in the module and rewritten on every start — edit the module, not `server.properties`.
-- Memory is hard-capped at 1G (`MemoryMax`, heap `-Xmx768M`), so a runaway world exhausts the game
-  server rather than AdGuard or Home Assistant.
+- Memory: 1G RAM (`MemoryMax`, heap `-Xmx768M`) plus 2G cgroup swap so a save pages instead of
+  taking a cgroup OOM (the world outranks the Hermes agent). AdGuard and Home Assistant still win.
 - Console: `echo list > /run/bta-server.stdin`; `systemctl stop bta-server` saves and exits cleanly.
 - Bumping the game version means editing `version` **and** `hash` in the module (the jar is pinned
   by content hash).
