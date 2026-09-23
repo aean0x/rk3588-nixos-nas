@@ -1,7 +1,7 @@
 # Hermes Agent — hermes-pnp consumer.
 # RAM/CPU caps, admin socket, sudo CLI: ./runtime.nix
 # Site extras (Composio, BankSync, open-banking, OpenAccountants,
-# PolicyLayer, OneDrive): ./modules/
+# PolicyLayer, OneDrive, idealo): ./modules/
 {
   config,
   pkgs,
@@ -23,6 +23,7 @@ in
     ./modules/openaccountants.nix
     ./modules/onedrive.nix
     ./modules/policylayer.nix
+    ./modules/idealo.nix
     ./modules/webui-extensions.nix
   ];
 
@@ -157,6 +158,22 @@ in
       kanban.auto_subscribe_on_create = false;
 
       cron.wrap_response = false;
+
+      # Telegram DM topics (the bot has Threaded Mode on). Cron targets these by
+      # thread_id directly, so this block is for gateway awareness only: topic
+      # names, the reply-anchor fallback, and per-topic skill binding. The thread
+      # ids are Telegram-side state; if the pair is ever re-created the ids
+      # change and this block must follow.
+      platforms.telegram.extra.dm_topics = [
+        {
+          chat_id = 7565307130;
+          topics = [
+            { name = "Updates"; thread_id = 8417; }
+            { name = "Feeds"; thread_id = 8408; }
+            { name = "Alerts"; thread_id = 8410; }
+          ];
+        }
+      ];
 
       # Interim, revocable. Upstream's bounded-hook latch drops a healthy
       # concurrent callback ("skipped after previous timeout or while still

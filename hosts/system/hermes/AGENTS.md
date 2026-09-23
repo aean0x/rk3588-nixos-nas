@@ -16,6 +16,7 @@ hosts/system/hermes/
 │   ├── open-banking.nix     # loopback obi-mcp-http + mcp-proxy
 │   ├── openaccountants.nix  # mcp-proxy → openaccountants.com (no auth)
 │   ├── policylayer.nix      # direct HTTP PolicyLayer registry
+│   ├── idealo.nix           # idealo price comparison (OAuth)
 │   └── onedrive.nix
 ├── scripts/             # clean-hermes-state
 └── BOOTSTRAP.md
