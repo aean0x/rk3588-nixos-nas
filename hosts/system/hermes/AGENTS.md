@@ -52,7 +52,7 @@ Prefer killing Hermes over DNS or Home Assistant.
 | gbrain-mcp-http | 512 MiB / OOM +400 | `runtime.nix` |
 | obi-mcp-http | 512 MiB / OOM +400 | `modules/open-banking.nix` |
 | AdGuard / HA | OOM −500 | their modules |
-| bta-server | 1 GiB RAM + 2 GiB swap / OOM +100 (MSH asleep: a few MB) | `services/bta-server.nix` |
+| minecraft (Paper + Geyser) | 3 GiB RAM + 2 GiB swap / OOM +100 | `services/minecraft.nix` |
 | Host swap | 8 GiB | `partitions.nix` |
 
 Heavy Nix eval/build → workstation (`./deploy remote-*`), not on-box Hermes.
