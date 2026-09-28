@@ -48,11 +48,11 @@
     "hermes-gbrain-retrieval-reflex": {
       "flake": false,
       "locked": {
-        "lastModified": 1789718786,
-        "narHash": "sha256-TNq8B0axs+o5dzX9XTKCLO6LTwHCUj3ObAb+6XZYYyE=",
+        "lastModified": 1790569954,
+        "narHash": "sha256-cSQs/J2N5yx/CHnYPQKxIGEiW2PpVMYRMHDKjEFQs3o=",
         "owner": "aean0x",
         "repo": "hermes-gbrain-retrieval-reflex",
-        "rev": "d54ae4b80463ce7ec9d6a7919cbe4cce13bd89d4",
+        "rev": "52e31ab669a13d2d8d5eec4a3abd079eec0492a9",
         "type": "github"
       },
       "original": {
@@ -110,11 +110,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790397406,
-        "narHash": "sha256-rYWJlO9/p9usNC0+0OiZ6RU/NfCC57N2gR2oYYvUthI=",
+        "lastModified": 1790570298,
+        "narHash": "sha256-ggkaVpBUq4bXm5GQCHZPsYdwghHRRbgAM7rLYxlksm4=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "04acae32db7b41e66d3b48b0a1696c026d1baef6",
+        "rev": "23b31a6d59e4320493e6599848d1810e4eed683b",
         "type": "github"
       },
       "original": {
