@@ -110,11 +110,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790570298,
-        "narHash": "sha256-ggkaVpBUq4bXm5GQCHZPsYdwghHRRbgAM7rLYxlksm4=",
+        "lastModified": 1790743724,
+        "narHash": "sha256-/g7pDZz4w+A3Z8RWFlEt7lwpt4tclFRotVjzbMxhLFA=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "23b31a6d59e4320493e6599848d1810e4eed683b",
+        "rev": "b8b46c8d7e9cda4e1d2eaa2da4de69e9e930fcdc",
         "type": "github"
       },
       "original": {
@@ -126,11 +126,11 @@
     "hermes-secret-handoff": {
       "flake": false,
       "locked": {
-        "lastModified": 1789718782,
-        "narHash": "sha256-yRfsgN60IeJVZNSOidHKadXGBNk6NW60klX7qLsv/AA=",
+        "lastModified": 1790743475,
+        "narHash": "sha256-Ge+hj3Fb3GgCxN97zd6rDf84UmnRCLDKrkJNv1DoV8U=",
         "owner": "aean0x",
         "repo": "hermes-secret-handoff",
-        "rev": "2c7810b8795dfeb7d3fee53ca564fe06ae415a4e",
+        "rev": "80453ef13bd18efda62206681e58eb81432c20ae",
         "type": "github"
       },
       "original": {
