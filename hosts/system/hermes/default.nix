@@ -76,6 +76,9 @@ in
       # concurrent WebUI/cron/kanban browser turn adds its own tab set and
       # the 1g cage OOM-kills Brave (hermes-pnp #103).
       "browser-lease"
+      # Names the gate-clean shape on an unattended approvals refusal, so a job
+      # that preloads no skill still learns it (hermes-pnp #113).
+      "refusal-advice"
     ];
 
     toolbox.extraPackages = [ pkgs.sops ];
@@ -184,8 +187,8 @@ in
       # the threaded path, so hooks run in the caller and nothing is dropped.
       # Every hook in this profile is self-bounded: git-hook subprocesses carry
       # GIT_HOOK_* timeouts, the gbrain hooks are local IO or urllib with a
-      # socket timeout. Delete this line once the pinned hermes-agent carries
-      # the upstream fix (staged: #98385, #104763).
+      # socket timeout, refusal-advice is a string concat. Delete this line once
+      # the pinned hermes-agent carries the upstream fix (staged: #98385, #104763).
       plugins.hook_callback_timeout = 0;
 
       security = {
