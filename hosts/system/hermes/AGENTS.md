@@ -1,6 +1,6 @@
 # Hermes Agent
 
-`default.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge. RAM caps and `hermes-admin` live in `runtime.nix`.
+`default.nix` is the hermes-pnp consumer: `services.hermesPnP`, official `services.hermes-agent` settings, and the public edge. RAM caps, `hermes-admin`, and the quiet-hour RSS reclaim live in `runtime.nix`.
 
 First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **hermes-pnp** (`./deploy gbrain-setup` / `validate-gbrain`).
 
@@ -9,7 +9,7 @@ First boot: **BOOTSTRAP.md**. GBrain operator scripts live in flake input **herm
 ```
 hosts/system/hermes/
 ├── default.nix          # hermesPnP + official settings + Caddy/tunnel
-├── runtime.nix          # RAM caps + hermes-admin + sudo CLI
+├── runtime.nix          # RAM caps + hermes-admin + sudo CLI + reclaim timer
 ├── modules/
 │   ├── composio.nix         # hermesPnP.mcpProxy.backends.composio
 │   ├── banksync.nix         # mcp-proxy → mcp.banksync.io (X-API-Key)
@@ -27,6 +27,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 ## Runtime
 
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail). Default workspace is the stateDir root (`/data`) so WebUI and gateway cwd see the whole tree (`home/`, `skills/`, `plugins/`, `workspace/`). OneDrive still copies into `workspace/onedrive`.
+- `hermes-agent-reclaim.timer` (05:30 local): RSS-gated restart of `hermes-agent` when `state/gateway.heartbeat` reports ≥ 600 MiB. Skips if the heartbeat is missing or older than 600 s. `HERMES_AGENT_RECLAIM_DRY_RUN=1` reports the decision without restarting.
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
 - Admin: `hermes-admin` via `/run/hermes-admin` (`admin.enable`) — status / restart / reset-failed / read-only `stats` of allowlisted units. Not sudo, not docker.sock.
 - Models: `hermesPnP.modelPicker.enable = false`. Primary is `models.default` (`deepseek` / `deepseek-flash`) — session, cron, and delegation. Official `settings.fallback_model` is `xai-oauth` / `grok-4.6`. Auxiliary is flash; `free_only = true` plus `:free` OpenRouter SKU so background tasks never fall onto a paid lane. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens = 200000` (also holds flash at 200k). Do not pin `agent.max_turns`. Do not set `hermesPnP.desktop.enable` while the agent jail is on — official `hermes serve` / `backend.mode` is native-only and conflicts with the jail.
