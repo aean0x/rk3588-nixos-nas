@@ -8,7 +8,7 @@
     ./services/cloudflare.nix # Cloudflare DDNS (apex A/AAAA; not enough alone under CGNAT)
     ./services/cloudflared.nix # Cloudflare Tunnel (public HTTPS behind Starlink CGNAT)
     # ./services/remote-desktop.nix # XFCE + xrdp (unused)
-    ./services/arr-suite.nix # Nixarr Sonarr+Radarr + RDT-Client (TorBox)
+    # ./services/arr-suite.nix # Parked: Nixarr Sonarr+Radarr. Do not eval; jellyfin-12 patch is stale.
     # ./services/transmission.nix # Torrent client with VPN killswitch
     ./services/caddy.nix # Reverse proxy with automatic HTTPS
     ./services/adguard.nix # AdGuard Home DNS (port 53, web UI 3000) — enable after deploy

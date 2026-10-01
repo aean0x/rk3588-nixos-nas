@@ -135,7 +135,7 @@ Philosophy: **Docker for complex/dependency-heavy stacks, native NixOS for simpl
 | Minecraft (Paper + Geyser) | Native | `services/minecraft.nix` | `minecraft.<domain>` LAN/Tailscale: Java TCP 25565, Bedrock UDP 19132; latest stable Paper + latest Geyser/Floodgate at start; 3 GiB RAM + 2 GiB swap, OOM +100. Do not enable with BTA. |
 | BTA (parked) | Native | `services/bta-server.nix` | Import commented. World left in `/var/lib/bta-server`. |
 
-Disabled but available: Remote Desktop (XFCE + xrdp), Transmission, FileBrowser, Comet.
+Disabled but available: Remote Desktop (XFCE + xrdp), Transmission, FileBrowser, Comet, Nixarr (Sonarr+Radarr; `arr-suite.nix`).
 
 **containers.nix** is pure infrastructure — Docker engine, auto-prune, unified `refresh-containers` timer. Container definitions live in their respective modules. `containerNames` and `uniqueImages` are auto-discovered from all imported modules. The single `refresh-containers` timer (Sun 02:00) pulls all images and restarts all containers.
 
