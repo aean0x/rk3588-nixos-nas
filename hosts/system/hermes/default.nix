@@ -12,6 +12,8 @@
 let
   webuiPort = 8787;
   webuiHost = "archimedes.${settings.domain}";
+  apiServerPort = 8642;
+  apiServerHost = "hermes-api.${settings.domain}";
 in
 {
   imports = [
@@ -232,8 +234,8 @@ in
   };
 
   # WebUI: LAN Caddy + Cloudflare Tunnel. hermes.<domain> is a LAN/Tailscale
-  # alias to the same WebUI (no extra backend). Browser gate: LAN/Tailscale,
-  # no tunnel.
+  # alias to the same WebUI (no extra backend). hermes-api.<domain>: LAN/Tailscale
+  # → api_server :8642 (no tunnel). Browser gate: LAN/Tailscale, no tunnel.
   # Do not set hermesPnP.desktop.enable: it mkForces the agent jail off
   # and asserts container.enable is false. Official `hermes serve` /
   # backend.mode cannot run beside the jail — host `hermes` is a docker
@@ -241,5 +243,8 @@ in
   services.caddy.proxyServices."${webuiHost}" = webuiPort;
   services.caddy.proxyServices."hermes.${settings.domain}" = webuiPort;
   services.caddy.proxyServices."browser.${settings.domain}" = 4848;
+  services.caddy.proxyServices."${apiServerHost}" = apiServerPort;
+  # Intentionally omitted:
+  #   services.cloudflareTunnel.proxyServices."${apiServerHost}" = …;
   services.cloudflareTunnel.proxyServices."${webuiHost}" = webuiPort;
 }

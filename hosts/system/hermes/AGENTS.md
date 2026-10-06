@@ -34,6 +34,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 - No declarative SOUL.md.
 - WebUI: `https://archimedes.<domain>/` — Caddy LAN + Cloudflare Tunnel. Bind `127.0.0.1:8787`. Never open :8787 on WAN. TTS: ElevenLabs. Search: `web.search_backend=xai`.
 - LAN alias: `https://hermes.<domain>/` — Caddy LAN/Tailscale → the same WebUI (`:8787`). No Cloudflare tunnel. The messaging gateway is `hermes-agent` (`hermes gateway run` in the jail: Telegram, cron, `api_server` `:8642`).
+- API server edge: `https://hermes-api.<domain>/` — Caddy LAN/Tailscale → loopback `api_server` `:8642`. No Cloudflare tunnel. Auth: `Authorization: Bearer $API_SERVER_KEY`. Keep `API_SERVER_HOST=127.0.0.1` (Caddy is the only edge).
 - Browser: Brave, CDP `:9222`, gate Caddy `browser.<domain>` → `:4848` (LAN/Tailscale only, no Cloudflare tunnel). `browser-lease` plugin serialises sessions onto one tab set; `--js-flags=--max-old-space-size=192` caps each renderer.
 - OneDrive: `onedrive-sync.timer` (rclone copy into workspace, not a FUSE mount).
 - mcp-proxy: enable in `default.nix`; backends in `modules/composio.nix`, `banksync.nix`, `open-banking.nix`, `openaccountants.nix`.
@@ -103,7 +104,7 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | leftover; brain migrated off zembed-1 2026-09-16. Drop after a verified query. |
 | `GBRAIN_TOKEN` | not sops | GBrain HTTP MCP bearer — minted by `gbrain auth create hermes`, written to `$HERMES_HOME/.env` + `~/.gbrain/hermes-mcp.token` by `./deploy gbrain-setup`. Do not add to `hermesEnv`. |
 | `HERMES_DASHBOARD_SESSION_TOKEN` | `hermes_dashboard_session_token` | Unused while the agent jail is on (Desktop / `hermes serve` is native-only). Still landed in `/run/hermes.env`. |
-| `API_SERVER_KEY` | `hermes_api_server_key` | Loopback `api_server` on `:8642`. WebUI health probe (`HERMES_WEBUI_GATEWAY_BASE_URL`); without it the dashboard falls back to stale `gateway_state.json`. |
+| `API_SERVER_KEY` | `hermes_api_server_key` | Loopback `api_server` on `:8642`. WebUI health probe (`HERMES_WEBUI_GATEWAY_BASE_URL`); Tailscale/LAN edge `https://hermes-api.<domain>/` (Bearer). Without the key the dashboard falls back to stale `gateway_state.json`. |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |
 | `BRAVE_API_KEY` | `brave_search_api_key` | Web search |
 | `XAI_API_KEY` | `xai_api_key` | Fallback (OAuth is primary) |
@@ -120,6 +121,7 @@ Drive these via `./deploy` — do not wait for the human.
 | CLI | `./deploy hermes chat` / `doctor` / `mcp list` |
 | GBrain | `./deploy validate-gbrain` / `gbrain-setup` |
 | WebUI | `https://archimedes.<domain>/` |
+| API | `curl -H "Authorization: Bearer $API_SERVER_KEY" https://hermes-api.<domain>/v1/...` |
 | Logs | `./deploy journal hermes-agent` |
 | Soft reset | `./deploy clean-hermes-state` |
 

@@ -93,3 +93,13 @@ Phone captcha: agent sends `HERMES_BROWSER_GATE_URL` (Tailscale/LAN).
 curl -sS http://127.0.0.1:8787/health
 sudo systemctl restart hermes-agent hermes-webui
 ```
+
+## 7. API server (Tailscale / LAN)
+
+`127.0.0.1:8642` → Caddy `https://hermes-api.<domain>/` (LAN/Tailscale only, no Cloudflare tunnel). Auth: Bearer `API_SERVER_KEY` from `/run/hermes.env`.
+
+```bash
+KEY=$(grep ^API_SERVER_KEY= /run/hermes.env | cut -d= -f2-)
+curl -sS -H "Authorization: Bearer $KEY" https://hermes-api.<domain>/health
+curl -sS -H "Authorization: Bearer $KEY" https://hermes-api.<domain>/v1/models
+```
