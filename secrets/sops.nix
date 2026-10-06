@@ -144,9 +144,14 @@ in
           path = "/run/hermes.env";
           # Secrets land in ${stateDir}/.hermes/.env at activation.
           content = lib.concatStringsSep "\n" (
-            lib.mapAttrsToList (
+            (lib.mapAttrsToList (
               envVar: sopsKey: "${envVar}=${config.sops.placeholder.${sopsKey}}"
-            ) hermesSecrets
+            ) hermesSecrets)
+            ++ [
+              "API_SERVER_ENABLED=true"
+              "API_SERVER_HOST=127.0.0.1"
+              "API_SERVER_PORT=8642"
+            ]
           );
         };
       }

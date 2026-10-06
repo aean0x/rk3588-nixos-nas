@@ -291,6 +291,18 @@ if grep -q 'cloudflareTunnel.proxyServices."browser' "$CONSUMER"; then
 else
   pass "browser gate is LAN/Tailscale only"
 fi
+if grep -qE 'hermes-api|apiServerHost' "$CONSUMER" \
+  && grep -qE 'proxyServices\."\$\{apiServerHost\}"|proxyServices\."hermes-api' "$CONSUMER" \
+  && grep -q '8642' "$CONSUMER"; then
+  pass "hermes-api Caddy proxy → :8642 declared"
+else
+  fail "consumer must declare hermes-api / apiServerHost Caddy proxyServices = 8642"
+fi
+if grep -qE '^[[:space:]]*services\.cloudflareTunnel\.proxyServices\."\$\{apiServerHost\}"|^[[:space:]]*services\.cloudflareTunnel\.proxyServices\."hermes-api' "$CONSUMER"; then
+  fail "hermes-api must not be on Cloudflare tunnel"
+else
+  pass "hermes-api is LAN/Tailscale only (no cloudflareTunnel)"
+fi
 if grep -qE 'noVNC|:6080|NOVNC' "$CONSUMER" "$HERMES_AGENTS" "$HERMES/BOOTSTRAP.md"; then
   fail "stale noVNC / :6080 leftover (gate is browser-ui :4848)"
 else
