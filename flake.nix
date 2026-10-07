@@ -11,9 +11,13 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Hermes Agent (NousResearch). Was temporarily pinned to v0.19.1 for a
-    # hermes-web/tui package-lock ENOTCACHED issue; unpinned after v0.20.0.
-    hermes-agent.url = "github:NousResearch/hermes-agent";
+    # Hermes Agent (NousResearch). Pin a release tag, never main: upstream
+    # main carries version = "0.0.0" (the real version is set at release), so
+    # a main-tracking build reports 0.0.0 and every plugin behind a
+    # `requires_hermes` floor silently drops out of the tool surface. Main
+    # also moves the sealed venv's dependency set under us. Bump the tag
+    # deliberately.
+    hermes-agent.url = "github:NousResearch/hermes-agent/v2026.9.24";
     hermes-webui.url = "github:nesquena/hermes-webui";
     # Media stack: Sonarr/Radarr (+ optional others) with declarative settings-sync
     nixarr.url = "github:nix-media-server/nixarr";
