@@ -180,17 +180,16 @@ in
         }
       ];
 
-      # Interim, revocable. Upstream's bounded-hook latch drops a healthy
-      # concurrent callback ("skipped after previous timeout or while still
-      # running"): one (hook, callback) bit covers both a real timeout and
-      # ordinary overlap, so parallel tool batches lose hook work while the log
-      # records zero timeouts (#98382 canonical, #104865 duplicate; #105223 is
-      # the same latch permanently fail-closing pre_tool_call). <= 0 disables
-      # the threaded path, so hooks run in the caller and nothing is dropped.
-      # Every hook in this profile is self-bounded: git-hook subprocesses carry
-      # GIT_HOOK_* timeouts, the gbrain hooks are local IO or urllib with a
-      # socket timeout, refusal-advice is a string concat. Delete this line once
-      # the pinned hermes-agent carries the upstream fix (staged: #98385, #104763).
+      # Permanent. <= 0 disables the threaded hook path, so hooks run on the
+      # caller thread; refusal-advice requires that (its transform_tool_result
+      # does pure string work on one result, and hook work that can block
+      # belongs in a plugin of its own: hermes-pnp plugins/refusal-advice). The
+      # upstream bounded-hook latch fix (#98385, #104763) is already in the
+      # pinned hermes-agent and does NOT retire this key. Caller-thread
+      # execution stays safe because every hook in this profile is self-bounded:
+      # git-hook subprocesses carry GIT_HOOK_* timeouts, the gbrain hooks are
+      # local IO or urllib with a socket timeout, refusal-advice is a string
+      # concat.
       plugins.hook_callback_timeout = 0;
 
       security = {
