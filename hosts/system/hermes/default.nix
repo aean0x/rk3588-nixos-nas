@@ -200,7 +200,14 @@ in
 
       web = {
         search_backend = "xai";
-        extract_backend = "firecrawl";
+        # Extract is keyless: the firecrawl account is out of credits (402 on
+        # every scrape) and its anonymous keyless endpoint answers 403. The
+        # keyless rescue ring advances only on rate-limit-shaped errors, so a
+        # firecrawl hop stops the walk; pin its free endpoint out of the ring
+        # and serve extract from tavily's opt-in keyless route, with exa,
+        # parallel and keenable left as ring failover.
+        extract_backend = "tavily";
+        provider_tier.firecrawl = "paid";
       };
 
       timezone = settings.timeZone;
