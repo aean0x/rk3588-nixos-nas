@@ -49,11 +49,11 @@
     "hermes-model-picker": {
       "flake": false,
       "locked": {
-        "lastModified": 1789718879,
-        "narHash": "sha256-R61S9zuqaPggwQX2mzrib3kZD0L3SxB6KmRnkjW6Oe8=",
+        "lastModified": 1790875544,
+        "narHash": "sha256-0AqCXiA89mBs1ouraEV3dKXd3TJyKH1uDPTVd0wufak=",
         "owner": "aean0x",
         "repo": "hermes-model-picker",
-        "rev": "04a23c809d550ecb0a69749927b803e9250da656",
+        "rev": "040854d667ffd4166cbb0534587de3e244f5c41a",
         "type": "github"
       },
       "original": {
@@ -76,11 +76,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791975458,
-        "narHash": "sha256-BLRdTA1FMrN8AIbg2qtO5A0Kjij13ybd5QvjDV9kt1c=",
+        "lastModified": 1792041776,
+        "narHash": "sha256-lLNeHluwSYETPyXkXkh4eHw448VvJuoSUNNJe+X5RNE=",
         "owner": "aean0x",
         "repo": "hermes-pnp",
-        "rev": "b783a27f5fbcb5d41500654e7679d523815f6969",
+        "rev": "e8cc355a2ecbeb228e6c3d07836c0044d005b7df",
         "type": "github"
       },
       "original": {
