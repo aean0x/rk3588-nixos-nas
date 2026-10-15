@@ -90,21 +90,44 @@ in
   # killer and not systemd-oomd: host mem_available held 1.7-3.6 GiB and swap
   # 41-53% before each kill. Peak demand measured at the kills: gateway
   # ~600 MiB VmHWM + 2 dispatcher workers (~240 MiB each) + one cron agent
-  # (~300 MiB) = ~1.4 GiB. memory-swap stays equal to memory: swapping the jail's
-  # live heap trades OOM kills for stalls. Cron-side companion rule (one agent at
-  # a time, 06:00-07:00): skill feng-scheduled-ops -> references/cron-job-catalog.md.
+  # (~300 MiB) = ~1.4 GiB.
+  #
+  # Swap: the live heap must not go to disk -- swapping it trades OOM kills for
+  # stalls, which is what the 1g era did to the gateway. `--memory-swap` is the
+  # memory+swap TOTAL, so "swap off" is --memory-swap == --memory, and on this
+  # host that request inverts silently. Measured 2026-10-15: the jail's own leaf
+  # reads memory.swap.max = max (UNLIMITED), 0.9-1.2 GB swapped, pgmajfault
+  # 1.96M, memory.events `max` 647k, `oom_kill` 0 -- hours of thrash, no kill.
+  # Both earlier links are clean: the generated pre-start carries --memory-swap
+  # verbatim into `docker create` (read it back at
+  # /nix/store/*-unit-script-hermes-agent-pre-start/bin/hermes-agent-pre-start)
+  # and the daemon keeps the flag. The runtime drops it: on cgroup v2 the systemd
+  # cgroup driver converts the v1 total to swap = memorySwap - memory = 0 and then
+  # SKIPS a zero instead of writing it (opencontainers/cgroups v0.0.6
+  # systemd/v2.go: `if swap != 0 { MemorySwapMax }`), so systemd's default stands:
+  # unlimited. The cgroupfs driver writes the 0 correctly, so the bug is
+  # driver-specific and invisible unless the leaf is read.
+  #
+  # Hence a small non-zero allowance: 2g + 32 MiB. The subtraction is non-zero,
+  # the property is emitted, and the jail can page at most 32 MiB of cold memory
+  # before the OOM killer is back in charge. The allowance is the DIFFERENCE
+  # between the two numbers -- move --memory and move --memory-swap with it.
+  #
+  # Cron-side companion rule (one agent at a time, 06:00-07:00):
+  # skill feng-scheduled-ops -> references/cron-job-catalog.md.
   services.hermes-agent.container.extraOptions = [
     "--memory=2g"
-    "--memory-swap=2g"
+    "--memory-swap=2080m"
     "--cpus=1"
     "--oom-score-adj=500"
   ];
 
   # Reclaim the gateway RSS creep the cap above cannot: nothing inside the jail
   # gives it back — malloc_trim in the 60 s housekeeping pass frees 5-9 MiB per
-  # pass against ~+123 MiB/day, and with swap off (memory-swap == memory) the
-  # pages cannot go anywhere else. A container restart resets pid 1 to its
-  # 346-426 MiB baseline, so one restart returns ~400-460 MiB to the host.
+  # pass against ~+123 MiB/day, and the pages cannot go anywhere else: the 32 MiB
+  # swap allowance above is no home for a live heap. A container restart resets
+  # pid 1 to its 346-426 MiB baseline, so one restart returns ~400-460 MiB to the
+  # host.
   # Daily at 05:30, behind an RSS gate so a healthy / just-restarted jail is
   # left alone.
   #
@@ -112,9 +135,10 @@ in
   # --memory-reservation to memory.low (a protection, not a throttle) and has no
   # memory.high flag at all, so the only route would be a --cgroup-parent slice —
   # a second source of truth for one number, dependent on the daemon's cgroup
-  # driver. With the jail's swap off it would not reclaim the anon creep either;
-  # it would throttle allocations and stall the gateway instead. Bound the jail
-  # with docker flags, never a unit property (lib/oci-container.nix).
+  # driver. With the jail's swap allowance this small it would not reclaim the
+  # anon creep either; it would throttle allocations and stall the gateway
+  # instead. Bound the jail with docker flags, never a unit property
+  # (lib/oci-container.nix).
   systemd.services.hermes-agent-reclaim = {
     description = "Reclaim the agent gateway RSS creep (RSS-gated restart)";
     serviceConfig = {
@@ -151,14 +175,18 @@ in
   # sitting at ~1.2-1.6g idle after the browser-lease work, and a 2.5g
   # ceiling still left it swapping SSE streams. Cap, not a blank cheque.
   services.hermesPnP.webui.container.memory = "3g";
-  services.hermesPnP.webui.container.memorySwap = "3g";
+  # 3g + 32 MiB, not 3g: same reason as the agent jail above -- an equal pair
+  # computes to a zero swap request, which the runtime's systemd cgroup driver
+  # drops, leaving the jail with unlimited swap instead of none.
+  services.hermesPnP.webui.container.memorySwap = "3080m";
   services.hermesPnP.webui.container.cpus = 2;
   services.hermesPnP.webui.container.oomScoreAdj = 500;
 
   # Browser: consumer maxTabs = 3. 1g holds. shm is /tmp
   # (--disable-dev-shm-usage); do not also set shmSize.
   services.hermesPnP.browser.container.memory = "1g";
-  services.hermesPnP.browser.container.memorySwap = "1g";
+  # 1g + 32 MiB -- see the webui note above.
+  services.hermesPnP.browser.container.memorySwap = "1040m";
   services.hermesPnP.browser.container.cpus = 2;
   services.hermesPnP.browser.container.oomScoreAdj = 500;
 
