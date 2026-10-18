@@ -27,6 +27,7 @@ in
     ./modules/policylayer.nix
     ./modules/idealo.nix
     ./modules/webui-extensions.nix
+    ./modules/gbrain-maintenance.nix
   ];
 
   services.hermesPnP = {
