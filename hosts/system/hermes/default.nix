@@ -156,6 +156,12 @@ in
       # (skill feng-scheduled-ops -> references/cron-job-catalog.md).
       kanban.max_in_progress = 2;
 
+      # /data is a git worktree holding 312,622 .py files with no pyright project
+      # marker, so every write paid a pyright rooted there (~300-500 MB per client
+      # process inside the 2 GiB jail) and still timed out its 5 s diagnostics
+      # budget. Code repos under /home/hermes/src keep their language servers.
+      lsp.exclude_roots = [ "/data" ];
+
       # A card created from a gateway session otherwise auto-subscribes the
       # originating chat, so every routine completion wakes a chat session.
       # Silent is the default; subscribe a card explicitly when a ping carries
