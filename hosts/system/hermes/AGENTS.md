@@ -17,6 +17,7 @@ hosts/system/hermes/
 │   ├── openaccountants.nix  # mcp-proxy → openaccountants.com (no auth)
 │   ├── policylayer.nix      # direct HTTP PolicyLayer registry
 │   ├── idealo.nix           # idealo price comparison (OAuth)
+│   ├── gbrain-maintenance.nix # daily sole-writer sync, extract, atom drain
 │   └── onedrive.nix
 ├── scripts/             # clean-hermes-state
 └── BOOTSTRAP.md
@@ -28,6 +29,7 @@ Site git author is `settings.programs.git` (wired in `hosts/system/default.nix`)
 
 - Official `hermes-agent` container (`ubuntu:24.04`, host net). State `/var/lib/hermes` (`/data` in the jail). Default workspace is the stateDir root (`/data`) so WebUI and gateway cwd see the whole tree (`home/`, `skills/`, `plugins/`, `workspace/`). OneDrive still copies into `workspace/onedrive`.
 - `hermes-agent-reclaim.timer` (05:30 local): RSS-gated restart of `hermes-agent` when `state/gateway.heartbeat` reports ≥ 600 MiB. Skips if the heartbeat is missing or older than 600 s. `HERMES_AGENT_RECLAIM_DRY_RUN=1` reports the decision without restarting.
+- `gbrain-maintenance.timer` (04:15 local): stop `gbrain-mcp-http`, then as the sole PGLite writer run `gbrain sync --source default`, `gbrain extract --stale`, and `gbrain dream --phase extract_atoms --drain --window 120`. Restart the serve on the way out. `Persistent = false` (a missed window must not take the brain MCP down mid-morning). Drain exit 3 means the backlog remains; the next window continues.
 - WebUI + browser: hermes-pnp OCI jails (`/var/lib/hermes-oci/<name>`).
 - Admin: `hermes-admin` via `/run/hermes-admin` (`admin.enable`) — status / restart / reset-failed / read-only `stats` of allowlisted units. Not sudo, not docker.sock.
 - Models: `hermesPnP.modelPicker.enable = false`. Primary is `models.default` (`deepseek` / `deepseek-flash`) — session, cron, and delegation. Official `settings.fallback_model` is `xai-oauth` / `grok-4.6`. Auxiliary is flash; `free_only = true` plus `:free` OpenRouter SKU so background tasks never fall onto a paid lane. Do not set `model.context_length` (stamps every model); grok cliff is `compression.threshold_tokens = 200000` (also holds flash at 200k). Do not pin `agent.max_turns`. Do not set `hermesPnP.desktop.enable` while the agent jail is on — official `hermes serve` / `backend.mode` is native-only and conflicts with the jail.
@@ -82,7 +84,8 @@ from `$HERMES_HOME/.env`).
   (`GBRAIN_EMBEDDING_*` on the unit). OpenRouter key via `/run/hermes.env`.
   Re-pointing vectors is `gbrain migrate embeddings` with serve stopped,
   then the Nix pin — never the pin first.
-- **Never** shell `gbrain` while the agent is up (PGLite single-writer).
+- **Never** shell `gbrain` from the agent jail while the serve is up (PGLite single-writer; the jail does not share the serve PID namespace). The host window is `gbrain-maintenance.service`.
+- Atom drain: `gbrain-base-v2` does not run `extract_atoms`. `dream --drain` does. On CLI 0.48.2.0 that drain hard-fails: the chat model is priced, so the phase sets a cost cap, then the unpriced embed model `openrouter:voyageai/voyage-4` throws `no_pricing` and the page is never stamped (`stopped: no_progress`). Fix on this host: `pricing.overrides` = `{"openrouter:voyageai/voyage-4":0.06}` and `runPhaseExtractAtoms` loads that map into its `BudgetTracker` (`extract-atoms.ts` in the bun-global CLI). A later `gbrain` upgrade drops the source edit; re-apply it if the drain returns `no_progress` with `reserve_no_pricing` in `~/.gbrain/audit/budget-*.jsonl`.
 - Hygiene: MCP tools or Hermes cron **via MCP only**.
 - Protocol SoT: GBrain page `ops/gbrain-protocol`. Operator doc: hermes-pnp `docs/gbrain.md`.
 
