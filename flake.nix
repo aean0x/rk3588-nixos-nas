@@ -7,6 +7,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-25.11";
+    # gbrain 0.60 refuses Bun < 1.4. The locked nixpkgs bun is 1.3.13.
+    nixpkgs-bun.url = "github:NixOS/nixpkgs/02c087f3fe673c9e317f206a627cb6b910336dbe";
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,6 +35,7 @@
     self,
     nixpkgs,
     nixpkgs-stable,
+    nixpkgs-bun,
     sops-nix,
     nixarr,
     ...
@@ -49,14 +52,13 @@
           inherit system;
           config.allowUnfree = true;
         };
-        # nixpkgs bun always sets postPhases = ["postPatchelf"], but the
-        # hook is empty when cross-compiling (can't exec the aarch64
-        # binary for completions). stdenv then runs `postPatchelf` as a
-        # command → exit 127. Keep the phase only when the hook has work.
-        # https://github.com/NixOS/nixpkgs/issues/345096
-        bun = prev.bun.overrideAttrs (old: {
-          postPhases = nixpkgs.lib.optional ((old.postPatchelf or "") != "") "postPatchelf";
-        });
+        # Upstream bun cannot exec here (NixOS stub-ld). Take Bun 1.4 from
+        # nixpkgs-bun so the hermes toolbox, which is ahead of ~/.bun/bin
+        # on PATH, can start gbrain.
+        bun = (import nixpkgs-bun {
+          system = prev.stdenv.hostPlatform.system;
+          config.allowUnfree = true;
+        }).bun;
         # ncdu 2.x is Zig. zig 0.16 translate-c emits x86_64 objects and
         # links them as aarch64 ("incompatible with elf64-littleaarch64").
         # 1.x is C and cross-compiles.

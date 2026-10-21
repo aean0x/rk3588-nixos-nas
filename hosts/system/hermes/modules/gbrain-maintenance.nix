@@ -91,7 +91,18 @@ let
           env HOME="$home" PATH="$host_path" "$gbrain" "$@"
       }
 
-      rc=0
+      # latest-stable only. Autopilot is a second PGLite writer, so this
+      # window is the auto-upgrade. Exit 78 means the Nix Bun is too old;
+      # the installed CLI still runs the rest of the window.
+      echo "gbrain-maintenance: upgrade --no-autopilot-install"
+      upgrade_rc=0
+      run_gbrain upgrade --no-autopilot-install || upgrade_rc=$?
+      if [ "$upgrade_rc" -eq 78 ]; then
+        echo "gbrain-maintenance: upgrade needs a newer Bun (rc=78) - staying on the installed CLI" >&2
+      elif [ "$upgrade_rc" -ne 0 ]; then
+        echo "gbrain-maintenance: upgrade failed rc=$upgrade_rc" >&2
+        rc=1
+      fi
 
       echo "gbrain-maintenance: sync --source $source_id"
       run_gbrain sync --source "$source_id" || rc=1

@@ -79,13 +79,10 @@ Do not bake operational content into the flake. Do not put environment policy on
 sets the MCP URL + `Authorization: Bearer ${GBRAIN_TOKEN}` (env-ref, expanded
 from `$HERMES_HOME/.env`).
 
-- CLI: bun-global under hermes HOME (`./deploy gbrain-setup`).
-- Embeddings: `gbrain.embeddingModel` = `openrouter:voyageai/voyage-4` @ 1024
-  (`GBRAIN_EMBEDDING_*` on the unit). OpenRouter key via `/run/hermes.env`.
-  Re-pointing vectors is `gbrain migrate embeddings` with serve stopped,
-  then the Nix pin — never the pin first.
+- CLI: bun-global under hermes HOME, install spec `github:garrytan/gbrain#latest-stable` (`./deploy gbrain-setup`). Host Bun is nixpkgs: the upstream bun binary cannot exec on NixOS (stub-ld). The locked nixpkgs bun is 1.3.13, below the 0.60 floor, so `flake.nix` overlays `pkgs.bun` from `nixpkgs-bun`.
+- `gbrain-maintenance.timer` (04:15 local) is the auto-upgrade and the sole-writer maintenance. It stops the serve, runs `gbrain upgrade --no-autopilot-install`, then sync, extract, and the atom drain, then starts the serve. Do not set `self_upgrade.mode=auto` and do not `gbrain autopilot --install`: on PGLite that daemon holds the lock all day and the serve cannot start.
+- Embeddings: `gbrain.embeddingModel` = `openrouter:voyageai/voyage-4` @ 1024 (`GBRAIN_EMBEDDING_*` on the unit). OpenRouter key via `/run/hermes.env`. The shipped price table keys `voyage:voyage-4`, not the OpenRouter slug, so `pricing.overrides` has `openrouter:voyageai/voyage-4` at $0.06/1M (`gbrain pricing set`). 0.60 loads that map in the atom drain. Upstream alias: https://github.com/garrytan/gbrain/pull/7262. Re-pointing vectors is `gbrain migrate embeddings` with serve stopped, then the Nix pin — never the pin first.
 - **Never** shell `gbrain` from the agent jail while the serve is up (PGLite single-writer; the jail does not share the serve PID namespace). The host window is `gbrain-maintenance.service`.
-- Atom drain: `gbrain-base-v2` does not run `extract_atoms`. `dream --drain` does. On CLI 0.48.2.0 that drain hard-fails: the chat model is priced, so the phase sets a cost cap, then the unpriced embed model `openrouter:voyageai/voyage-4` throws `no_pricing` and the page is never stamped (`stopped: no_progress`). Fix on this host: `pricing.overrides` = `{"openrouter:voyageai/voyage-4":0.06}` and `runPhaseExtractAtoms` loads that map into its `BudgetTracker` (`extract-atoms.ts` in the bun-global CLI). A later `gbrain` upgrade drops the source edit; re-apply it if the drain returns `no_progress` with `reserve_no_pricing` in `~/.gbrain/audit/budget-*.jsonl`.
 - Hygiene: MCP tools or Hermes cron **via MCP only**.
 - Protocol SoT: GBrain page `ops/gbrain-protocol`. Operator doc: hermes-pnp `docs/gbrain.md`.
 
