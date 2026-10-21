@@ -50,7 +50,7 @@ let
     text = ''
       systemctl=${config.systemd.package}/bin/systemctl
       gbrain=${gbrainBin}
-      serve=gbrain-mcp-http.service
+      serve="gbrain-mcp-http.service"
       source_id=default
       run_as=${agent.user}
       home=${userHome}
@@ -67,6 +67,8 @@ let
       was_up=no
       if "$systemctl" is-active --quiet "$serve"; then was_up=yes; fi
 
+      # Invoked by the EXIT trap below. Shellcheck does not see that call.
+      # shellcheck disable=SC2329
       restore_serve() {
         if [ "$was_up" = yes ]; then
           "$systemctl" start "$serve" ||
