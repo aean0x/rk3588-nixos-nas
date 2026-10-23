@@ -50,7 +50,7 @@ in
   networking.firewall.allowedTCPPorts = [ port ];
 
   # LAN-only HTTPS (not in caddy.externalHosts). IPTV clients can also use
-  # plain http://192.168.1.200:8409 which is often more reliable on smart TVs.
+  # plain HTTP on settings.network.address port 8409. That is often more reliable on smart TVs.
   services.caddy.proxyServices = {
     "${host}" = port;
   };
