@@ -169,6 +169,28 @@ in
       # information.
       kanban.auto_subscribe_on_create = false;
 
+      # Triage is also where the block-loop circuit breaker parks a card that
+      # needs a human (kanban_db._route_block returns status 'triage', event
+      # 'block_loop_detected', at BLOCK_RECURRENCE_LIMIT), but the auto-decompose
+      # watcher cannot tell that card from one awaiting specification:
+      # kanban_watchers_dispatcher.auto_decompose_tick takes
+      # kanban_decompose.list_triage_ids() with no filter, and
+      # kanban_specify._load_triage_task admits a task on `status == 'triage'`
+      # alone — nothing reads block_kind, block_recurrences or the newest event.
+      # It then promotes triage -> todo (specify_triage_task), so the card is
+      # back in the dispatch pool within one tick and needing a human becomes
+      # the condition that relaunches it: t_351db4db ran 243/244/245 (~45 min)
+      # re-proving the same missing idealo account, and the recurrence counter
+      # never decays (2 -> 3 -> 4), so every later block of that kind routes
+      # straight back to triage. The only escape a worker finds is to re-kind the
+      # block, which destroys the escalation signal.
+      # No card on this board is ever created into triage deliberately (193
+      # created events: ready/todo/blocked only), so auto-decompose has no other
+      # job here. Trade-off: a triage card now waits for a human/dashboard
+      # Specify instead of being auto-fleshed. Re-enable once upstream skips a
+      # triage card whose newest block event is block_loop_detected.
+      kanban.auto_decompose = false;
+
       cron.wrap_response = false;
 
       # Telegram DM topics (the bot has Threaded Mode on). Cron targets these by
