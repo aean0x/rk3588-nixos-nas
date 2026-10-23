@@ -8,7 +8,7 @@ LAN “live TV” from files on the NAS. Google TV / Bravia opens an M3U playlis
 |-------|------|------------------|
 | **Local media** | Music videos / movies on the data pool | `/media/Videos` (SMB/NFS: `Media`) |
 | **ErsatzTV** | Scans libraries, builds channels, streams + EPG | `:8409`, config `/var/lib/ersatztv` |
-| **Caddy** | LAN HTTPS UI | `https://tv.aean.io` |
+| **Caddy** | LAN HTTPS UI | `https://tv.<domain>` (`settings.domain`) |
 
 Module: `ersatztv.nix` (imported from `containers.nix`).  
 TorBox Media Center was removed (FUSE index idled ~1.5 GiB); drop files onto `/media` from a PC instead.
@@ -54,9 +54,9 @@ ssh rocknas 'sudo bash /tmp/ersatztv-seed-music.sh'
 
 ## Clients
 
-- M3U: `http://192.168.1.200:8409/iptv/channels.m3u`
-- XMLTV: `http://192.168.1.200:8409/iptv/xmltv.xml`
-- UI: `http://192.168.1.200:8409` or `https://tv.aean.io`
+- M3U: `http://<lan-address>:8409/iptv/channels.m3u`
+- XMLTV: `http://<lan-address>:8409/iptv/xmltv.xml`
+- UI: `http://<lan-address>:8409` or `https://tv.<domain>`
 
 ## File drop (whole drive)
 
@@ -73,4 +73,4 @@ See `services/filesharing.nix`.
 |---------|--------|
 | Empty library | Files under `/media/Videos/...`; rescan Music Videos library in ETV |
 | Buffers every ~10s | Transcode too slow — stay on 480p lean profile; avoid concurrent heavy jobs |
-| TV cannot open M3U | Same LAN; use `http://192.168.1.200:8409/...` |
+| TV cannot open M3U | Same LAN. Use `http://<lan-address>:8409/...` (`settings.network.address`) |
