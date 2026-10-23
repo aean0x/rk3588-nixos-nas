@@ -2,8 +2,9 @@
 #
 # Remote Streamable HTTP on idealo's own domain. OAuth 2.0 authorization-code
 # with Dynamic Client Registration + PKCE as a public client, so there is no
-# secret to declare here: after deploy run `hermes mcp login idealo` once
-# (skill mcp-oauth-setup) and the tokens land in $HERMES_HOME/mcp-tokens/.
+# secret to declare here: after deploy run `hermes mcp login idealo` once and the
+# tokens land in $HERMES_HOME/mcp-tokens/ (skill `shopping-board` →
+# `references/idealo-mcp.md` carries the flow and the OAuth facts).
 # `oauth.redirect_port` is deliberately absent — the module type has no such
 # option, so set it in config.yaml if the login needs a pinned port.
 #
@@ -18,12 +19,15 @@
 # `enabled = true`, `mcpServersToConfig` always emits it), so the next
 # `./deploy remote-switch` re-asserts true.
 #
-# The login is also blocked independently: Hermes enforces RFC 8414 §3.3 on
-# idealo's authorization-server metadata and aborts with an issuer mismatch
-# (probed 2026-09-22, skill mcp-oauth-setup). Re-enable only after a TTY login
-# succeeds: set `enabled = true` here, `./deploy remote-switch`, then
-# `hermes mcp login idealo`. Keep `mcp_servers.idealo.oauth.redirect_port: 6274`
-# in config.yaml — the module type has no option for it.
+# The remaining wall is idealo's own account: the authorize URL lands on their
+# Cognito hosted sign-in (email + password, no SSO), so the login needs an idealo
+# account. Nothing else blocks it — the client completes Dynamic Client
+# Registration, binds the 127.0.0.1:6274 callback, and the jail's own browser
+# reaches that callback, so a saved login makes the flow unattended. Order still
+# matters: log in FIRST, then set `enabled = true` here and `./deploy
+# remote-switch`; enabling with no cached token is what produces the probe storm
+# above. Keep `mcp_servers.idealo.oauth.redirect_port: 6274` in config.yaml — the
+# module type has no option for it.
 #
 # Tools (read-only): search_products, get_product_details, get_product_offers,
 # get_product_price_history. Trial tier: 3 req/s, 6 burst, 500 calls/day.
