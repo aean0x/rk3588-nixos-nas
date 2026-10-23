@@ -16,7 +16,13 @@ let
   agent = config.services.hermes-agent;
   envFile = "${agent.stateDir}/.hermes/.env";
   renew = pkgs.writers.writePython3 "archimedes-gbrain-token-renew" { } ''
-    import json, os, re, subprocess, urllib.error, urllib.parse, urllib.request
+    import json
+    import os
+    import re
+    import subprocess
+    import urllib.error
+    import urllib.parse
+    import urllib.request
     from pathlib import Path
 
     cred_dir = Path(os.environ["CREDENTIALS_DIRECTORY"])
@@ -29,7 +35,11 @@ let
             "client_secret": client_secret,
         }
     ).encode()
-    req = urllib.request.Request(os.environ["TOKEN_URL"], data=body, method="POST")
+    req = urllib.request.Request(
+        os.environ["TOKEN_URL"],
+        data=body,
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             status = resp.status
@@ -50,7 +60,9 @@ let
         print("unchanged", "expires_in", expires)
         raise SystemExit(0)
     if match:
-        text2 = text[: match.start()] + "GBRAIN_TOKEN=" + token + text[match.end() :]
+        prefix = text[:match.start()]
+        suffix = text[match.end():]
+        text2 = prefix + "GBRAIN_TOKEN=" + token + suffix
     else:
         if text and not text.endswith("\n"):
             text += "\n"
@@ -62,7 +74,10 @@ let
     os.chown(tmp, st.st_uid, st.st_gid)
     os.replace(tmp, envp)
     print("updated", "expires_in", expires)
-    subprocess.run(["systemctl", "restart", "hermes-agent.service"], check=True)
+    subprocess.run(
+        ["systemctl", "restart", "hermes-agent.service"],
+        check=True,
+    )
   '';
 in
 {
