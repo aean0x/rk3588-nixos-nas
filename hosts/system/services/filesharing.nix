@@ -12,7 +12,11 @@
   ...
 }:
 let
-  lan = "192.168.1.0/24";
+  lan =
+    let
+      parts = lib.splitString "." settings.network.address;
+    in
+    "${builtins.elemAt parts 0}.${builtins.elemAt parts 1}.${builtins.elemAt parts 2}.0/${toString settings.network.prefixLength}";
   # Data pool root (Videos, Files, …).
   shareRoot = "/media";
   # Align with nixarr media group (util-nixarr.globals.gids.media = 169).

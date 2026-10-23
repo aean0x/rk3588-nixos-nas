@@ -18,7 +18,10 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SECRETS_DIR="${REPO_ROOT}/secrets"
 SETTINGS="${REPO_ROOT}/settings.nix"
 DOMAIN="$(sed -n 's/^[[:space:]]*domain = "\([^"]*\)";.*/\1/p' "$SETTINGS" | head -1)"
-DOMAIN="${DOMAIN:-aean.io}"
+if [[ -z "${DOMAIN}" ]]; then
+  echo "settings.nix has no domain" >&2
+  exit 1
+fi
 HOST_NAME="$(sed -n 's/^[[:space:]]*hostName = "\([^"]*\)";.*/\1/p' "$SETTINGS" | head -1)"
 HOST_NAME="${HOST_NAME:-rocknas}"
 TUNNEL_NAME="${TUNNEL_NAME:-rocknas}"

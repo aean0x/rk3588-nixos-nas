@@ -27,11 +27,11 @@
   # SSH public keys for authentication (one per line)
   # Get your key with: cat ~/.ssh/id_ed25519.pub
   sshPubKeys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICB8EtGX5PD1QPF/jrdd5G+fQy4tV2L3fhCY1dhZc4ep aean@nix-pc"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICB8EtGX5PD1QPF/jrdd5G+fQy4tV2L3fhCY1dhZc4ep workstation"
     # "ssh-ed25519 AAAA... user@laptop"
   ];
 
-  # Public domain (subdomains like ha.aean.io are created per-service)
+  # Public domain. Service modules create the subdomains.
   domain = "aean.io";
 
   # Cloudflare Tunnel ID (non-secret). Empty = public tunnel off (LAN Caddy only).

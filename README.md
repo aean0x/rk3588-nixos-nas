@@ -246,12 +246,12 @@ Paper with Geyser-Spigot and Floodgate-Spigot, native via `services/minecraft.ni
 one JVM, no container, no sleep proxy. Java and Bedrock share the same simulated world.
 Each start pulls latest *stable* Paper (skips rc/pre) and latest Geyser/Floodgate.
 
-- Java (Prism): `minecraft.aean.io:25565` TCP. Bedrock (phones): `minecraft.aean.io:19132` UDP.
-  Not Caddy, not the Cloudflare tunnel. LAN DNS is the AdGuard `*.aean.io` rewrite; Tailscale
-  uses the grey-cloud wildcard A.
+- Java: `minecraft.<domain>:25565` TCP. Bedrock: `minecraft.<domain>:19132` UDP.
+  Not Caddy, not the Cloudflare tunnel. LAN DNS is the AdGuard `*.<domain>` rewrite. Tailscale
+  uses the grey-cloud wildcard A. The domain is `settings.domain`.
 - `online-mode=true`. Floodgate Bedrock names get a `.` prefix. After the first phone join,
   `echo whitelist add .Player > /run/minecraft.stdin` (use the name from the log, and whitelist
-  the Floodgate UUID — not a guessed Java UUID). Seed ops/whitelist is the Java account `0xAean`.
+  the Floodgate UUID — not a guessed Java UUID). The seeded Java account lives in `services/minecraft.nix`.
 - Kid-mode datapacks in `world/datapacks/`: `kidmode-gamerules` (unlock panel, `load.mcfunction`)
   and `kidmode` (saturation loop — delete when food should matter). Edit the module, not the
   live files; they are copied from the store on each start.
@@ -281,8 +281,8 @@ Cleanup after disable: `scripts/oneshot/cleanup-comet.sh` on the NAS.
 
 Zero-storage virtual library from TorBox (FUSE) + ErsatzTV channel scheduler. Management brief: **`hosts/system/containers/IPTV.md`**.
 
-- UI: `http://192.168.1.200:8409` or `https://tv.aean.io`
-- Playlist: `http://192.168.1.200:8409/iptv/channels.m3u`
+- UI: `http://<lan-address>:8409` or `https://tv.<domain>`
+- Playlist: `http://<lan-address>:8409/iptv/channels.m3u`
 - Secret: existing SOPS `torbox_api_key` (shared with Comet)
 
 ## Notable Features

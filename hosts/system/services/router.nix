@@ -27,7 +27,7 @@ let
   lanInterfaces = [ ]; # Extra ethernet ports to add to LAN bridge
 
   # -- WiFi AP --
-  ssid = "SKYNET";
+  ssid = settings.wifiSsid;
   channel = 6; # 2.4GHz
   countryCode = "US";
 

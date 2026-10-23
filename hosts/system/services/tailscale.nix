@@ -1,13 +1,14 @@
 # Tailscale VPN (native NixOS)
 #
-# Public DNS for *.aean.io is the Cloudflare tunnel CNAME, so a phone on the
+# Public DNS for *.${settings.domain} is the Cloudflare tunnel CNAME, so a phone on the
 # tailnet using public resolvers never reaches Caddy. Publish a wildcard
-# grey-cloud A record `*.aean.io` at the node's Tailscale IPv4 instead —
+# grey-cloud A record at the node's Tailscale IPv4 instead —
 # unroutable off-net, Caddy already allows 100.64.0.0/10. Exact records
 # (tunnel CNAMEs like archimedes./homeassistant.) keep DNS priority, so the
 # wildcard only catches undeclared hosts → tailnet-only reachability.
 {
   config,
+  lib,
   pkgs,
   settings,
   ...
@@ -15,6 +16,11 @@
 let
   wildcardHost = "*.${settings.domain}";
   browserHost = "browser.${settings.domain}";
+  lanRoute =
+    let
+      parts = lib.splitString "." settings.network.address;
+    in
+    "${builtins.elemAt parts 0}.${builtins.elemAt parts 1}.${builtins.elemAt parts 2}.0/${toString settings.network.prefixLength}";
 in
 {
   services.tailscale = {
@@ -25,7 +31,7 @@ in
       "--ssh"
       "--accept-routes"
       "--accept-dns"
-      "--advertise-routes=192.168.1.0/24"
+      "--advertise-routes=${lanRoute}"
     ];
   };
 
@@ -85,7 +91,7 @@ in
           | jq -e '.success == true' >/dev/null
       done
 
-      # Wildcard: replace any non-A record (e.g. tunnel CNAME) at *.aean.io.
+      # Wildcard: replace any non-A record (e.g. tunnel CNAME) at *.${settings.domain}.
       WC_OTHER=$(echo "$RECORDS" | jq -r --arg n "${wildcardHost}" \
         '.result[] | select(.name==$n and .type!="A") | .id')
       for id in $WC_OTHER; do

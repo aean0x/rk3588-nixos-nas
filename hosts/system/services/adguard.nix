@@ -133,7 +133,7 @@ in
         persistent = [
           # {
           #   name = "toddler-pc";
-          #   ids = [ "192.168.1.50" ]; # required
+          #   ids = [ "192.0.2.50" ]; # required. Example only. Not a live LAN address.
           #   tags = [ "kids" ];
           #   use_global_settings = false;
           #   filtering_enabled = true;

@@ -9,6 +9,11 @@
 let
   cfg = config.services.caddy;
   domain = settings.domain;
+  homeLan =
+    let
+      parts = lib.splitString "." settings.network.address;
+    in
+    "${builtins.elemAt parts 0}.${builtins.elemAt parts 1}.${builtins.elemAt parts 2}.0/${toString settings.network.prefixLength}";
 
   caddyWithCloudflare = pkgs.caddy.withPlugins {
     plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
@@ -28,7 +33,7 @@ let
       '';
       guard = lib.optionalString (!isExt) ''
         @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} not remote_ip ${
-          if (settings.enableRouter or false) then "192.168.2.0/24" else "192.168.1.0/24"
+          if (settings.enableRouter or false) then "192.168.2.0/24" else homeLan
         } 127.0.0.1 100.64.0.0/10
         respond @denied_${builtins.replaceStrings [ "." ] [ "_" ] host} 403
       '';
