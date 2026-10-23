@@ -32,6 +32,7 @@ in
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [
     80
     443
+    8443
   ];
 
   systemd.services.tailscale-wildcard-dns = {
@@ -120,5 +121,30 @@ in
       OnBootSec = "2min";
       OnUnitActiveSec = "15min";
     };
+  };
+
+  # Publish the GBrain OAuth issuer on the tailnet. settings.gbrainPublicUrl
+  # is the issuer the serve advertises; these five paths are what it serves.
+  systemd.services.gbrain-tailscale-serve = {
+    description = "Publish the GBrain issuer on Tailscale HTTPS port 8443";
+    after = [ "tailscaled.service" ];
+    wants = [ "tailscaled.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig.Type = "oneshot";
+    path = [ pkgs.tailscale ];
+    script = ''
+      set -euo pipefail
+      for _ in $(seq 1 30); do
+        if tailscale status >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      tailscale serve --bg --yes --https=8443 --set-path=/.well-known http://127.0.0.1:3131/.well-known
+      tailscale serve --bg --yes --https=8443 --set-path=/authorize http://127.0.0.1:3131/authorize
+      tailscale serve --bg --yes --https=8443 --set-path=/mcp http://127.0.0.1:3131/mcp
+      tailscale serve --bg --yes --https=8443 --set-path=/register http://127.0.0.1:3131/register
+      tailscale serve --bg --yes --https=8443 --set-path=/token http://127.0.0.1:3131/token
+    '';
   };
 }

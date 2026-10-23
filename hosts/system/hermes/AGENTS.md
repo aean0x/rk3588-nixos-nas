@@ -102,7 +102,8 @@ Telegram / chat / webui → hermes-agent ── MCP HTTP ──► gbrain-mcp-ht
 | file | `obi_api_key` / `obi_private_key` / `obi_base_url` | `obi-mcp-http` LoadCredential (not in hermes env) |
 | `OPENROUTER_API_KEY` | `openrouter_api_key` | GBrain embeddings (`openrouter:voyageai/voyage-4`) + aux fallback |
 | `ZEROENTROPY_API_KEY` | `zeroentropy_api_key` | leftover; brain migrated off zembed-1 2026-09-16. Drop after a verified query. |
-| `GBRAIN_TOKEN` | not sops | GBrain HTTP MCP bearer — minted by `gbrain auth create hermes`, written to `$HERMES_HOME/.env` + `~/.gbrain/hermes-mcp.token` by `./deploy gbrain-setup`. Do not add to `hermesEnv`. |
+| `GBRAIN_TOKEN` | not sops | Live bearer in `$HERMES_HOME/.env`. `archimedes-gbrain-token.timer` mints it every 12h from the Archimedes client below and restarts `hermes-agent` only when it changes. Do not add the bearer to `hermesEnv`. |
+| file | `archimedes_gbrain_client_id` / `archimedes_gbrain_client_secret` | OAuth client for that mint. `LoadCredential` on the timer. Not in `/run/hermes.env`. |
 | `HERMES_DASHBOARD_SESSION_TOKEN` | `hermes_dashboard_session_token` | Unused while the agent jail is on (Desktop / `hermes serve` is native-only). Still landed in `/run/hermes.env`. |
 | `API_SERVER_KEY` | `hermes_api_server_key` | Loopback `api_server` on `:8642`. WebUI health probe (`HERMES_WEBUI_GATEWAY_BASE_URL`); Tailscale/LAN edge `https://hermes-api.<domain>/` (Bearer). Without the key the dashboard falls back to stale `gateway_state.json`. |
 | `FIRECRAWL_API_KEY` | `firecrawl_api_key` | web_extract |

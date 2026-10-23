@@ -39,6 +39,10 @@
   # Hostnames: services.cloudflareTunnel.proxyServices in each module (like caddy.proxyServices).
   cloudflareTunnelId = "f5ef5a5a-7c69-47c2-94f5-4ca71d3e63fc";
 
+  # MagicDNS issuer for `gbrain serve --public-url`.
+  # The Tailscale serve listeners in services/tailscale.nix must use this port.
+  gbrainPublicUrl = "https://rocknas.tail43e0ee.ts.net:8443";
+
   # Repository (format: "owner/repo")
   repoUrl = "aean0x/rock-5-nas";
 

@@ -28,6 +28,7 @@ in
     ./modules/idealo.nix
     ./modules/webui-extensions.nix
     ./modules/gbrain-maintenance.nix
+    ./modules/gbrain-token-renew.nix
   ];
 
   services.hermesPnP = {
@@ -94,6 +95,7 @@ in
     # land against a still-2560 column. File plane is ~/.gbrain/config.json.
     gbrain.embeddingModel = "openrouter:voyageai/voyage-4";
     gbrain.embeddingDimensions = 1024;
+    gbrain.publicUrl = settings.gbrainPublicUrl;
   };
 
   services.hermes-agent = {

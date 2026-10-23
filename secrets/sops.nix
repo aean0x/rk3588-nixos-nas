@@ -124,6 +124,10 @@ in
         obi_private_key = { };
         obi_base_url = { };
         banksync_api_key = { };
+        # Archimedes GBrain OAuth client. The renewal timer mints
+        # GBRAIN_TOKEN from these. Not in hermesEnv.
+        archimedes_gbrain_client_id = { };
+        archimedes_gbrain_client_secret = { };
       }
       (lib.mkIf (settings.enableRouter or false) {
         wifi_ap_password = { };
