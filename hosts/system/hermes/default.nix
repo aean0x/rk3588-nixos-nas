@@ -211,6 +211,31 @@ in
         }
       ];
 
+      # Home Assistant gateway platform. HASS_TOKEN (sops hermesEnv) is what turns
+      # the adapter on, and its event filter is closed by default: with no
+      # watch_domains / watch_entities / watch_all it connects on every gateway
+      # start and drops 100% of state_changed events (gateway.log carries one
+      # "No watch_domains" warning per connect, 235 of them; see
+      # docs/user-guide/messaging/homeassistant).
+      # Measured state changes 2026-10-18..25 (/api/history) decided the surface:
+      # person.* 3.8/day and binary_sensor.solar_battery_grid 0.3/day are the only
+      # event-shaped, action-carrying signals in this install. Rejected on volume
+      # or emptiness: sensor.energy_meter_power 27834/day,
+      # sensor.solar_battery_battery_power 957/day, media_player 526/day (mostly
+      # living_room_tv flapping while unavailable), cover 9.9/day (two hand-moved
+      # shutters, nothing consumes the position), todo.shopping_list 0 (empty; the
+      # household shops on Trello). No climate, alarm_control_panel or lock entity
+      # exists here at all, so the docs' starter set is empty for this house.
+      # Each delivered event costs a full agent turn plus a Home Assistant
+      # persistent notification, so the surface stays at event-shaped state and
+      # telemetry is read on demand through the ha_* tools. cooldown_seconds 300
+      # collapses a device-tracker flap (default 30).
+      platforms.homeassistant.extra = {
+        watch_domains = [ "person" ];
+        watch_entities = [ "binary_sensor.solar_battery_grid" ];
+        cooldown_seconds = 300;
+      };
+
       # Permanent. <= 0 disables the threaded hook path, so hooks run on the
       # caller thread; refusal-advice requires that (its transform_tool_result
       # does pure string work on one result, and hook work that can block
