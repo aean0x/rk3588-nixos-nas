@@ -1,5 +1,5 @@
-# Host RAM/CPU caps, admin socket, sudo hermes CLI, hermes group, and the
-# quiet-hour RSS reclaim for the agent gateway.
+# Host RAM/CPU caps, admin socket, sudo hermes CLI, hermes group, the
+# quiet-hour RSS reclaim for the agent gateway and its stop budget.
 # WebUI/browser jails use typed container.memory / cpus / shmSize.
 # Official agent RAM still uses extraOptions — do not mkForce that list for RAM.
 {
@@ -121,6 +121,33 @@ in
     "--cpus=1"
     "--oom-score-adj=500"
   ];
+
+  # The gateway's own stop path may wait `agent.cron_drain_timeout` (upstream
+  # default 30 s) on an in-flight cron run, then spend a few more seconds killing
+  # its tool subprocesses and closing adapters. The jail's stop budget was not
+  # that: the unit stopped the container with `docker stop -t 10` and let systemd
+  # SIGKILL the CLI at `TimeoutStopSec = 30` (hermes-agent
+  # nix/nixosModules.nix:701,708), which never picked up
+  # resolve_systemd_timeout_stop_sec -- that sizes the unit at cron_drain_timeout
+  # + CRON_DRAIN_CLEANUP_RESERVE_S (10) + SYSTEMD_STOP_HEADROOM_S (30) = 70 s
+  # (gateway/restart.py:341). So a stop with a cron job in flight was SIGKILLed
+  # ~20 s before its own drain budget expired.
+  #
+  # Measured (2026-10-23 10:33:09Z and 2026-10-25 11:34:48Z, both the 12:30
+  # trello-reconcile run, 2 m 20 s and 3 m 45 s in): the SIGKILL leaves the next
+  # boot to treat the death as unclean and run `PRAGMA quick_check(1)` over the
+  # 3.5 GiB .hermes/state.db (gateway/lifecycle_ledger.py:245) -- 290 s and 295 s,
+  # i.e. the whole 5.5-minute outage. A clean stop skips the check and is back in
+  # ~20 s.
+  #
+  # 60 s covers drain (30) + cleanup (10) + the post-drain teardown; 70 s is
+  # upstream's formula plus 10 s so systemd outlives docker's own SIGKILL. A stop
+  # with no cron work is unaffected: docker returns as soon as pid 1 exits,
+  # measured 0.4-3.4 s.
+  systemd.services.hermes-agent.preStop = lib.mkForce ''
+    ${pkgs.docker}/bin/docker stop -t 60 hermes-agent || true
+  '';
+  systemd.services.hermes-agent.serviceConfig.TimeoutStopSec = lib.mkForce 70;
 
   # Reclaim the gateway RSS creep the cap above cannot: nothing inside the jail
   # gives it back — malloc_trim in the 60 s housekeeping pass frees 5-9 MiB per
