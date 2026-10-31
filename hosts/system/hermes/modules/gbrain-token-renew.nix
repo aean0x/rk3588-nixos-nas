@@ -7,6 +7,10 @@
 # restarts the agent only when the value changes. The client id and
 # secret never go into /run/hermes.env.
 #
+# The restart is not free: it kills pid 1 and every kanban worker the
+# dispatcher is running under it. So it waits, bounded, for the jail to
+# have no run in flight (see restart_agent).
+#
 # Every switch rewrites that env file from /run/hermes.env, which has
 # no GBRAIN_TOKEN. hermes-pnp then copies ~/.gbrain/hermes-mcp.token
 # back when the line is missing. That file is the legacy bearer and
@@ -24,18 +28,70 @@ let
   envFile = "${agent.stateDir}/.hermes/.env";
   tokenUrl = "http://127.0.0.1:${toString config.services.hermesPnP.gbrain.port}/token";
   changedStamp = "/run/archimedes-gbrain-token.changed";
+  # The dispatcher's run ledger: a row with no ended_at is a worker a restart
+  # would kill. Same tree the jail sees at /data/.hermes/kanban.db.
+  kanbanDb = "${agent.stateDir}/.hermes/kanban.db";
   renew = pkgs.writers.writePython3 "archimedes-gbrain-token-renew" { } ''
     import json
     import os
     import re
+    import sqlite3
     import subprocess
+    import time
     import urllib.error
     import urllib.parse
     import urllib.request
     from pathlib import Path
 
 
+    # Bounded wait for a quiet jail before the restart. The bearer being
+    # replaced was minted at most one cadence (12 h) ago, and this unit's whole
+    # premise is that it stays valid until the next mint, so minutes of delay
+    # cost nothing; an unbounded wait could leave the env file and the running
+    # process disagreeing for good. TimeoutStartSec below covers max + mint.
+    QUIET_MAX_WAIT_S = int(os.environ.get("QUIET_MAX_WAIT_S") or "300")
+    QUIET_POLL_S = int(os.environ.get("QUIET_POLL_S") or "15")
+
+
+    def runs_in_flight(db):
+        """Kanban runs the dispatcher has not ended; 0 when the check cannot answer.
+
+        A restart kills pid 1, so every worker under it dies mid tool call --
+        measured once: task_runs 261 (t_56eb54f7) crashed 2 s after the
+        2026-10-30T11:36:58Z restart and only finished on the dispatcher's
+        retry. Fail open on any read error: this gate must never turn a token
+        renew into a no-op.
+        """
+        if not db.is_file():
+            return 0
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        except sqlite3.Error:
+            return 0
+        try:
+            row = con.execute(
+                "select count(*) from task_runs where ended_at is null and status = 'running'"
+            ).fetchone()
+        except sqlite3.Error:
+            return 0
+        finally:
+            con.close()
+        return int(row[0] or 0)
+
+
     def restart_agent():
+        db = Path(os.environ.get("KANBAN_DB") or "")
+        waited = 0
+        while True:
+            busy = runs_in_flight(db)
+            if busy == 0:
+                break
+            if waited >= QUIET_MAX_WAIT_S:
+                print("restart anyway", busy, "run(s) in flight after", waited, "s")
+                break
+            print("defer restart", busy, "run(s) in flight")
+            time.sleep(QUIET_POLL_S)
+            waited += QUIET_POLL_S
         subprocess.run(
             ["systemctl", "restart", "hermes-agent.service"],
             check=True,
@@ -125,6 +181,7 @@ in
           TOKEN_URL=${lib.escapeShellArg tokenUrl} \
           SKIP_AGENT_RESTART=1 \
           CHANGED_STAMP=${lib.escapeShellArg changedStamp} \
+          KANBAN_DB=${lib.escapeShellArg kanbanDb} \
           ${renew}; then
         echo "archimedes-gbrain-token: mint failed; the timer will retry" >&2
       fi
@@ -137,7 +194,10 @@ in
       wants = [ "gbrain-mcp-http.service" ];
       serviceConfig = {
         Type = "oneshot";
-        TimeoutStartSec = 120;
+        # The mint's own 30 s request timeout plus the bounded quiet-wait
+        # (QUIET_MAX_WAIT_S = 300). A shorter start budget would make systemd
+        # kill the unit mid-wait and leave the timer's next fire to retry.
+        TimeoutStartSec = 420;
         LoadCredential = [
           "client_id:${config.sops.secrets.archimedes_gbrain_client_id.path}"
           "client_secret:${config.sops.secrets.archimedes_gbrain_client_secret.path}"
@@ -147,6 +207,7 @@ in
         HERMES_ENV_FILE = envFile;
         TOKEN_URL = tokenUrl;
         CHANGED_STAMP = changedStamp;
+        KANBAN_DB = kanbanDb;
       };
       path = [ pkgs.systemd ];
       script = ''
