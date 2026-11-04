@@ -15,15 +15,26 @@
 # a second writer (WAL repair 2026-10-01T03:03Z). On the host the same probe is
 # correct, which is exactly why this unit belongs here and not in a cron job.
 #
-# This unit is that window: daily, stop gbrain-mcp-http, run the three commands
-# the doctor asks for as the serve's own user (same HOME, same /run/hermes.env,
-# same embedding pins), then bring it back. The restart is in an EXIT trap, and
-# the unit refuses to touch the data dir if the serve did not actually stop, so
-# a failure can neither strand the brain MCP offline nor open a second writer.
+# This unit is that window: daily, stop gbrain-mcp-http, auto-upgrade the CLI,
+# release a pre-activation writer claim, sync every registered source and run
+# the extraction phases the doctor asks for as the serve's own user (same HOME,
+# same /run/hermes.env, same embedding pins), then bring it back. The restart is
+# in an EXIT trap, and the unit refuses to touch the data dir if the serve did
+# not actually stop, so a failure can neither strand the brain MCP offline nor
+# open a second writer.
 #
-#   sync_freshness        -> gbrain sync --source default
+#   sync_freshness        -> gbrain sync --source <every source> --no-pull
 #   links_extraction_lag  -> gbrain extract --stale
 #   extract_atoms_backlog -> gbrain dream --phase extract_atoms --drain
+#   last_full_cycle_at    -> gbrain dream --source <every source>
+#
+# The freshness gates are per source, so the registry (`sources list --json`)
+# decides what the window touches: a source left out keeps its stamp and fails
+# `sync_freshness` at 72 h. A registry read that returns nothing aborts the
+# window instead of reporting a blind run green. `dream --source <id>` is also
+# per source: a named non-default source only gets the deterministic freshness
+# phases that way, while default runs the full cycle that stamps
+# `last_full_cycle_at`.
 #
 # `dream --phase extract_atoms --drain` exits 3 when the window closed before
 # the backlog emptied: that is "run again", not a failure - the next window
@@ -46,6 +57,8 @@ let
     runtimeInputs = [
       pkgs.coreutils
       pkgs.util-linux
+      # The writer-status and sources-list gates parse the CLI's --json output.
+      pkgs.python3
     ];
     text = ''
       systemctl=${config.systemd.package}/bin/systemctl
@@ -94,6 +107,7 @@ let
       # latest-stable only. Autopilot is a second PGLite writer, so this
       # window is the auto-upgrade. Exit 78 means the Nix Bun is too old;
       # the installed CLI still runs the rest of the window.
+      rc=0
       echo "gbrain-maintenance: upgrade --no-autopilot-install"
       upgrade_rc=0
       run_gbrain upgrade --no-autopilot-install || upgrade_rc=$?
@@ -104,8 +118,77 @@ let
         rc=1
       fi
 
-      echo "gbrain-maintenance: sync --source $source_id"
-      run_gbrain sync --source "$source_id" || rc=1
+      # Claimed, but persistence was never activated: classic sync refuses
+      # with writer_coordinator_required. Release that claim. A managed
+      # brain (enabled, or mode managed) is left alone.
+      echo "gbrain-maintenance: writer status"
+      writer_json=$(run_gbrain sources writer status --json || true)
+      release=$(printf '%s\n' "$writer_json" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+start = raw.find("{")
+if start < 0:
+    raise SystemExit(0)
+data = json.loads(raw[start:])
+if data.get("enabled") is True or data.get("mode") == "managed":
+    raise SystemExit(0)
+sources = ((data.get("onboarding") or {}).get("sources") or [])
+if any(item.get("state") == "activation_required" for item in sources):
+    print("release")
+' || true)
+      apply=
+      if [ "$release" = "release" ]; then
+        echo "gbrain-maintenance: release pre-activation claim"
+        preview=$(run_gbrain sources writer deactivate --dry-run --json || true)
+        if ! apply=$(printf '%s\n' "$preview" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+start = raw.find("{")
+if start < 0:
+    raise SystemExit(1)
+data = json.loads(raw[start:])
+if data.get("blockers"):
+    raise SystemExit(1)
+cmd = data.get("apply_command") or ""
+prefix = "gbrain "
+if not cmd.startswith(prefix):
+    raise SystemExit(1)
+print(cmd[len(prefix):])
+'); then
+          echo "gbrain-maintenance: pre-activation release is blocked" >&2
+          rc=1
+          apply=
+        fi
+      fi
+      if [ -n "$apply" ]; then
+        read -r -a apply_args <<< "$apply"
+        run_gbrain "''${apply_args[@]}" || rc=1
+      fi
+
+      # Doctor's freshness gates are per source: a source this window never
+      # touches keeps its stamp and fails `sync_freshness` at 72 h. The
+      # registry is `sources list --json`; a blind window is not a green one.
+      echo "gbrain-maintenance: sources list"
+      sources=$(run_gbrain sources list --json | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+start = raw.find("{")
+if start < 0:
+    raise SystemExit(1)
+for src in json.loads(raw[start:]).get("sources") or []:
+    sid = src.get("id")
+    if sid:
+        print(sid)
+') || sources=
+      if [ -z "$sources" ]; then
+        echo "gbrain-maintenance: sources list returned nothing - refusing a blind window" >&2
+        exit 1
+      fi
+
+      for src in $sources; do
+        echo "gbrain-maintenance: sync --source $src --no-pull"
+        run_gbrain sync --source "$src" --no-pull || rc=1
+      done
 
       echo "gbrain-maintenance: extract --stale"
       run_gbrain extract --stale || rc=1
@@ -119,8 +202,15 @@ let
         echo "gbrain-maintenance: extract_atoms drain failed rc=$drain_rc" >&2
         rc=1
       fi
+      # A named non-default source runs only the deterministic freshness
+      # phases; default runs the full cycle that stamps last_full_cycle_at.
+      for src in $sources; do
+        echo "gbrain-maintenance: dream --source $src"
+        run_gbrain dream --source "$src" || rc=1
+      done
 
       exit "$rc"
+
     '';
   };
 in
