@@ -277,9 +277,25 @@ in
       # Auxiliary falls back to OpenRouter when DeepSeek is down. Schema
       # default is a paid SKU; keep fallbacks on :free (live hygiene
       # 2026-09-02). Nested merge with composer slot seeds.
+      #
+      # approval is pinned OFF the session provider. The guardian gates every
+      # flagged command and fails closed, and the aux recovery ladder has no
+      # 5xx rung: `_FALLBACK_REASONS` in agent/auxiliary_client.py names auth,
+      # payment, rate-limit, model-incompatible, invalid-response, timeout and
+      # connection errors, so a DeepSeek 503 raises out of the ladder (the
+      # built-in same-provider retry only re-hits DeepSeek) and
+      # tools/approval_smart.py turns that into "escalate", i.e. a 300 s human
+      # wait per gated command. Pinning the guardian to the declared
+      # fallback_model decorrelates it from a DeepSeek burst; reasoning_effort
+      # stays none so a 16-token verdict cannot be spent on hidden reasoning.
       auxiliary = {
         free_only = true;
         openrouter_model = "nvidia/nemotron-3-ultra-550b-a55b:free";
+        approval = {
+          provider = "xai-oauth";
+          model = "grok-4.6";
+          reasoning_effort = "none";
+        };
       };
 
       agent = {
