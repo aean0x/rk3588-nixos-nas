@@ -7,9 +7,9 @@
 # restarts the agent only when the value changes. The client id and
 # secret never go into /run/hermes.env.
 #
-# The restart is not free: it kills pid 1 and every kanban worker the
-# dispatcher is running under it. So it waits, bounded, for the jail to
-# have no run in flight (see restart_agent).
+# The restart is not free: it kills pid 1, every kanban worker the
+# dispatcher is running under it, and any cron execution in flight. So it
+# waits, bounded, for the jail to have no run in flight (see restart_agent).
 #
 # Every switch rewrites that env file from /run/hermes.env, which has
 # no GBRAIN_TOKEN. hermes-pnp then copies ~/.gbrain/hermes-mcp.token
@@ -31,6 +31,10 @@ let
   # The dispatcher's run ledger: a row with no ended_at is a worker a restart
   # would kill. Same tree the jail sees at /data/.hermes/kanban.db.
   kanbanDb = "${agent.stateDir}/.hermes/kanban.db";
+  # The cron execution ledger: a claimed/running row is a job a restart would
+  # abandon without a durable terminal state. Same tree the jail sees at
+  # /data/.hermes/cron/executions.db.
+  cronDb = "${agent.stateDir}/.hermes/cron/executions.db";
   renew = pkgs.writers.writePython3 "archimedes-gbrain-token-renew" { } ''
     import json
     import os
@@ -53,14 +57,11 @@ let
     QUIET_POLL_S = int(os.environ.get("QUIET_POLL_S") or "15")
 
 
-    def runs_in_flight(db):
-        """Kanban runs the dispatcher has not ended; 0 when the check cannot answer.
+    def _count(db, sql):
+        """First column of the one-row query, or 0 when the check cannot answer.
 
-        A restart kills pid 1, so every worker under it dies mid tool call --
-        measured once: task_runs 261 (t_56eb54f7) crashed 2 s after the
-        2026-10-30T11:36:58Z restart and only finished on the dispatcher's
-        retry. Fail open on any read error: this gate must never turn a token
-        renew into a no-op.
+        Fail open on any read error: this gate must never turn a token renew
+        into a no-op.
         """
         if not db.is_file():
             return 0
@@ -69,21 +70,50 @@ let
         except sqlite3.Error:
             return 0
         try:
-            row = con.execute(
-                "select count(*) from task_runs where ended_at is null and status = 'running'"
-            ).fetchone()
+            row = con.execute(sql).fetchone()
         except sqlite3.Error:
             return 0
         finally:
             con.close()
-        return int(row[0] or 0)
+        return int((row[0] if row else 0) or 0)
+
+
+    def kanban_runs_in_flight(db):
+        """Dispatcher runs a restart would kill mid tool call.
+
+        A restart kills pid 1, so every worker under it dies mid tool call --
+        measured once: task_runs 261 (t_56eb54f7) crashed 2 s after the
+        2026-10-30T11:36:58Z restart and only finished on the dispatcher's
+        retry.
+        """
+        return _count(
+            db,
+            "select count(*) from task_runs where ended_at is null and status = 'running'",
+        )
+
+
+    def cron_runs_in_flight(db):
+        """Cron executions a restart would abandon without a durable terminal state.
+
+        Measured 2026-11-04T23:35:57Z: the restart landed 3 s into the :35
+        mail-tracker-trello run, the container's 10 s stop grace killed pid 1
+        before the 30 s cron drain could finish, and the row was left `unknown`
+        with no output file and no way to tell whether its Trello writes
+        landed. Waiting a job out costs nothing: the bearer being replaced is
+        valid until the next mint.
+        """
+        return _count(
+            db,
+            "select count(*) from executions where status in ('claimed','running')",
+        )
 
 
     def restart_agent():
-        db = Path(os.environ.get("KANBAN_DB") or "")
+        kanban_db = Path(os.environ.get("KANBAN_DB") or "")
+        cron_db = Path(os.environ.get("CRON_DB") or "")
         waited = 0
         while True:
-            busy = runs_in_flight(db)
+            busy = kanban_runs_in_flight(kanban_db) + cron_runs_in_flight(cron_db)
             if busy == 0:
                 break
             if waited >= QUIET_MAX_WAIT_S:
@@ -208,6 +238,7 @@ in
         TOKEN_URL = tokenUrl;
         CHANGED_STAMP = changedStamp;
         KANBAN_DB = kanbanDb;
+        CRON_DB = cronDb;
       };
       path = [ pkgs.systemd ];
       script = ''
