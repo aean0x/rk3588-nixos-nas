@@ -169,10 +169,11 @@ else
   pass "session is models.default (router off)"
 fi
 if grep -qE 'models\.default[[:space:]]*=' "$CONSUMER" \
-  && grep -q 'deepseek-flash' "$CONSUMER"; then
-  pass "models.default is deepseek-flash"
+  && grep -qE 'provider[[:space:]]*=[[:space:]]*"fireworks"' "$CONSUMER" \
+  && grep -q 'accounts/fireworks/models/deepseek-v4p1-flash' "$CONSUMER"; then
+  pass "models.default is fireworks/accounts/fireworks/models/deepseek-v4p1-flash"
 else
-  fail "consumer must set hermesPnP.models.default to deepseek-flash"
+  fail "consumer must set hermesPnP.models.default to fireworks/accounts/fireworks/models/deepseek-v4p1-flash"
 fi
 if grep -qE 'models\.medium[[:space:]]*=' "$CONSUMER"; then
   fail "consumer still sets models.medium; use models.default"

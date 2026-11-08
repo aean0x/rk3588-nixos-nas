@@ -63,9 +63,16 @@ in
     # context.engine = compressor, and would copy models.default into
     # fallback_model — override that on hermes-agent.settings below.
     modelPicker.enable = false;
+    # Fireworks-hosted DeepSeek V4.1 Flash (2026-11-06). A deploy seeded the
+    # live config to this pair at 2026-11-06T11:28:48Z — model, delegation and
+    # cron in one write, the shape services.hermesPnP.models.default emits —
+    # and it has served session, cron and delegation since. The declaration
+    # follows the live value so the next deploy reproduces it instead of
+    # reverting it. Credential: FIREWORKS_API_KEY in the state `.env`
+    # (/var/lib/hermes/.hermes/.env), not the sops `hermesEnv` map.
     models.default = {
-      provider = "deepseek";
-      model = "deepseek-flash";
+      provider = "fireworks";
+      model = "accounts/fireworks/models/deepseek-v4p1-flash";
     };
     models.auxiliary = {
       provider = "deepseek";
