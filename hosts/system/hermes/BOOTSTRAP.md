@@ -1,6 +1,7 @@
 # Bootstrap: fresh Hermes + GBrain
 
-End state: DeepSeek flash as primary, xAI OAuth so grok-4.6 fallback
+End state: Fireworks-hosted DeepSeek V4.1 Flash as primary (`FIREWORKS_API_KEY`
+in the state `.env`), xAI OAuth so grok-4.6 fallback
 works, no declarative SOUL, GBrain HTTP MCP up, Voyage-4 embeddings
 via OpenRouter (`gbrain.embeddingModel`).
 
@@ -20,10 +21,16 @@ systemctl status hermes-agent gbrain-mcp-http hermes-webui
 grep -E 'OPENROUTER|FIRECRAWL' /run/hermes.env | sed 's/=.*/=…/'
 ```
 
+The primary's `FIREWORKS_API_KEY` is not in the sops `hermesEnv` map; it
+lives in the state `.env` (`/var/lib/hermes/.hermes/.env`). Add it there
+on a fresh state dir before the first activation, or the session, cron
+and delegation slots resolve a provider with no credential.
+
 ## 1. One-time OAuth
 
 Declarative: `settings.fallback_model` → `xai-oauth` / `grok-4.6`.
-Primary is `models.default` (`deepseek-flash`). OAuth is still required
+Primary is `models.default` (`fireworks` /
+`accounts/fireworks/models/deepseek-v4p1-flash`). OAuth is still required
 so the fallback can fire.
 
 ```bash
