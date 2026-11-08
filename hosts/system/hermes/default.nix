@@ -295,6 +295,15 @@ in
       # wait per gated command. Pinning the guardian to the declared
       # fallback_model decorrelates it from a DeepSeek burst; reasoning_effort
       # stays none so a 16-token verdict cannot be spent on hidden reasoning.
+      #
+      # hermes-pnp's models.nix seeds ALL auxiliary slots from
+      # `models.auxiliary` on every activation, so the merge rewrites this slot
+      # even when the running build's tree carries no approval block at all: a
+      # deploy of a tree that predates it re-seeds deepseek-flash over a
+      # hand-edited config.yaml and the guardian silently loses its 5xx-free
+      # provider. Keep the block, and keep the alignment check green (it
+      # asserts this pin by extracting the block, not by a stray provider
+      # mention elsewhere in the file).
       auxiliary = {
         free_only = true;
         openrouter_model = "nvidia/nemotron-3-ultra-550b-a55b:free";
