@@ -202,6 +202,20 @@ if grep -q 'free_only' "$CONSUMER" \
 else
   fail "consumer must set auxiliary.free_only and auxiliary.openrouter_model"
 fi
+# Every auxiliary slot is seeded from `models.auxiliary` by hermes-pnp's
+# models.nix on EVERY activation, so this block is the only thing that keeps
+# the guardian off the session provider: a build whose tree lacks it re-seeds
+# deepseek-flash over the live file (2026-11-04) and the next DeepSeek 5xx
+# becomes a 300 s human wait per gated command. Extract the block and assert
+# its three keys, so a stray provider/model mention elsewhere cannot pass.
+APPROVAL_BLOCK=$(sed -n '/^[[:space:]]*approval = {/,/^[[:space:]]*};/p' "$CONSUMER")
+if printf '%s\n' "$APPROVAL_BLOCK" | grep -qE '^[[:space:]]*provider[[:space:]]*=[[:space:]]*"xai-oauth";' \
+  && printf '%s\n' "$APPROVAL_BLOCK" | grep -qE '^[[:space:]]*model[[:space:]]*=[[:space:]]*"grok-4\.6";' \
+  && printf '%s\n' "$APPROVAL_BLOCK" | grep -qE '^[[:space:]]*reasoning_effort[[:space:]]*=[[:space:]]*"none";'; then
+  pass "auxiliary.approval pinned to xai-oauth / grok-4.6 / effort none"
+else
+  fail "consumer must pin auxiliary.approval = { provider = \"xai-oauth\"; model = \"grok-4.6\"; reasoning_effort = \"none\"; } (the composer seed re-seeds the slot from models.auxiliary on every activation)"
+fi
 if grep -qE 'services\.hermes-webui\s*=' "$CONSUMER"; then
   fail "default.nix still declares services.hermes-webui (composer pairs it)"
 else
