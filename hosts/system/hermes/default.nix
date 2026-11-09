@@ -263,9 +263,11 @@ in
       web = {
         search_backend = "xai";
         # Extract is keyless: the firecrawl account is out of credits (402 on
-        # every scrape) and its anonymous keyless endpoint answers 403. The
-        # keyless rescue ring advances only on rate-limit-shaped errors, so a
-        # firecrawl hop stops the walk; pin its free endpoint out of the ring
+        # every scrape) and its anonymous keyless endpoint answers 403.
+        # Extract resolves exactly one configured provider. The keyless ring
+        # (exa, parallel, firecrawl, keenable) is a separate one-shot rescue
+        # shared with search; it advances only on rate-limit-shaped errors, so
+        # a firecrawl hop stops the walk. Pin its free endpoint out of the ring
         # and serve extract from tavily's opt-in keyless route, with exa,
         # parallel and keenable left as ring failover.
         extract_backend = "tavily";
